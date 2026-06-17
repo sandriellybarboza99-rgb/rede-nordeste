@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Store, MapPin, Star, ShoppingCart, Info, MessageCircle } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { getLojaPorId, getProdutosPorLoja } from '../../services/api';
 
 export default function Loja() {
   const { id } = useParams();
@@ -18,20 +19,29 @@ export default function Loja() {
   const [produtos, setProdutos] = useState<any[]>([]);
 
   useEffect(() => {
-    // Carregar configuração da loja
-    const lojaSalva = localStorage.getItem('loja_config');
-    if (lojaSalva) {
-      setLoja(JSON.parse(lojaSalva));
-    }
+    if (!id) return;
 
-    // Carregar produtos globais (mock: filtro pelos que são da Fazenda Alvorada)
-    const prods = localStorage.getItem('produtos_globais');
-    if (prods) {
-      const todos = JSON.parse(prods);
-      // Aqui simulamos a busca dos produtos apenas dessa loja
-      setProdutos(todos.filter((p: any) => p.local === 'Fazenda Alvorada, SE' || p.nomeLoja === loja.nomeLoja));
-    }
-  }, [loja.nomeLoja]);
+    const carregarLoja = async () => {
+      try {
+        const dadosLoja = await getLojaPorId(id);
+        if (dadosLoja) setLoja(dadosLoja);
+      } catch (error) {
+        console.error("Erro ao carregar loja", error);
+      }
+    };
+
+    const carregarProdutos = async () => {
+      try {
+        const dadosProdutos = await getProdutosPorLoja(Number(id));
+        setProdutos(dadosProdutos.content || dadosProdutos);
+      } catch (error) {
+        console.error("Erro ao carregar produtos", error);
+      }
+    };
+
+    carregarLoja();
+    carregarProdutos();
+  }, [id]);
 
   return (
     <div className="min-h-screen bg-[#F5F2ED] text-[#394158] antialiased pb-10">
@@ -93,15 +103,15 @@ export default function Loja() {
               {produtos.length > 0 ? produtos.map(p => (
                  <Link to={`/produto/${p.id}`} key={p.id} className="bg-white rounded-[1.5rem] p-4 shadow-sm border border-transparent hover:border-[#f9943b]/30 hover:shadow-lg transition-all group flex flex-col h-full">
                     <div className="aspect-square rounded-xl overflow-hidden mb-4 bg-gray-100">
-                       <img src={p.img} alt={p.nome} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                       <img src={p.img || p.imagemUrl} alt={p.nome} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                     </div>
-                    <span className="text-[9px] font-black uppercase text-[#55833d] tracking-widest mb-1 line-clamp-1">{p.categoria}</span>
+                    <span className="text-[9px] font-black uppercase text-[#55833d] tracking-widest mb-1 line-clamp-1">{p.categoria || p.nomeCategoria}</span>
                     <h4 className="font-bold text-[#394158] text-xs md:text-sm leading-snug mb-2 line-clamp-2 flex-1 group-hover:text-[#f9943b] transition-colors">{p.nome}</h4>
                     
                     <div className="flex flex-col gap-2 mt-auto pt-3 border-t border-gray-50">
                        <div className="flex items-end gap-1">
-                          <span className="text-sm md:text-lg font-black text-[#f9943b]">R$ {Number(p.preco).toFixed(2)}</span>
-                          <span className="text-[9px] font-bold text-gray-400 mb-0.5">/{p.un}</span>
+                          <span className="text-sm md:text-lg font-black text-[#f9943b]">R$ {Number(p.preco || p.precoAtual).toFixed(2)}</span>
+                          <span className="text-[9px] font-bold text-gray-400 mb-0.5">/{p.un || p.unidadeMedida}</span>
                        </div>
                        <button className="w-full bg-[#394158] text-white py-2 rounded-xl text-[9px] font-black uppercase tracking-widest group-hover:bg-[#55833d] transition-colors flex items-center justify-center gap-1">
                          <ShoppingCart size={12}/> Ver Detalhes

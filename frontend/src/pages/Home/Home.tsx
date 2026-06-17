@@ -4,6 +4,7 @@ import {
   Store, ShoppingBag, ArrowRight, MousePointerClick, 
   Truck, PackageCheck, Leaf, Target 
 } from 'lucide-react';
+import { getBanners } from '../../services/api';
 
 const SLIDES_DESTAQUE = [
   { 
@@ -55,15 +56,33 @@ export default function Home() {
 
   useEffect(() => {
     sessionStorage.setItem('origemBlog', 'inicio');
-    const loadDestaques = () => {
-      const saved = localStorage.getItem('destaques_home');
-      if (saved) {
-        setDestaques(JSON.parse(saved));
+    const loadDestaques = async () => {
+      try {
+        const data = await getBanners();
+        if (data && data.length > 0) {
+          const activeBanners = data.filter((b: any) => b.ativo !== false);
+          if (activeBanners.length > 0) {
+            setDestaques(activeBanners.map((b: any) => ({
+              id: b.id,
+              tipo: b.tipo || 'DESTAQUE',
+              titulo: b.titulo,
+              subtitulo: b.subtitulo,
+              img: b.imagemUrl,
+              corDestaque: b.corDestaque || "text-[#f9943b]",
+              blogId: b.linkBlogId || 0
+            })));
+          } else {
+            setDestaques(SLIDES_DESTAQUE);
+          }
+        } else {
+          setDestaques(SLIDES_DESTAQUE);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar banners", error);
+        setDestaques(SLIDES_DESTAQUE);
       }
     };
     loadDestaques();
-    window.addEventListener('storage', loadDestaques);
-    return () => window.removeEventListener('storage', loadDestaques);
   }, []);
 
   useEffect(() => {

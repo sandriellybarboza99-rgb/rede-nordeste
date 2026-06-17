@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Calendar, Clock, Volume2, VolumeX } from 'lucide-react';
+import { getNoticiaPorId } from "../../services/api";
 
 export default function Post() {
   const { id } = useParams();
@@ -42,31 +43,27 @@ export default function Post() {
   };
 
   useEffect(() => {
-    const carregarPost = () => {
+    const carregarPost = async () => {
       const postId = Number(id);
-      let postEncontrado = null;
       
-      const salvas = localStorage.getItem('noticias_globais');
-      if (salvas) {
-        const parseadas = JSON.parse(salvas);
-        const adminPost = parseadas.find((p: any) => p.id === postId);
+      try {
+        const adminPost = await getNoticiaPorId(postId);
         if (adminPost) {
-          postEncontrado = {
+          const postEncontrado = {
             id: adminPost.id,
             titulo: adminPost.titulo,
             subtitulo: adminPost.subtitulo,
-            categoria: "NOTÍCIA",
-            imagem: adminPost.imagem,
-            data: adminPost.data,
+            categoria: adminPost.categoria || "NOTÍCIA",
+            imagem: adminPost.imagemUrl || adminPost.imagem,
+            data: adminPost.dataCriacao ? new Date(adminPost.dataCriacao).toLocaleDateString() : 'Recente',
             leitura: adminPost.tempoLeitura || '3 min',
             conteudo: adminPost.descricao || '',
             citacao: adminPost.citacao || ''
           };
+          setPost(postEncontrado);
         }
-      }
-
-      if (postEncontrado) {
-        setPost(postEncontrado);
+      } catch (error) {
+        console.error("Erro ao carregar noticia por ID", error);
       }
     };
     

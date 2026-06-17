@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { BookOpen, Ear, Tractor, ChevronRight, Leaf, Lightbulb, Store, Droplets, Package } from "lucide-react";
+import { getNoticias } from "../../services/api";
 import "./Blog.css";
 
 export default function Blog() {
@@ -30,27 +31,28 @@ export default function Blog() {
   }, [filtroAtivo, ordem]);
 
   useEffect(() => {
-    const carregarPosts = () => {
-      const salvas = localStorage.getItem('noticias_globais');
-      if (salvas) {
-        const parseadas = JSON.parse(salvas);
-        const adminPosts = parseadas.map((n: any) => ({
+    const carregarPosts = async () => {
+      try {
+        const data = await getNoticias(0); // Assuming you want the first page of news
+        const noticias = data.content || data;
+        const arrayNoticias = Array.isArray(noticias) ? noticias : [];
+        const adminPosts = arrayNoticias.map((n: any) => ({
           id: n.id,
           titulo: n.titulo,
           subtitulo: n.subtitulo,
           categoria: n.categoria || "NOTÍCIA",
-          imagem: n.imagem,
-          data: n.data,
+          imagem: n.imagemUrl || n.imagem,
+          data: n.dataCriacao ? new Date(n.dataCriacao).toLocaleDateString() : 'Recente',
           leitura: n.tempoLeitura || '3 min',
           conteudo: n.descricao || '',
           citacao: n.citacao || ''
         }));
         setPosts(adminPosts);
+      } catch (error) {
+        console.error("Erro ao carregar notícias", error);
       }
     };
     carregarPosts();
-    window.addEventListener('storage', carregarPosts);
-    return () => window.removeEventListener('storage', carregarPosts);
   }, []);
 
   const categorias = ["Todos", "Tecnologia", "Sustentabilidade", "Inovação", "Manejo", "Produtor", "Mercado", "Notícia"];

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { login } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -23,6 +23,7 @@ export default function Login() {
   const [carregando, setCarregando] = useState(false);
   const [exibirEsqueciSenha, setExibirEsqueciSenha] = useState(false);
   const [emailRecuperacao, setEmailRecuperacao] = useState('');
+  const [mostrarSenha, setMostrarSenha] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,12 +75,21 @@ export default function Login() {
                 autoComplete="email"
               />
               <FormField
-                type="password"
+                type={mostrarSenha ? "text" : "password"}
                 placeholder="Sua senha"
                 required
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 iconLeft={<Lock size={18} />}
+                iconRight={
+                  <button
+                    type="button"
+                    onClick={() => setMostrarSenha(!mostrarSenha)}
+                    className="focus:outline-none hover:text-[#f9943b] transition-colors"
+                  >
+                    {mostrarSenha ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                }
                 autoComplete="current-password"
               />
               <div className="flex justify-center pt-1">

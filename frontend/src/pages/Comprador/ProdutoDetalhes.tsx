@@ -160,7 +160,7 @@ export default function ProdutoDetalhes() {
 
           {/* Loja */}
           {loja && (
-            <div onClick={() => navigate('/loja/1')} className="bg-white p-6 rounded-[2.5rem] shadow-sm flex items-center justify-between border border-gray-50 cursor-pointer hover:border-[#f9943b]/30 hover:shadow-md transition-all active:scale-95 group">
+            <div onClick={() => navigate(`/loja/${loja.id}`)} className="bg-white p-6 rounded-[2.5rem] shadow-sm flex items-center justify-between border border-gray-50 cursor-pointer hover:border-[#f9943b]/30 hover:shadow-md transition-all active:scale-95 group">
               <div className="flex items-center gap-4">
                 <img src={loja.logoUrl || 'https://images.pexels.com/photos/2132227/pexels-photo-2132227.jpeg?auto=compress&cs=tinysrgb&w=150'}
                   className="w-14 h-14 rounded-2xl object-cover border-2 border-gray-50 group-hover:border-[#f9943b] transition-colors" alt="Loja" />
