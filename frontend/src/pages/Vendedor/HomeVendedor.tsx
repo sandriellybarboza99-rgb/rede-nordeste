@@ -442,8 +442,8 @@ export default function HomeComprador() {
         </section>
       </main>
 
-      <footer className="w-full text-center p-10 md:p-20 bg-gray-50 text-[#394158]/40 border-t border-gray-100 mb-16 md:mb-0">
-        <span className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.3em]">©️ 2026 Rede Nordeste</span>
+      <footer className="w-full text-center p-20 bg-gray-50 border-t border-gray-100 mb-16 md:mb-0">
+        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#394158]/60">© 2026 Rede Nordeste - Todos os direitos reservados.</span>
       </footer>
 
       <BottomTabBar

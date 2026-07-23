@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   User, Mail, Lock, FileText, Phone, 
-  ArrowRight, ChevronLeft 
+  ArrowRight, ChevronLeft, Eye, EyeOff 
 } from 'lucide-react';
 import { registrarUsuario } from '../../services/api';
 
@@ -11,6 +11,7 @@ export default function Register() {
   const [carregando, setCarregando] = useState(false);
   const location = useLocation();
   const perfilInicial = (location.state as any)?.tipoPerfil || 'COMPRADOR';
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   
   const [formData, setFormData] = useState({
   nomeCompleto: '',
@@ -149,19 +150,30 @@ export default function Register() {
             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input 
               name="senha" 
-              type="password"
+              type={mostrarSenha ? "text" : "password"}
               placeholder="Senha" 
-              className="w-full bg-[#F5F2ED]/50 py-4 pl-12 pr-4 rounded-2xl outline-none focus:ring-2 focus:ring-[#55833d] transition-all" 
+              className="w-full bg-[#F5F2ED]/50 py-4 pl-12 pr-12 rounded-2xl outline-none focus:ring-2 focus:ring-[#55833d] transition-all" 
               onChange={handleChange}
               value={formData.senha}
               required
             />
+            <button
+              type="button"
+              onClick={() => setMostrarSenha(!mostrarSenha)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#f9943b] transition-colors focus:outline-none"
+            >
+              {mostrarSenha ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
           </div>
 
           <div className="relative">
             <select 
               name="tipoPerfil"
-              className="w-full bg-[#F5F2ED]/50 py-4 px-4 rounded-2xl outline-none appearance-none font-bold text-[#394158]/60 focus:ring-2 focus:ring-[#55833d] transition-all"
+              className={`w-full py-4 px-4 rounded-2xl outline-none appearance-none font-bold focus:ring-2 transition-all ${
+                formData.tipoPerfil === 'PRODUTOR'
+                  ? 'bg-[#722F37] text-white focus:ring-[#722F37]/50'
+                  : 'bg-[#f9943b] text-white focus:ring-[#f9943b]/50'
+              }`}
               onChange={handleChange}
               value={formData.tipoPerfil}
               required
@@ -185,8 +197,8 @@ export default function Register() {
         </p>
       </div>
       
-      <p className="mt-8 text-[10px] font-black uppercase tracking-[0.3em] text-[#394158]/20">
-        ©️ 2026 Rede Nordeste · Segurança e Transparência
+      <p className="mt-8 text-[9px] font-black uppercase tracking-[0.3em] text-[#394158]/60">
+        © 2026 Rede Nordeste - Todos os direitos reservados.
       </p>
     </div>
   );

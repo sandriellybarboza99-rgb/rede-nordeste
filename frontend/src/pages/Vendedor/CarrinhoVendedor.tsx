@@ -47,6 +47,7 @@ export default function CarrinhoVendedor() {
   const [carrinho, setCarrinho] = useState<any>({ itens: [], totalItens: 0, valorTotal: 0 });
   const [carregando, setCarregando] = useState(true);
   const [processando, setProcessando] = useState(false);
+  const [calculandoFrete, setCalculandoFrete] = useState(false);
 
   const [itensSelecionados, setItensSelecionados] = useState<number[]>([]);
   const [metodoEntrega, setMetodoEntrega] = useState<'entrega' | 'retirada'>('entrega');
@@ -95,10 +96,32 @@ export default function CarrinhoVendedor() {
     const itemSel = carrinho.itens.find((i: any) => itensSelecionados.includes(i.produtoId));
     if (!itemSel) return;
 
+    setCalculandoFrete(true);
     simularFrete(itemSel.lojaId, end.latitudeDestino, end.longitudeDestino)
       .then((data: any) => setValorFrete(Number(data.valorFrete)))
-      .catch(() => setValorFrete(0));
+      .catch(() => setValorFrete(0))
+      .finally(() => setCalculandoFrete(false));
   }, [metodoEntrega, enderecoSelecionado, carrinho.itens, itensSelecionados, meusEnderecos]);
+
+  const buscarCep = async (cep: string) => {
+    const cepNumeros = cep.replace(/\D/g, '');
+    if (cepNumeros.length !== 8) return;
+    
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cepNumeros}/json/`);
+      const data = await response.json();
+      if (!data.erro) {
+        setNovoEndereco(prev => ({
+          ...prev,
+          estadoCidade: `${data.localidade} - ${data.uf}`,
+          bairro: data.bairro,
+          rua: data.logradouro
+        }));
+      }
+    } catch (err) {
+      console.error("Erro ao buscar CEP", err);
+    }
+  };
 
   const atualizarQtd = async (produtoId: number, novaQtd: number) => {
     if (novaQtd < 1) return;
@@ -297,7 +320,16 @@ export default function CarrinhoVendedor() {
                         <input type="text" placeholder="Quem vai receber? (Destinatário)" className="w-full text-xs font-bold bg-white p-3 rounded-xl outline-none" value={novoEndereco.destinatario} onChange={e => setNovoEndereco({ ...novoEndereco, destinatario: e.target.value })} />
                         <input type="text" placeholder="Telefone para contato" className="w-full text-xs font-bold bg-white p-3 rounded-xl outline-none" value={novoEndereco.telefone} onChange={e => setNovoEndereco({ ...novoEndereco, telefone: e.target.value })} />
                         <div className="flex gap-2">
-                          <input type="text" placeholder="CEP" className="w-1/2 text-xs font-bold bg-white p-3 rounded-xl outline-none" value={novoEndereco.cep} onChange={e => setNovoEndereco({ ...novoEndereco, cep: e.target.value })} />
+                          <input type="text" placeholder="CEP" className="w-1/2 text-xs font-bold bg-white p-3 rounded-xl outline-none" 
+                            value={novoEndereco.cep} 
+                            onChange={e => {
+                              setNovoEndereco({ ...novoEndereco, cep: e.target.value });
+                              if (e.target.value.replace(/\D/g, '').length === 8) {
+                                buscarCep(e.target.value);
+                              }
+                            }}
+                            onBlur={(e) => buscarCep(e.target.value)}
+                          />
                           <input type="text" placeholder="Cidade - UF" className="w-1/2 text-xs font-bold bg-white p-3 rounded-xl outline-none" value={novoEndereco.estadoCidade} onChange={e => setNovoEndereco({ ...novoEndereco, estadoCidade: e.target.value })} />
                         </div>
                         <input type="text" placeholder="Bairro" className="w-full text-xs font-bold bg-white p-3 rounded-xl outline-none" value={novoEndereco.bairro} onChange={e => setNovoEndereco({ ...novoEndereco, bairro: e.target.value })} />
@@ -352,7 +384,7 @@ export default function CarrinhoVendedor() {
                       <div className="bg-[#f9943b]/5 p-4 rounded-2xl flex flex-col border border-[#f9943b]/20">
                         <div className="flex justify-between items-center">
                           <span className="text-[10px] font-black uppercase text-[#f9943b]">Frete calculado para este CEP:</span>
-                          <span className="font-black text-[#f9943b] text-sm">{valorFrete > 0 ? `R$ ${valorFrete.toFixed(2)}` : 'Calculando...'}</span>
+                          <span className="font-black text-[#f9943b] text-sm">{calculandoFrete ? 'Calculando...' : (valorFrete > 0 ? `R$ ${valorFrete.toFixed(2)}` : 'Grátis')}</span>
                         </div>
                       </div>
                     )}

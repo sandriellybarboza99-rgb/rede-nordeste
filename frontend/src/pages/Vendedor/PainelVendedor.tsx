@@ -51,7 +51,7 @@ export default function PainelVendedor() {
   const [categorias, setCategorias] = useState<any[]>([]);
   const [modalProduto, setModalProduto] = useState(false);
   const [formProduto, setFormProduto] = useState<any>({
-    id: null, nome: '', descricao: '', precoAtual: 0, unidadeMedida: 'kg',
+    id: null, nome: '', descricao: '', precoAtual: '', unidadeMedida: 'kg',
     estoqueAtual: 0, pesoKg: 0.5, imagemUrl: '', categoriaId: null,
   });
   const [confirmarDelete, setConfirmarDelete] = useState<{aberto: boolean; id: number | null}>({ aberto: false, id: null });
@@ -105,6 +105,31 @@ export default function PainelVendedor() {
     } catch {
       setPedidos([]);
     }
+  };
+
+  // ── Máscara de preço em Reais ──────────────────────────────────
+  const maskPreco = (value: string): string => {
+    // Remove tudo que não é dígito
+    let digits = value.replace(/\D/g, '');
+    if (!digits) return '';
+    // Converte para centavos → reais com 2 decimais
+    const num = (parseInt(digits, 10) / 100).toFixed(2);
+    // Formata: 1234.56 → 1.234,56
+    const [inteiro, decimal] = num.split('.');
+    const inteiroFormatado = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return `${inteiroFormatado},${decimal}`;
+  };
+
+  const parsePrecoBR = (valor: string): number => {
+    if (!valor) return 0;
+    // Remove pontos de milhar e troca vírgula por ponto
+    return parseFloat(valor.replace(/\./g, '').replace(',', '.')) || 0;
+  };
+
+  const formatPrecoParaInput = (valor: number | string): string => {
+    const num = Number(valor);
+    if (!num && num !== 0) return '';
+    return num.toFixed(2).replace('.', ',');
   };
 
   // ── Helpers ───────────────────────────────────────────────────
@@ -175,7 +200,7 @@ export default function PainelVendedor() {
       const dados = {
         nome: formProduto.nome,
         descricao: formProduto.descricao,
-        precoAtual: Number(formProduto.precoAtual),
+        precoAtual: parsePrecoBR(String(formProduto.precoAtual)),
         unidadeMedida: formProduto.unidadeMedida,
         estoqueAtual: Number(formProduto.estoqueAtual || 0),
         pesoKg: Number(formProduto.pesoKg || 0.5),
@@ -198,7 +223,7 @@ export default function PainelVendedor() {
 
   const abrirNovoProduto = () => {
     setFormProduto({
-      id: null, nome: '', descricao: '', precoAtual: 0, unidadeMedida: 'kg',
+      id: null, nome: '', descricao: '', precoAtual: '', unidadeMedida: 'kg',
       estoqueAtual: 0, pesoKg: 0.5, imagemUrl: '',
       categoriaId: categorias[0]?.id ?? null,
     });
@@ -208,7 +233,7 @@ export default function PainelVendedor() {
   const abrirEditarProduto = (p: any) => {
     setFormProduto({
       id: p.id, nome: p.nome, descricao: p.descricao,
-      precoAtual: p.precoAtual, unidadeMedida: p.unidadeMedida,
+      precoAtual: formatPrecoParaInput(p.precoAtual), unidadeMedida: p.unidadeMedida,
       estoqueAtual: p.estoqueAtual, pesoKg: p.pesoKg,
       imagemUrl: p.imagemUrl, categoriaId: p.categoriaId ?? categorias[0]?.id,
     });
@@ -531,8 +556,8 @@ export default function PainelVendedor() {
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Preço (R$)" type="number" step="0.01" value={formProduto.precoAtual}
-              onChange={e => setFormProduto({ ...formProduto, precoAtual: e.target.value })} />
+            <FormField label="Preço (R$)" type="text" inputMode="numeric" placeholder="0,00" value={formProduto.precoAtual}
+              onChange={e => setFormProduto({ ...formProduto, precoAtual: maskPreco(e.target.value) })} />
             <FormField label="Unidade" value={formProduto.unidadeMedida}
               onChange={e => setFormProduto({ ...formProduto, unidadeMedida: e.target.value })} />
             <FormField label="Estoque" type="number" value={formProduto.estoqueAtual}

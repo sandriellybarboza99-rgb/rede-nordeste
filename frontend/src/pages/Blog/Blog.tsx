@@ -259,8 +259,8 @@ export default function Blog() {
           </div>
         </section>
 
-        <footer className="text-center py-10 opacity-30 text-[10px] font-black uppercase tracking-widest border-t border-gray-200">
-          © 2026 Rede Nordeste — Blog Oficial do Produtor
+        <footer className="w-full text-center p-20 bg-gray-50 border-t border-gray-100 -mx-4 md:-mx-8" style={{ width: 'calc(100% + 2rem)' }}>
+          <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#394158]/60">© 2026 Rede Nordeste - Todos os direitos reservados.</span>
         </footer>
       </main>
     </div>

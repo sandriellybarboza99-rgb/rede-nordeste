@@ -129,8 +129,8 @@ export default function Loja() {
 
       </main>
 
-      <footer className="w-full text-center p-10 md:p-20 bg-transparent text-[#394158]/40 border-t border-gray-100 mt-10">
-        <span className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.3em]">© 2026 Rede Nordeste - Todos os direitos reservados.</span>
+      <footer className="w-full text-center p-20 bg-gray-50 border-t border-gray-100 mt-10">
+        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#394158]/60">© 2026 Rede Nordeste - Todos os direitos reservados.</span>
       </footer>
     </div>
   );

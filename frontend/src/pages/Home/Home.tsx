@@ -6,35 +6,7 @@ import {
 } from 'lucide-react';
 import { getBanners } from '../../services/api';
 
-const SLIDES_DESTAQUE = [
-  { 
-    id: 1, 
-    tipo: "SAFRA DO MÊS",
-    titulo: "A melhor época para comprar manga",
-    subtitulo: "Produtos frescos e com preços especiais direto do produtor.",
-    img: "https://images.unsplash.com/photo-1591073113125-e46713c829ed?q=80&w=2000", 
-    corDestaque: "text-[#f9943b]",
-    blogId: 3 
-  },
-  { 
-    id: 2, 
-    tipo: "HISTÓRIA DE SUCESSO",
-    titulo: "Como o seu João dobrou a renda com os morangos",
-    subtitulo: "Conheça a trajetória do agricultor que apostou na venda direta.",
-    img: "https://images.unsplash.com/photo-1500651230702-0e2d8a49d4ad?q=80&w=2000&auto=format&fit=crop", 
-    corDestaque: "text-[#55833d]",
-    blogId: 5 
-  },
-  { 
-    id: 3, 
-    tipo: "TECNOLOGIA NO CAMPO",
-    titulo: "A revolução digital chegou ao roçado",
-    subtitulo: "Drones e dados auxiliam na precisão da colheita familiar.",
-    img: "https://images.pexels.com/photos/34182385/pexels-photo-34182385.jpeg?auto=compress&cs=tinysrgb&w=1260", 
-    corDestaque: "text-[#C4D663]",
-    blogId: 0 
-  }
-];
+
 
 const TRAJETO_DB = [
   { id: 1, titulo: "Escolha", desc: "Selecione produtos frescos direto do catálogo.", Icon: MousePointerClick },
@@ -50,7 +22,8 @@ const HISTORIAS_DB = [
 ];
 
 export default function Home() {
-  const [destaques, setDestaques] = useState<any[]>(SLIDES_DESTAQUE);
+  const [destaques, setDestaques] = useState<any[]>([]);
+  const [carregandoBanners, setCarregandoBanners] = useState(true);
   const [current, setCurrent] = useState(0);
   const navigate = useNavigate();
 
@@ -71,15 +44,12 @@ export default function Home() {
               corDestaque: b.corDestaque || "text-[#f9943b]",
               blogId: b.linkBlogId || 0
             })));
-          } else {
-            setDestaques(SLIDES_DESTAQUE);
           }
-        } else {
-          setDestaques(SLIDES_DESTAQUE);
         }
       } catch (error) {
         console.error("Erro ao carregar banners", error);
-        setDestaques(SLIDES_DESTAQUE);
+      } finally {
+        setCarregandoBanners(false);
       }
     };
     loadDestaques();
@@ -105,36 +75,60 @@ export default function Home() {
       </header>
 
       {/* CARROSSEL HERO */}
-      <section className="w-full relative overflow-hidden h-[500px] z-10">
-        <div className="flex h-full transition-transform duration-1000 ease-in-out" style={{ transform: `translateX(-${current * 100}%)` }}>
-          {destaques.map((slide) => (
-            <div key={slide.id} className="w-full h-full flex-shrink-0 relative">
-              <img src={slide.img} className="w-full h-full object-cover" alt={slide.titulo} />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-              <div className="absolute bottom-16 left-0 w-full flex justify-center px-6">
-                <div className="w-full max-w-5xl flex flex-col items-start space-y-3">
-                  <span className={`font-black uppercase tracking-[0.3em] text-[10px] py-1 px-3 bg-black/40 rounded-full ${slide.corDestaque}`}>{slide.tipo}</span>
-                  <h2 className="font-black text-3xl md:text-5xl text-white uppercase italic leading-tight tracking-tight max-w-3xl">{slide.titulo}</h2>
-                  <div className="flex flex-col md:flex-row md:items-center gap-4 pt-2 w-full justify-between">
-                    <p className="text-sm md:text-base text-white/80 font-medium max-w-xl">{slide.subtitulo}</p>
-                    <button 
-                      onClick={() => navigate(`/blog/${slide.blogId}`)}
-                      className="cursor-pointer flex items-center gap-2 text-white font-black uppercase text-[10px] tracking-widest bg-white/10 hover:bg-white/30 py-3 px-6 rounded-full border border-white/20 transition-all z-50"
-                    >
-                      Saiba Mais <ArrowRight size={14} />
-                    </button>
-                  </div>
+      {carregandoBanners ? (
+        <section className="w-full relative overflow-hidden h-[500px] z-10 bg-gray-200 animate-pulse flex items-center justify-center">
+          <span className="text-gray-400 font-black uppercase tracking-widest text-sm">Carregando destaques...</span>
+        </section>
+      ) : destaques.length === 0 ? (
+        <section className="w-full relative overflow-hidden h-[500px] z-10">
+          <div className="w-full h-full relative">
+            <img src="https://images.unsplash.com/photo-1500651230702-0e2d8a49d4ad?q=80&w=2000&auto=format&fit=crop" className="w-full h-full object-cover" alt="Rede Nordeste" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+            <div className="absolute bottom-16 left-0 w-full flex justify-center px-6">
+              <div className="w-full max-w-5xl flex flex-col items-start space-y-3">
+                <span className={`font-black uppercase tracking-[0.3em] text-[10px] py-1 px-3 bg-black/40 rounded-full text-[#55833d]`}>BEM-VINDO</span>
+                <h2 className="font-black text-3xl md:text-5xl text-white uppercase italic leading-tight tracking-tight max-w-3xl">Rede Nordeste</h2>
+                <div className="flex flex-col md:flex-row md:items-center gap-4 pt-2 w-full justify-between">
+                  <p className="text-sm md:text-base text-white/80 font-medium max-w-xl">Conectando quem produz a quem consome.</p>
                 </div>
               </div>
             </div>
-          ))}
-        </div>
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-3 z-50">
-          {destaques.map((_, i) => (
-            <button key={i} onClick={() => setCurrent(i)} className={`w-2 h-2 rounded-full cursor-pointer ${i === current ? 'bg-white scale-150' : 'bg-white/30'}`} />
-          ))}
-        </div>
-      </section>
+          </div>
+        </section>
+      ) : (
+        <section className="w-full relative overflow-hidden h-[500px] z-10">
+          <div className="flex h-full transition-transform duration-1000 ease-in-out" style={{ transform: `translateX(-${current * 100}%)` }}>
+            {destaques.map((slide) => (
+              <div key={slide.id} className="w-full h-full flex-shrink-0 relative">
+                <img src={slide.img} className="w-full h-full object-cover" alt={slide.titulo} />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute bottom-16 left-0 w-full flex justify-center px-6">
+                  <div className="w-full max-w-5xl flex flex-col items-start space-y-3">
+                    <span className={`font-black uppercase tracking-[0.3em] text-[10px] py-1 px-3 bg-black/40 rounded-full ${slide.corDestaque}`}>{slide.tipo}</span>
+                    <h2 className="font-black text-3xl md:text-5xl text-white uppercase italic leading-tight tracking-tight max-w-3xl">{slide.titulo}</h2>
+                    <div className="flex flex-col md:flex-row md:items-center gap-4 pt-2 w-full justify-between">
+                      <p className="text-sm md:text-base text-white/80 font-medium max-w-xl">{slide.subtitulo}</p>
+                      <button 
+                        onClick={() => navigate(`/blog/${slide.blogId}`)}
+                        className="cursor-pointer flex items-center gap-2 text-white font-black uppercase text-[10px] tracking-widest bg-white/10 hover:bg-white/30 py-3 px-6 rounded-full border border-white/20 transition-all z-50"
+                      >
+                        Saiba Mais <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {destaques.length > 1 && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-3 z-50">
+              {destaques.map((_, i) => (
+                <button key={i} onClick={() => setCurrent(i)} className={`w-2 h-2 rounded-full cursor-pointer ${i === current ? 'bg-white scale-150' : 'bg-white/30'}`} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <main className="w-full flex flex-col items-center">
         {/* TEXTO DE CHAMADA */}
