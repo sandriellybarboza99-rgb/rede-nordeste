@@ -42,9 +42,6 @@ const limparSessaoLocal = () => {
   STORAGE_LIXOS.forEach((k) => localStorage.removeItem(k));
 };
 
-// Endpoints públicos de auth NUNCA disparam refresh automático.
-// Why: se /login retorna 401 (senha errada), tentar refresh mascara a
-// mensagem real ("E-mail ou senha incorretos") como "Sessão expirada".
 const AUTH_PUBLIC_PATHS = [
   "/usuarios/login",
   "/usuarios/registrar",
@@ -72,14 +69,14 @@ apiService.interceptors.response.use(
         if (!raw) throw new Error("Sem sessão");
 
         const dados = JSON.parse(raw);
-        const baseURL = import.meta.env.VITE_API_URL || "http://localhost:8090/api";
+        const baseURL =
+          import.meta.env.VITE_API_URL || "http://localhost:8090/api";
         const res = await axios.post(`${baseURL}/usuarios/refresh`, {
           refreshToken: dados.refreshToken,
         });
 
         const novos = { ...dados, ...res.data };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(novos));
-        // Notifica AuthContext (StorageEvent só dispara em outras abas; dispatch manual cobre a mesma aba)
         window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
         original.headers.Authorization = `Bearer ${res.data.accessToken}`;
         return apiService(original);
@@ -89,7 +86,9 @@ apiService.interceptors.response.use(
         if (!window.location.pathname.startsWith("/login")) {
           window.location.href = "/login";
         }
-        return Promise.reject(new Error("Sessão expirada. Faça login novamente."));
+        return Promise.reject(
+          new Error("Sessão expirada. Faça login novamente."),
+        );
       }
     }
 
@@ -112,7 +111,7 @@ apiService.interceptors.response.use(
     }
 
     return Promise.reject(new Error(mensagem));
-  }
+  },
 );
 
 // ============================================================
@@ -162,7 +161,7 @@ export const atualizarMeuPerfil = async (dados: {
 };
 
 // ============================================================
-// ENDEREÇOS (do usuário logado) — antes em localStorage
+// ENDEREÇOS
 // ============================================================
 export const getMeusEnderecos = async () => {
   const res = await apiService.get("/usuarios/enderecos");
@@ -196,7 +195,7 @@ export const deletarEndereco = async (id: number) => {
 };
 
 // ============================================================
-// CARTÕES (do usuário logado, PCI-aware: backend só guarda os finais)
+// CARTÕES
 // ============================================================
 export const getMeusCartoes = async () => {
   const res = await apiService.get("/usuarios/cartoes");
@@ -218,7 +217,7 @@ export const deletarCartao = async (id: number) => {
 };
 
 // ============================================================
-// NOTIFICAÇÕES (do usuário logado, isolamento por usuario_id)
+// NOTIFICAÇÕES
 // ============================================================
 export const getMinhasNotificacoes = async () => {
   const res = await apiService.get("/usuarios/notificacoes");
@@ -303,7 +302,7 @@ export const getProdutosPorLoja = async (lojaId: number, page = 0) => {
 export const buscarProdutos = async (
   nome?: string,
   categoriaId?: number,
-  page = 0
+  page = 0,
 ) => {
   const params = new URLSearchParams();
   if (nome) params.append("nome", nome);
@@ -333,17 +332,16 @@ export const getProdutosPendentes = async (page = 0) => {
 
 export const aprovarOuRejeitarProduto = async (
   id: number,
-  status: "APROVADO" | "REJEITADO"
+  status: "APROVADO" | "REJEITADO",
 ) => {
-  const res = await apiService.patch(`/admin/produtos/${id}/status`, { status });
+  const res = await apiService.patch(`/admin/produtos/${id}/status`, {
+    status,
+  });
   return res.data;
 };
 
 // ============================================================
-// CARRINHO — sempre via backend (fonte de verdade).
-// O fallback antigo para localStorage foi removido: mascarava
-// erros de autenticação e quebrava o checkout (carrinho local
-// nunca chegava ao servidor). Ver raMemory.md §3.6.
+// CARRINHO
 // ============================================================
 export const getCarrinho = async () => {
   const res = await apiService.get("/comprador/carrinho");
@@ -352,7 +350,7 @@ export const getCarrinho = async () => {
 
 export const adicionarAoCarrinho = async (
   produtoId: number,
-  quantidade: number
+  quantidade: number,
 ) => {
   const res = await apiService.post("/comprador/carrinho", {
     produtoId,
@@ -371,7 +369,7 @@ export const limparCarrinho = async () => {
 };
 
 // ============================================================
-// PEDIDOS
+// PEDIDOS & CHECKOUT
 // ============================================================
 export const checkout = async (dados: {
   metodoPagamento: string;
@@ -381,6 +379,7 @@ export const checkout = async (dados: {
   latitudeDestino?: number;
   longitudeDestino?: number;
   observacoes?: string;
+  cartaoId?: number;
 }) => {
   const res = await apiService.post("/comprador/pedidos/checkout", dados);
   return res.data;
@@ -403,10 +402,10 @@ export const getPedidosDaLoja = async (page = 0) => {
 
 export const atualizarStatusEntrega = async (
   pedidoId: number,
-  status: string
+  status: string,
 ) => {
   const res = await apiService.patch(
-    `/produtor/pedidos/${pedidoId}/status?status=${status}`
+    `/produtor/pedidos/${pedidoId}/status?status=${status}`,
   );
   return res.data;
 };
@@ -417,7 +416,7 @@ export const atualizarStatusEntrega = async (
 export const simularFrete = async (
   lojaId: number,
   latitudeDestino: number,
-  longitudeDestino: number
+  longitudeDestino: number,
 ) => {
   const res = await apiService.post("/frete/simular", {
     lojaId,
@@ -447,10 +446,10 @@ export const cadastrarEntregador = async (dados: {
 
 export const alterarDisponibilidade = async (
   id: number,
-  disponivel: boolean
+  disponivel: boolean,
 ) => {
   await apiService.patch(
-    `/entregadores/${id}/disponibilidade?disponivel=${disponivel}`
+    `/entregadores/${id}/disponibilidade?disponivel=${disponivel}`,
   );
 };
 
@@ -474,7 +473,7 @@ export const getChatsDaLoja = async () => {
 
 export const getMensagens = async (chatId: number, page = 0) => {
   const res = await apiService.get(
-    `/chats/${chatId}/mensagens?page=${page}&sort=dataEnvio,asc`
+    `/chats/${chatId}/mensagens?page=${page}&sort=dataEnvio,asc`,
   );
   return res.data;
 };
@@ -507,14 +506,14 @@ const lerTokenAtual = (): string | null => {
 export const conectarWebSocket = (
   chatId: number,
   onMensagem: (msg: any) => void,
-  onNotificacao?: (notif: any) => void
+  onNotificacao?: (notif: any) => void,
 ) => {
   const wsBase =
-    import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:8090";
+    import.meta.env.VITE_API_URL?.replace("/api", "") ||
+    "http://localhost:8090";
 
   stompClient = new Client({
     webSocketFactory: () => new SockJS(`${wsBase}/ws/chat`) as WebSocket,
-    // beforeConnect roda a cada (re)conexão — relê o token atualizado pelo interceptor de refresh
     beforeConnect: () => {
       const token = lerTokenAtual();
       if (stompClient && token) {
@@ -557,7 +556,7 @@ export const desconectarWebSocket = () => {
 };
 
 // ============================================================
-// BANNERS (público GET + admin CRUD)
+// BANNERS
 // ============================================================
 export const getBanners = async () => {
   const res = await apiService.get("/banners");
@@ -584,7 +583,7 @@ export const adminDeletarBanner = async (id: number) => {
 };
 
 // ============================================================
-// NOTÍCIAS (público GET + admin CRUD)
+// NOTÍCIAS
 // ============================================================
 export const getNoticias = async (page = 0) => {
   const res = await apiService.get(`/noticias?page=${page}`);
@@ -616,7 +615,7 @@ export const adminDeletarNoticia = async (id: number) => {
 };
 
 // ============================================================
-// ADMIN — Métricas, Usuários, Lojas, Categorias
+// ADMIN
 // ============================================================
 export const adminGetMetricas = async () => {
   const res = await apiService.get("/admin/metricas");
@@ -630,7 +629,12 @@ export const adminListarUsuarios = async (page = 0) => {
 
 export const adminAtualizarUsuario = async (
   id: number,
-  dados: { contaAtiva?: boolean; tipoPerfil?: string; motivoSuspensao?: string; novaSenha?: string }
+  dados: {
+    contaAtiva?: boolean;
+    tipoPerfil?: string;
+    motivoSuspensao?: string;
+    novaSenha?: string;
+  },
 ) => {
   const res = await apiService.patch(`/admin/usuarios/${id}`, dados);
   return res.data;
@@ -662,7 +666,11 @@ export const adminReativarLoja = async (id: number) => {
   return res.data;
 };
 
-export const adminCriarCategoria = async (dados: { nome: string; descricao?: string; imagemIconeUrl?: string }) => {
+export const adminCriarCategoria = async (dados: {
+  nome: string;
+  descricao?: string;
+  imagemIconeUrl?: string;
+}) => {
   const res = await apiService.post("/admin/categorias", dados);
   return res.data;
 };

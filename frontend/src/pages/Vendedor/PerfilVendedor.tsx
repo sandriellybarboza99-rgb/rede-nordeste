@@ -281,7 +281,7 @@ export default function PerfilVendedor() {
           {favoritosOrdenados.map((prod) => (
             <div key={prod.id} className="bg-white rounded-2xl p-3 shadow-md border border-white relative">
               <button onClick={() => setMeusFavoritos(meusFavoritos.filter(f => f.id !== prod.id))}
-                      className="absolute top-3 right-3 z-10 p-2 bg-white/90 shadow-md rounded-full text-red-400 hover:text-red-600 active:scale-90 transition-all">
+                className="absolute top-3 right-3 z-10 p-2 bg-white/90 shadow-md rounded-full text-red-400 hover:text-red-600 active:scale-90 transition-all">
                 <HeartOff size={14} />
               </button>
               <div className="w-full aspect-square rounded-xl overflow-hidden bg-[#F5F2ED] mb-3">
@@ -485,10 +485,10 @@ export default function PerfilVendedor() {
 
   const tituloPagina =
     telaAtual === 'configuracoes' ? 'Configurações' :
-    telaAtual === 'favoritos' ? 'Meus Favoritos' :
-    telaAtual === 'recentes' ? 'Visto Recentemente' :
-    telaAtual === 'dashboard' ? 'Dashboard de Vendas' :
-    'Meu Perfil';
+      telaAtual === 'favoritos' ? 'Meus Favoritos' :
+        telaAtual === 'recentes' ? 'Visto Recentemente' :
+          telaAtual === 'dashboard' ? 'Dashboard de Vendas' :
+            'Meu Perfil';
 
   // Navegação contextual: subseção de config → menu config → perfil → vitrine
   const handleVoltarHeader = () => {
@@ -505,8 +505,8 @@ export default function PerfilVendedor() {
 
   const labelVoltarHeader =
     telaAtual === 'configuracoes' && secaoConfig !== 'menu' ? 'Configurações' :
-    telaAtual === 'perfil' ? 'Vitrine' :
-    'Perfil';
+      telaAtual === 'perfil' ? 'Vitrine' :
+        'Perfil';
 
   return (
     <div className="min-h-screen bg-[#F5F2ED] text-[#394158] font-inter pb-24 md:pb-10">
@@ -533,88 +533,88 @@ export default function PerfilVendedor() {
         />
 
         {telaAtual === 'configuracoes' ? renderConfiguracoes() :
-         telaAtual === 'favoritos' ? renderFavoritos() :
-         telaAtual === 'recentes' ? renderVistoRecentemente() :
-         telaAtual === 'dashboard' ? renderDashboard() : (
-          <div className="space-y-6">
-            <ProfileHero
-              variant="vendedor"
-              fotoUrl={fotoPerfil}
-              nome={usuario?.nome || dadosUsuario.nome}
-              subtitulo={minhaLoja?.nomeLoja ? `Loja: ${minhaLoja.nomeLoja}` : 'Sem loja cadastrada ainda'}
-              onTrocarFoto={() => fileInputRef.current?.click()}
-              badge={
-                minhaLoja
-                  ? (minhaLoja.suspensa
-                      ? <StatusBadge variant="suspensa" />
-                      : minhaLoja.verificada
-                        ? <StatusBadge variant="verificada" label="Loja Verificada" />
-                        : <StatusBadge variant="pendente" />)
-                  : <StatusBadge variant="inativa" label="Crie sua loja" />
-              }
-              cta={
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={() => navigate('/painelvendedor')}
-                  iconLeft={<LayoutDashboard size={16} />}
-                  className="!bg-white !text-[#394158] hover:!bg-white/90"
-                >
-                  Ir para o Painel
-                </Button>
-              }
-            />
+          telaAtual === 'favoritos' ? renderFavoritos() :
+            telaAtual === 'recentes' ? renderVistoRecentemente() :
+              telaAtual === 'dashboard' ? renderDashboard() : (
+                <div className="space-y-6">
+                  <ProfileHero
+                    variant="vendedor"
+                    fotoUrl={fotoPerfil}
+                    nome={usuario?.nome || dadosUsuario.nome}
+                    subtitulo={minhaLoja?.nomeLoja ? `Loja: ${minhaLoja.nomeLoja}` : 'Sem loja cadastrada ainda'}
+                    onTrocarFoto={() => fileInputRef.current?.click()}
+                    badge={
+                      minhaLoja
+                        ? (minhaLoja.suspensa
+                          ? <StatusBadge variant="suspensa" />
+                          : minhaLoja.verificada
+                            ? <StatusBadge variant="verificada" label="Loja Verificada" />
+                            : <StatusBadge variant="pendente" />)
+                        : <StatusBadge variant="inativa" label="Crie sua loja" />
+                    }
+                    cta={
+                      <Button
+                        variant="secondary"
+                        size="md"
+                        onClick={() => navigate('/painelvendedor')}
+                        iconLeft={<LayoutDashboard size={16} />}
+                        className="!bg-white !text-[#394158] hover:!bg-white/90"
+                      >
+                        Ir para o Painel
+                      </Button>
+                    }
+                  />
 
-            {minhaLoja && !minhaLoja.verificada && !minhaLoja.suspensa && (
-              <div className="bg-[#f9943b]/10 border border-[#f9943b]/30 rounded-2xl p-4 flex items-start gap-3 page-enter">
-                <AlertTriangle size={20} className="text-[#f9943b] shrink-0 mt-0.5" />
-                <p className="text-xs font-bold text-[#394158] leading-relaxed">
-                  Sua loja está <strong>aguardando verificação do admin</strong>. Os produtos só aparecerão na vitrine pública após a aprovação.
-                </p>
-              </div>
-            )}
+                  {minhaLoja && !minhaLoja.verificada && !minhaLoja.suspensa && (
+                    <div className="bg-[#f9943b]/10 border border-[#f9943b]/30 rounded-2xl p-4 flex items-start gap-3 page-enter">
+                      <AlertTriangle size={20} className="text-[#f9943b] shrink-0 mt-0.5" />
+                      <p className="text-xs font-bold text-[#394158] leading-relaxed">
+                        Sua loja está <strong>aguardando verificação do admin</strong>. Os produtos só aparecerão na vitrine pública após a aprovação.
+                      </p>
+                    </div>
+                  )}
 
-            <section className="bg-white rounded-2xl p-8 shadow-xl border border-white">
-              <div className="flex justify-between items-center mb-6 px-2">
-                <h4 className="uppercase tracking-[0.2em] text-gray-400 text-[11px] font-bold">Meu Negócio</h4>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div onClick={() => setTelaAtual('dashboard')} className="flex flex-col items-center gap-3 group cursor-pointer active:scale-90 transition-all">
-                  <div className="w-14 h-14 bg-[#55833d]/10 rounded-2xl flex items-center justify-center text-[#55833d] group-hover:bg-[#55833d] group-hover:text-white transition-all duration-300 shadow-sm"><BarChart2 size={22} /></div>
-                  <span className="text-[11px] uppercase font-bold text-center tracking-tighter">Dashboard<br/>de Vendas</span>
-                </div>
-                <div onClick={() => navigate('/painelvendedor')} className="flex flex-col items-center gap-3 group cursor-pointer active:scale-90 transition-all">
-                  <div className="w-14 h-14 bg-[#f9943b]/10 rounded-2xl flex items-center justify-center text-[#f9943b] group-hover:bg-[#f9943b] group-hover:text-white transition-all duration-300 shadow-sm"><Store size={22} /></div>
-                  <span className="text-[11px] uppercase font-bold text-center tracking-tighter">Minha<br/>Loja</span>
-                </div>
-              </div>
-            </section>
+                  <section className="bg-white rounded-2xl p-8 shadow-xl border border-white">
+                    <div className="flex justify-between items-center mb-6 px-2">
+                      <h4 className="uppercase tracking-[0.2em] text-gray-400 text-[11px] font-bold">Meu Negócio</h4>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div onClick={() => setTelaAtual('dashboard')} className="flex flex-col items-center gap-3 group cursor-pointer active:scale-90 transition-all">
+                        <div className="w-14 h-14 bg-[#55833d]/10 rounded-2xl flex items-center justify-center text-[#55833d] group-hover:bg-[#55833d] group-hover:text-white transition-all duration-300 shadow-sm"><BarChart2 size={22} /></div>
+                        <span className="text-[11px] uppercase font-bold text-center tracking-tighter">Dashboard<br />de Vendas</span>
+                      </div>
+                      <div onClick={() => navigate('/painelvendedor')} className="flex flex-col items-center gap-3 group cursor-pointer active:scale-90 transition-all">
+                        <div className="w-14 h-14 bg-[#f9943b]/10 rounded-2xl flex items-center justify-center text-[#f9943b] group-hover:bg-[#f9943b] group-hover:text-white transition-all duration-300 shadow-sm"><Store size={22} /></div>
+                        <span className="text-[11px] uppercase font-bold text-center tracking-tighter">Minha<br />Loja</span>
+                      </div>
+                    </div>
+                  </section>
 
-            <section className="bg-white rounded-2xl p-4 md:p-8 shadow-xl border border-white">
-              <div className="flex justify-center items-center mb-4 md:mb-8 px-2"><h4 className="uppercase tracking-[0.2em] text-gray-400 text-[11px] font-bold">Atividades</h4></div>
-              <div className="grid grid-cols-1 md:grid-cols-3 w-full divide-y divide-gray-100 md:divide-y-0">
-                <div className="flex justify-center w-full py-4 md:py-0">
-                  <button onClick={() => setTelaAtual('favoritos')} className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
-                    <div className="text-[#55833d] group-hover:scale-110 transition-transform"><Heart size={24} /></div>
-                    <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Favoritos</span>
-                  </button>
+                  <section className="bg-white rounded-2xl p-4 md:p-8 shadow-xl border border-white">
+                    <div className="flex justify-center items-center mb-4 md:mb-8 px-2"><h4 className="uppercase tracking-[0.2em] text-gray-400 text-[11px] font-bold">Atividades</h4></div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 w-full divide-y divide-gray-100 md:divide-y-0">
+                      <div className="flex justify-center w-full py-4 md:py-0">
+                        <button onClick={() => setTelaAtual('favoritos')} className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
+                          <div className="text-[#55833d] group-hover:scale-110 transition-transform"><Heart size={24} /></div>
+                          <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Favoritos</span>
+                        </button>
+                      </div>
+                      <div className="flex justify-center w-full py-4 md:py-0">
+                        <button onClick={() => setTelaAtual('recentes')} className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
+                          <div className="text-[#802D44] group-hover:scale-110 transition-transform"><History size={24} /></div>
+                          <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Visto<br />Recentemente</span>
+                        </button>
+                      </div>
+                      <div className="flex justify-center w-full py-4 md:py-0">
+                        <button className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
+                          <div className="text-[#f9943b] group-hover:scale-110 transition-transform"><HelpCircle size={24} /></div>
+                          <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Ajuda e<br />Suporte</span>
+                        </button>
+                      </div>
+                    </div>
+                  </section>
                 </div>
-                <div className="flex justify-center w-full py-4 md:py-0">
-                  <button onClick={() => setTelaAtual('recentes')} className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
-                    <div className="text-[#802D44] group-hover:scale-110 transition-transform"><History size={24} /></div>
-                    <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Visto<br/>Recentemente</span>
-                  </button>
-                </div>
-                <div className="flex justify-center w-full py-4 md:py-0">
-                  <button className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
-                    <div className="text-[#f9943b] group-hover:scale-110 transition-transform"><HelpCircle size={24} /></div>
-                    <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Ajuda e<br/>Suporte</span>
-                  </button>
-                </div>
-              </div>
-            </section>
-          </div>
-        )}
+              )}
       </main>
 
       <BottomTabBar

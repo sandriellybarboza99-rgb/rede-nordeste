@@ -234,7 +234,7 @@ export default function Perfil() {
 
   const renderVistoRecentemente = () => (
     <div className="space-y-6 animate-in slide-in-from-right duration-300 max-w-5xl mx-auto">
-<h3 className="text-xl font-black uppercase italic text-[#394158] px-2 tracking-tighter">Visto Recentemente</h3>
+      <h3 className="text-xl font-black uppercase italic text-[#394158] px-2 tracking-tighter">Visto Recentemente</h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 pb-10 px-2">
         {vistoRecently.map((prod) => (
           <div key={prod.id} onClick={() => navigate(`/produto/${prod.id}`)} className="bg-white rounded-2xl p-3 shadow-md border border-white flex flex-col h-full cursor-pointer active:scale-95 transition-all group">
@@ -257,7 +257,7 @@ export default function Perfil() {
   const renderFavoritos = () => (
     <div className="space-y-6 animate-in slide-in-from-right duration-300 max-w-5xl mx-auto">
       <div className="flex items-center justify-between px-2">
-    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-50">
+        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-50">
           <Filter size={14} className="text-[#55833d]" />
           <select value={filtroFavoritos} onChange={(e) => setFiltroFavoritos(e.target.value as any)} className="text-[9px] font-black uppercase bg-transparent outline-none text-[#394158] cursor-pointer">
             <option value="recentes">Recentes</option>
@@ -277,7 +277,7 @@ export default function Perfil() {
           {favoritosOrdenados.map((prod) => (
             <div key={prod.id} className="bg-white rounded-2xl p-3 shadow-md border border-white flex flex-col h-full relative">
               <button onClick={() => setMeusFavoritos(meusFavoritos.filter(f => f.id !== prod.id))}
-                      className="absolute top-3 right-3 z-10 p-2 bg-white/90 shadow-md rounded-full text-red-400 hover:text-red-600 active:scale-90 transition-all">
+                className="absolute top-3 right-3 z-10 p-2 bg-white/90 shadow-md rounded-full text-red-400 hover:text-red-600 active:scale-90 transition-all">
                 <HeartOff size={14} />
               </button>
               <div onClick={() => navigate(`/produto/${prod.id}`)} className="cursor-pointer group flex flex-col flex-1">
@@ -503,9 +503,9 @@ export default function Perfil() {
 
   // Cor + ícone da aba ativa para uso visual no card
   const visualAba = {
-    pagar:       { cor: 'text-[#f9943b]', bg: 'from-[#f9943b]/10 to-[#f9943b]/5', borda: 'border-[#f9943b]/10', label: 'Aguardando pagamento' },
-    preparando:  { cor: 'text-[#802D44]', bg: 'from-[#802D44]/10 to-[#802D44]/5', borda: 'border-[#802D44]/10', label: 'Em preparação' },
-    caminho:     { cor: 'text-[#f9943b]', bg: 'from-[#f9943b]/10 to-[#f9943b]/5', borda: 'border-[#f9943b]/10', label: 'A caminho' },
+    pagar: { cor: 'text-[#f9943b]', bg: 'from-[#f9943b]/10 to-[#f9943b]/5', borda: 'border-[#f9943b]/10', label: 'Aguardando pagamento' },
+    preparando: { cor: 'text-[#802D44]', bg: 'from-[#802D44]/10 to-[#802D44]/5', borda: 'border-[#802D44]/10', label: 'Em preparação' },
+    caminho: { cor: 'text-[#f9943b]', bg: 'from-[#f9943b]/10 to-[#f9943b]/5', borda: 'border-[#f9943b]/10', label: 'A caminho' },
     finalizados: { cor: 'text-[#55833d]', bg: 'from-[#55833d]/10 to-[#55833d]/5', borda: 'border-[#55833d]/10', label: 'Finalizado' },
   } as const;
 
@@ -518,9 +518,9 @@ export default function Perfil() {
         <section className="bg-white rounded-2xl shadow-xl border border-white overflow-hidden">
           <div className="flex border-b border-gray-50 overflow-x-auto bg-white">
             {([
-              { id: 'pagar',       l: 'A Pagar',     i: Wallet },
-              { id: 'preparando',  l: 'Preparando',  i: Package },
-              { id: 'caminho',     l: 'A Caminho',   i: Truck },
+              { id: 'pagar', l: 'A Pagar', i: Wallet },
+              { id: 'preparando', l: 'Preparando', i: Package },
+              { id: 'caminho', l: 'A Caminho', i: Truck },
               { id: 'finalizados', l: 'Finalizados', i: ShoppingBag },
             ] as const).map((tab) => {
               const count = filtrarPedidosPorAba(pedidos, tab.id).length;
@@ -528,9 +528,8 @@ export default function Perfil() {
                 <button
                   key={tab.id}
                   onClick={() => setAbaAtiva(tab.id)}
-                  className={`flex-1 min-w-[80px] py-6 flex flex-col items-center gap-2 relative transition-colors ${
-                    abaAtiva === tab.id ? 'text-[#55833d]' : 'text-gray-300 hover:text-[#394158]'
-                  }`}
+                  className={`flex-1 min-w-[80px] py-6 flex flex-col items-center gap-2 relative transition-colors ${abaAtiva === tab.id ? 'text-[#55833d]' : 'text-gray-300 hover:text-[#394158]'
+                    }`}
                 >
                   <div className="relative">
                     <tab.i size={18} />
@@ -584,12 +583,12 @@ export default function Perfil() {
   // ── Header contextual (título muda por sub-tela) ───────────────
   const tituloPagina =
     telaAtual === 'configuracoes' ? 'Configurações' :
-    telaAtual === 'compras' ? 'Minhas Compras' :
-    telaAtual === 'detalhe-pedido' ? 'Detalhe do Pedido' :
-    telaAtual === 'rastreio-pedido' ? 'Rastreio do Pedido' :
-    telaAtual === 'favoritos' ? 'Meus Favoritos' :
-    telaAtual === 'recentes' ? 'Visto Recentemente' :
-    'Meu Perfil';
+      telaAtual === 'compras' ? 'Minhas Compras' :
+        telaAtual === 'detalhe-pedido' ? 'Detalhe do Pedido' :
+          telaAtual === 'rastreio-pedido' ? 'Rastreio do Pedido' :
+            telaAtual === 'favoritos' ? 'Meus Favoritos' :
+              telaAtual === 'recentes' ? 'Visto Recentemente' :
+                'Meu Perfil';
 
   // Navegação contextual: detalhe/rastreio → compras → perfil → home.
   // Em configurações com sub-aba aberta, volta para o menu de config primeiro.
@@ -612,9 +611,9 @@ export default function Perfil() {
   // Label dinâmico — comunica para onde vai
   const labelVoltarHeader =
     telaAtual === 'detalhe-pedido' || telaAtual === 'rastreio-pedido' ? 'Compras' :
-    telaAtual === 'configuracoes' && secaoConfig !== 'menu' ? 'Configurações' :
-    telaAtual === 'perfil' ? 'Início' :
-    'Perfil';
+      telaAtual === 'configuracoes' && secaoConfig !== 'menu' ? 'Configurações' :
+        telaAtual === 'perfil' ? 'Início' :
+          'Perfil';
 
   return (
     <div className="min-h-screen bg-[#F5F2ED] text-[#394158] font-inter pb-24 md:pb-10">
@@ -640,67 +639,67 @@ export default function Perfil() {
         />
 
         {telaAtual === 'configuracoes' ? renderConfiguracoes() :
-         telaAtual === 'compras' ? renderTelaCompras() :
-         telaAtual === 'detalhe-pedido' ? renderDetalhePedido() :
-         telaAtual === 'rastreio-pedido' ? renderRastreioPedido() :
-         telaAtual === 'favoritos' ? renderFavoritos() :
-         telaAtual === 'recentes' ? renderVistoRecentemente() : (
-          <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="bg-gradient-to-r from-[#f9943b] to-[#fbac66] rounded-2xl p-8 shadow-2xl flex flex-col md:flex-row items-center gap-6 text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20"></div>
-              <div className="relative">
-                <div className="w-24 h-24 rounded-full border-4 border-white/30 overflow-hidden shadow-inner bg-white/20"><img src={fotoPerfil} className="w-full h-full object-cover" alt="User" /></div>
-                <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 bg-[#55833d] p-2.5 rounded-full border-2 border-white shadow-lg active:scale-90 transition-all"><Camera size={14} className="text-white" /></button>
-              </div>
-              <div className="text-center md:text-left z-10">
-                <h3 className="text-2xl font-black leading-none mb-2 tracking-tight">{dadosUsuario.nome || 'Comprador'}</h3>
-                <span className="text-[10px] font-black uppercase bg-white px-4 py-1.5 rounded-full inline-flex w-max items-center justify-center gap-1.5 text-[#55833d] shadow-sm"><CheckCircle size={12} className="text-[#4ade80]" /> Comprador Verificado</span>
-              </div>
-            </div>
+          telaAtual === 'compras' ? renderTelaCompras() :
+            telaAtual === 'detalhe-pedido' ? renderDetalhePedido() :
+              telaAtual === 'rastreio-pedido' ? renderRastreioPedido() :
+                telaAtual === 'favoritos' ? renderFavoritos() :
+                  telaAtual === 'recentes' ? renderVistoRecentemente() : (
+                    <div className="space-y-6 animate-in fade-in duration-500">
+                      <div className="bg-gradient-to-r from-[#f9943b] to-[#fbac66] rounded-2xl p-8 shadow-2xl flex flex-col md:flex-row items-center gap-6 text-white relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20"></div>
+                        <div className="relative">
+                          <div className="w-24 h-24 rounded-full border-4 border-white/30 overflow-hidden shadow-inner bg-white/20"><img src={fotoPerfil} className="w-full h-full object-cover" alt="User" /></div>
+                          <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 bg-[#55833d] p-2.5 rounded-full border-2 border-white shadow-lg active:scale-90 transition-all"><Camera size={14} className="text-white" /></button>
+                        </div>
+                        <div className="text-center md:text-left z-10">
+                          <h3 className="text-2xl font-black leading-none mb-2 tracking-tight">{dadosUsuario.nome || 'Comprador'}</h3>
+                          <span className="text-[10px] font-black uppercase bg-white px-4 py-1.5 rounded-full inline-flex w-max items-center justify-center gap-1.5 text-[#55833d] shadow-sm"><CheckCircle size={12} className="text-[#4ade80]" /> Comprador Verificado</span>
+                        </div>
+                      </div>
 
-            <section className="bg-white rounded-2xl p-8 shadow-xl border border-white">
-              <div className="flex justify-between items-center mb-8 px-2">
-                <h4 className="uppercase tracking-[0.2em] text-gray-400 text-[11px] font-bold">Minhas Compras</h4>
-                <button onClick={() => { setAbaAtiva('finalizados'); setTelaAtual('compras'); }} className="uppercase text-[#394158] bg-[#802D44]/5 px-4 py-2 rounded-full active:scale-95 transition-all text-[11px] font-bold">Histórico</button>
-              </div>
-              <div className="grid grid-cols-4 gap-4">
-                {[
-                  { i: Wallet, t: 'A Pagar', id: 'pagar' }, { i: Package, t: 'Preparando', id: 'preparando' },
-                  { i: Truck, t: 'A Caminho', id: 'caminho' }, { i: ShoppingBag, t: 'Finalizados', id: 'finalizados' },
-                ].map((item) => (
-                  <div key={item.t} onClick={() => { setAbaAtiva(item.id as any); setTelaAtual('compras'); }} className="flex flex-col items-center gap-3 group cursor-pointer active:scale-90 transition-all">
-                    <div className="w-14 h-14 bg-[#F5F2ED] rounded-2xl flex items-center justify-center text-[#394158] group-hover:bg-[#55833d] group-hover:text-white transition-all duration-300 shadow-sm"><item.i size={22} /></div>
-                    <span className="text-[12px] font-semibold text-center tracking-tighter">{item.t}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
+                      <section className="bg-white rounded-2xl p-8 shadow-xl border border-white">
+                        <div className="flex justify-between items-center mb-8 px-2">
+                          <h4 className="uppercase tracking-[0.2em] text-gray-400 text-[11px] font-bold">Minhas Compras</h4>
+                          <button onClick={() => { setAbaAtiva('finalizados'); setTelaAtual('compras'); }} className="uppercase text-[#394158] bg-[#802D44]/5 px-4 py-2 rounded-full active:scale-95 transition-all text-[11px] font-bold">Histórico</button>
+                        </div>
+                        <div className="grid grid-cols-4 gap-4">
+                          {[
+                            { i: Wallet, t: 'A Pagar', id: 'pagar' }, { i: Package, t: 'Preparando', id: 'preparando' },
+                            { i: Truck, t: 'A Caminho', id: 'caminho' }, { i: ShoppingBag, t: 'Finalizados', id: 'finalizados' },
+                          ].map((item) => (
+                            <div key={item.t} onClick={() => { setAbaAtiva(item.id as any); setTelaAtual('compras'); }} className="flex flex-col items-center gap-3 group cursor-pointer active:scale-90 transition-all">
+                              <div className="w-14 h-14 bg-[#F5F2ED] rounded-2xl flex items-center justify-center text-[#394158] group-hover:bg-[#55833d] group-hover:text-white transition-all duration-300 shadow-sm"><item.i size={22} /></div>
+                              <span className="text-[12px] font-semibold text-center tracking-tighter">{item.t}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
 
-            <section className="bg-white rounded-2xl p-4 md:p-8 shadow-xl border border-white">
-              <div className="flex justify-center items-center mb-4 md:mb-8 px-2"><h4 className="uppercase tracking-[0.2em] text-gray-400 text-[11px] font-bold">Atividades</h4></div>
-              <div className="grid grid-cols-1 md:grid-cols-3 w-full divide-y divide-gray-100 md:divide-y-0">
-                <div className="flex justify-center w-full py-4 md:py-0">
-                  <button onClick={() => setTelaAtual('favoritos')} className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
-                    <div className="text-[#55833d] group-hover:scale-110 transition-transform"><Heart size={24} /></div>
-                    <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Favoritos</span>
-                  </button>
-                </div>
-                <div className="flex justify-center w-full py-4 md:py-0">
-                  <button onClick={() => setTelaAtual('recentes')} className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
-                    <div className="text-[#802D44] group-hover:scale-110 transition-transform"><History size={24} /></div>
-                    <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Visto<br className="hidden md:block" />Recentemente</span>
-                  </button>
-                </div>
-                <div className="flex justify-center w-full py-4 md:py-0">
-                  <button className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
-                    <div className="text-[#f9943b] group-hover:scale-110 transition-transform"><HelpCircle size={24} /></div>
-                    <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Ajuda e<br className="hidden md:block" />Suporte</span>
-                  </button>
-                </div>
-              </div>
-            </section>
-          </div>
-        )}
+                      <section className="bg-white rounded-2xl p-4 md:p-8 shadow-xl border border-white">
+                        <div className="flex justify-center items-center mb-4 md:mb-8 px-2"><h4 className="uppercase tracking-[0.2em] text-gray-400 text-[11px] font-bold">Atividades</h4></div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 w-full divide-y divide-gray-100 md:divide-y-0">
+                          <div className="flex justify-center w-full py-4 md:py-0">
+                            <button onClick={() => setTelaAtual('favoritos')} className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
+                              <div className="text-[#55833d] group-hover:scale-110 transition-transform"><Heart size={24} /></div>
+                              <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Favoritos</span>
+                            </button>
+                          </div>
+                          <div className="flex justify-center w-full py-4 md:py-0">
+                            <button onClick={() => setTelaAtual('recentes')} className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
+                              <div className="text-[#802D44] group-hover:scale-110 transition-transform"><History size={24} /></div>
+                              <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Visto<br className="hidden md:block" />Recentemente</span>
+                            </button>
+                          </div>
+                          <div className="flex justify-center w-full py-4 md:py-0">
+                            <button className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
+                              <div className="text-[#f9943b] group-hover:scale-110 transition-transform"><HelpCircle size={24} /></div>
+                              <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Ajuda e<br className="hidden md:block" />Suporte</span>
+                            </button>
+                          </div>
+                        </div>
+                      </section>
+                    </div>
+                  )}
       </main>
     </div>
   );
