@@ -64,8 +64,14 @@ public class LojaService {
         loja.setValorMinimoPedido(request.valorMinimoPedido());
         loja.setTaxaEntregaFixa(request.taxaEntregaFixa());
         loja.setLogoUrl(request.logoUrl());
-        if (request.latitudeLoja() != null) loja.setLatitudeLoja(request.latitudeLoja());
-        if (request.longitudeLoja() != null) loja.setLongitudeLoja(request.longitudeLoja());
+        if (request.latitudeLoja() != null)
+            loja.setLatitudeLoja(request.latitudeLoja());
+        if (request.longitudeLoja() != null)
+            loja.setLongitudeLoja(request.longitudeLoja());
+
+        loja.setChavePix(request.chavePix());
+        loja.setTipoChavePix(request.tipoChavePix());
+
         return lojaRepository.save(loja);
     }
 }

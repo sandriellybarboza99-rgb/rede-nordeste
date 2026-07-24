@@ -24,7 +24,12 @@ public record LojaResponse(
         Double latitudeLoja,
         Double longitudeLoja,
         Boolean verificada,
-        Boolean suspensa) {
+        Boolean suspensa,
+
+        // Novos campos para PIX
+        String chavePix,
+        String tipoChavePix) {
+
     public static LojaResponse fromEntity(Loja l) {
         return new LojaResponse(
                 l.getId(),
@@ -45,6 +50,8 @@ public record LojaResponse(
                 l.getLatitudeLoja(),
                 l.getLongitudeLoja(),
                 l.getVerificada(),
-                l.getSuspensa());
+                l.getSuspensa(),
+                l.getChavePix(),
+                l.getTipoChavePix());
     }
 }

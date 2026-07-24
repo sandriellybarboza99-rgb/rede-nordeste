@@ -88,4 +88,12 @@ public class Loja {
 
     @Column(name = "motivo_suspensao", columnDefinition = "TEXT")
     private String motivoSuspensao;
+
+    // === NOVOS CAMPOS PARA PAGAMENTO VIA PIX ===
+
+    @Column(name = "chave_pix", length = 150)
+    private String chavePix;
+
+    @Column(name = "tipo_chave_pix", length = 30)
+    private String tipoChavePix;
 }
