@@ -230,13 +230,12 @@ export default function PerfilVendedor() {
 
   return (
     <div className="min-h-screen bg-bg-sand text-primary-earth pb-24">
-      <PageHeader
-        titulo="Perfil do Vendedor"
-        subtitulo="Gerencie sua loja, dados para recebimento (PIX) e conta"
-        voltarPara={() => navigate('/vendedor')}
-      />
-
       <main className="max-w-4xl mx-auto px-4 pt-6 space-y-6">
+        <PageHeader
+          titulo="Perfil do Vendedor"
+          subtitulo="Gerencie sua loja, dados para recebimento (PIX) e conta"
+          voltarPara={() => navigate('/vendedor')}
+        />
         {/* CABEÇALHO DO PRODUTOR */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-6">
           <div className="w-20 h-20 bg-accent-red/10 text-accent-red rounded-2xl flex items-center justify-center font-black text-2xl border border-accent-red/20 shrink-0">

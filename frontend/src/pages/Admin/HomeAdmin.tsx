@@ -5,7 +5,7 @@ import {
   AlertTriangle, CheckCircle, UserCheck,
   Newspaper, Image as ImageIcon, Plus, Edit2,
   Trash2, XCircle, ShieldOff, Package, FileText, Crown, ArrowDownCircle,
-  UtensilsCrossed, Clock, Flame,
+  UtensilsCrossed, Clock, Flame, Link2,
 } from 'lucide-react';
 import {
   getProdutosPendentes, aprovarOuRejeitarProduto,
@@ -104,7 +104,7 @@ export default function HomeAdmin() {
     if (abaAtiva === 'dashboard')   carregarMetricas();
     if (abaAtiva === 'verificacao') { carregarLojasPendentes(); carregarProdutosPendentes(); }
     if (abaAtiva === 'usuarios')    carregarUsuarios();
-    if (abaAtiva === 'destaques')   carregarBanners();
+    if (abaAtiva === 'destaques')   { carregarBanners(); carregarNoticias(); }
     if (abaAtiva === 'noticias')    carregarNoticias();
     if (abaAtiva === 'receitas')    carregarReceitas();
   }, [abaAtiva]);
@@ -660,6 +660,11 @@ export default function HomeAdmin() {
                     <div className="p-4 flex-1 flex flex-col">
                       <h3 className="font-black text-sm uppercase text-[#394158] line-clamp-1">{b.titulo}</h3>
                       <p className="text-[10px] font-bold text-gray-400 uppercase line-clamp-2 italic mt-1">{b.subtitulo}</p>
+                      {b.linkBlogId && (
+                        <p className="text-[9px] font-bold text-[#55833d] mt-1.5 flex items-center gap-1">
+                          <Link2 size={8} /> Notícia #{b.linkBlogId} vinculada
+                        </p>
+                      )}
                       <div className="mt-auto pt-3 flex justify-end gap-2">
                         <button onClick={() => abrirEditarBanner(b)} className="w-8 h-8 flex items-center justify-center rounded-full bg-[#F5F2ED] text-[#394158] hover:bg-[#f9943b] hover:text-white transition-colors"><Edit2 size={12} /></button>
                         <button onClick={() => setConfirmar({ aberto: true, tipo: 'banner', id: b.id })} className="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={12} /></button>
@@ -755,6 +760,44 @@ export default function HomeAdmin() {
       <Modal open={modalBanner} onClose={() => setModalBanner(false)}
         title={formBanner.id ? 'Editar banner' : 'Novo banner'}>
         <div className="space-y-4">
+          {/* VINCULAR NOTÍCIA */}
+          <div>
+            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5 flex items-center gap-1">
+              <Link2 size={10} /> Vincular notícia
+            </label>
+            <select
+              value={formBanner.linkBlogId || ''}
+              onChange={e => {
+                const selectedId = e.target.value ? Number(e.target.value) : null;
+                if (selectedId) {
+                  const noticia = noticias.find((n: any) => n.id === selectedId);
+                  if (noticia) {
+                    setFormBanner({
+                      ...formBanner,
+                      linkBlogId: selectedId,
+                      titulo: noticia.titulo || formBanner.titulo,
+                      subtitulo: noticia.subtitulo || formBanner.subtitulo,
+                      imagemUrl: noticia.imagemUrl || formBanner.imagemUrl,
+                      tipo: noticia.categoria || formBanner.tipo,
+                    });
+                  }
+                } else {
+                  setFormBanner({ ...formBanner, linkBlogId: null });
+                }
+              }}
+              className="w-full p-3 bg-[#F5F2ED]/50 text-[#394158] font-bold rounded-2xl outline-none border-2 border-transparent focus:border-[#55833d]"
+            >
+              <option value="">Nenhuma (banner independente)</option>
+              {noticias.map((n: any) => (
+                <option key={n.id} value={n.id}>{n.titulo}</option>
+              ))}
+            </select>
+            {formBanner.linkBlogId && (
+              <p className="text-[9px] font-bold text-[#55833d] mt-1.5 ml-1 flex items-center gap-1">
+                <Link2 size={8} /> Vinculada — o botão "Saiba Mais" levará para esta notícia
+              </p>
+            )}
+          </div>
           <FormField label="Tag" value={formBanner.tipo}
             onChange={e => setFormBanner({ ...formBanner, tipo: e.target.value })} />
           <FormField label="Título" value={formBanner.titulo}

@@ -37,6 +37,7 @@ export interface UsuarioLogado {
   nome: string;
   email: string;
   telefone?: string;
+  fotoPerfilUrl?: string;
   perfil: Perfil;
 }
 

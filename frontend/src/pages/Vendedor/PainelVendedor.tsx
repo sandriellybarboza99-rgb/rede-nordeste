@@ -22,14 +22,6 @@ import { Card } from '../../components/ui/Card';
 
 type Aba = 'dashboard' | 'produtos' | 'pedidos' | 'loja';
 
-const STATUS_PEDIDO_PROXIMO: Record<string, string | null> = {
-  PEDIDO_RECEBIDO: 'PEDIDO_EM_COLETA',
-  AGUARDANDO_ENTREGADOR: 'PEDIDO_EM_COLETA',
-  PEDIDO_EM_COLETA: 'SAIU_PARA_ENTREGA',
-  SAIU_PARA_ENTREGA: 'ENTREGUE',
-  RETIRADA_DISPONIVEL: 'ENTREGUE',
-};
-
 export default function PainelVendedor() {
   const { success, error: toastError } = useToast();
   const [abaAtiva, setAbaAtiva] = useState<Aba>('dashboard');
@@ -54,7 +46,7 @@ export default function PainelVendedor() {
     id: null, nome: '', descricao: '', precoAtual: '', unidadeMedida: 'kg',
     estoqueAtual: 0, pesoKg: 0.5, imagemUrl: '', categoriaId: null,
   });
-  const [confirmarDelete, setConfirmarDelete] = useState<{aberto: boolean; id: number | null}>({ aberto: false, id: null });
+  const [confirmarDelete, setConfirmarDelete] = useState<{ aberto: boolean; id: number | null }>({ aberto: false, id: null });
 
   // ── Pedidos ───────────────────────────────────────────────────
   const [pedidos, setPedidos] = useState<any[]>([]);
@@ -251,15 +243,14 @@ export default function PainelVendedor() {
     }
   };
 
-  const avancarStatusPedido = async (pedidoId: number, statusAtual: string) => {
-    const proximo = STATUS_PEDIDO_PROXIMO[statusAtual];
-    if (!proximo) return;
+  const avancarStatusPedido = async (pedidoId: number, novoStatus: string) => {
+    if (!novoStatus) return;
     try {
-      await atualizarStatusEntrega(pedidoId, proximo);
-      success(`Pedido atualizado para ${proximo}`);
+      await atualizarStatusEntrega(pedidoId, novoStatus);
+      success(`Pedido atualizado para ${novoStatus}`);
       carregarPedidos();
     } catch (err: any) {
-      toastError(err?.message || 'Erro ao avançar status');
+      toastError(err?.message || 'Erro ao atualizar status');
     }
   };
 
@@ -317,226 +308,273 @@ export default function PainelVendedor() {
           labelVoltar="Vitrine"
           acoesDireita={<UserMenu perfilPath="/perfilvendedor" />}
         />
-      {/* Aviso de loja não verificada */}
-      {lojaNaoVerificada && (
-        <div className="bg-[#f9943b]/10 border border-[#f9943b]/20 rounded-2xl px-4 py-3 flex items-center gap-3 mb-4">
-          <AlertTriangle size={18} className="text-[#f9943b] shrink-0" />
-          <p className="text-xs font-bold text-[#394158]">
-            {loja.suspensa
-              ? `Loja suspensa${loja.motivoSuspensao ? `: ${loja.motivoSuspensao}` : ''}.`
-              : 'Sua loja está aguardando verificação do admin. Seus produtos só aparecem na vitrine após aprovação.'}
-          </p>
-        </div>
-      )}
+        {/* Aviso de loja não verificada */}
+        {lojaNaoVerificada && (
+          <div className="bg-[#f9943b]/10 border border-[#f9943b]/20 rounded-2xl px-4 py-3 flex items-center gap-3 mb-4">
+            <AlertTriangle size={18} className="text-[#f9943b] shrink-0" />
+            <p className="text-xs font-bold text-[#394158]">
+              {loja.suspensa
+                ? `Loja suspensa${loja.motivoSuspensao ? `: ${loja.motivoSuspensao}` : ''}.`
+                : 'Sua loja está aguardando verificação do admin. Seus produtos só aparecem na vitrine após aprovação.'}
+            </p>
+          </div>
+        )}
 
-      {/* Tabs desktop */}
-      <nav className="hidden md:flex gap-1 px-12 pt-6 border-b border-gray-100 bg-white">
-        {([
-          { id: 'dashboard', label: 'Visão geral', Icon: LayoutDashboard },
-          { id: 'produtos',  label: 'Produtos',    Icon: Package },
-          { id: 'pedidos',   label: 'Pedidos',     Icon: ShoppingBag },
-          { id: 'loja',      label: 'Minha loja',  Icon: Store },
-        ] as const).map(t => (
-          <button
-            key={t.id}
-            onClick={() => setAbaAtiva(t.id as Aba)}
-            className={`px-6 py-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest border-b-2 transition-colors ${
-              abaAtiva === t.id
-                ? 'border-[#55833d] text-[#55833d]'
-                : 'border-transparent text-[#394158]/50 hover:text-[#394158]'
-            }`}
-          >
-            <t.Icon size={16} /> {t.label}
-          </button>
-        ))}
-      </nav>
+        {/* Tabs desktop */}
+        <nav className="hidden md:flex gap-1 px-12 pt-6 border-b border-gray-100 bg-white">
+          {([
+            { id: 'dashboard', label: 'Visão geral', Icon: LayoutDashboard },
+            { id: 'produtos', label: 'Produtos', Icon: Package },
+            { id: 'pedidos', label: 'Pedidos', Icon: ShoppingBag },
+            { id: 'loja', label: 'Minha loja', Icon: Store },
+          ] as const).map(t => (
+            <button
+              key={t.id}
+              onClick={() => setAbaAtiva(t.id as Aba)}
+              className={`px-6 py-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest border-b-2 transition-colors ${abaAtiva === t.id
+                  ? 'border-[#55833d] text-[#55833d]'
+                  : 'border-transparent text-[#394158]/50 hover:text-[#394158]'
+                }`}
+            >
+              <t.Icon size={16} /> {t.label}
+            </button>
+          ))}
+        </nav>
 
-      {/* Tabs mobile (pills) */}
-      <nav className="md:hidden flex gap-2 px-4 py-3 overflow-x-auto no-scrollbar bg-white border-b border-gray-100">
-        {([
-          { id: 'dashboard', label: 'Visão' },
-          { id: 'produtos',  label: 'Produtos' },
-          { id: 'pedidos',   label: 'Pedidos' },
-          { id: 'loja',      label: 'Loja' },
-        ] as const).map(t => (
-          <button
-            key={t.id}
-            onClick={() => setAbaAtiva(t.id as Aba)}
-            className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-colors ${
-              abaAtiva === t.id ? 'bg-[#55833d] text-white' : 'bg-gray-100 text-[#394158]'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+        {/* Tabs mobile (pills) */}
+        <nav className="md:hidden flex gap-2 px-4 py-3 overflow-x-auto no-scrollbar bg-white border-b border-gray-100">
+          {([
+            { id: 'dashboard', label: 'Visão' },
+            { id: 'produtos', label: 'Produtos' },
+            { id: 'pedidos', label: 'Pedidos' },
+            { id: 'loja', label: 'Loja' },
+          ] as const).map(t => (
+            <button
+              key={t.id}
+              onClick={() => setAbaAtiva(t.id as Aba)}
+              className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-colors ${abaAtiva === t.id ? 'bg-[#55833d] text-white' : 'bg-gray-100 text-[#394158]'
+                }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
 
-      <div className="py-4 md:py-6 space-y-6">
-        {/* DASHBOARD */}
-        {abaAtiva === 'dashboard' && (
-          <>
-            <section className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-              <Card padding="md" className="flex justify-between items-center gap-2">
-                <div className="min-w-0">
-                  <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Produtos</p>
-                  <h3 className="text-xl md:text-2xl font-black italic text-[#394158]">{produtos.length}</h3>
-                </div>
-                <Package className="text-[#55833d] shrink-0" size={24} />
-              </Card>
-              <Card padding="md" className="flex justify-between items-center gap-2">
-                <div className="min-w-0">
-                  <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Pedidos</p>
-                  <h3 className="text-xl md:text-2xl font-black italic text-[#394158]">{pedidos.length}</h3>
-                </div>
-                <ShoppingBag className="text-[#f9943b] shrink-0" size={24} />
-              </Card>
-              <Card padding="md" className="flex justify-between items-center gap-2">
-                <div className="min-w-0">
-                  <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Faturado</p>
-                  <h3 className="text-xl md:text-2xl font-black italic text-[#55833d]">
-                    R$ {pedidos.reduce((s, p) => s + Number(p.valorTotal || 0), 0).toFixed(0)}
-                  </h3>
-                </div>
-                <DollarSign className="text-[#55833d] shrink-0" size={24} />
-              </Card>
-              <Card padding="md" className="flex justify-between items-center gap-2">
-                <div className="min-w-0">
-                  <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Status</p>
-                  <h3 className={`text-[10px] md:text-xs font-black italic ${loja.verificada ? 'text-[#55833d]' : 'text-[#f9943b]'}`}>
-                    {loja.verificada ? 'Verificada' : 'Pendente'}
-                  </h3>
-                </div>
-                {loja.verificada
-                  ? <CheckCircle className="text-[#55833d] shrink-0" size={24} />
-                  : <ShieldOff className="text-[#f9943b] shrink-0" size={24} />}
-              </Card>
-            </section>
+        <div className="py-4 md:py-6 space-y-6">
+          {/* DASHBOARD */}
+          {abaAtiva === 'dashboard' && (
+            <>
+              <section className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                <Card padding="md" className="flex justify-between items-center gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Produtos</p>
+                    <h3 className="text-xl md:text-2xl font-black italic text-[#394158]">{produtos.length}</h3>
+                  </div>
+                  <Package className="text-[#55833d] shrink-0" size={24} />
+                </Card>
+                <Card padding="md" className="flex justify-between items-center gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Pedidos</p>
+                    <h3 className="text-xl md:text-2xl font-black italic text-[#394158]">{pedidos.length}</h3>
+                  </div>
+                  <ShoppingBag className="text-[#f9943b] shrink-0" size={24} />
+                </Card>
+                <Card padding="md" className="flex justify-between items-center gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Faturado</p>
+                    <h3 className="text-xl md:text-2xl font-black italic text-[#55833d]">
+                      R$ {pedidos.reduce((s, p) => s + Number(p.valorTotal || 0), 0).toFixed(0)}
+                    </h3>
+                  </div>
+                  <DollarSign className="text-[#55833d] shrink-0" size={24} />
+                </Card>
+                <Card padding="md" className="flex justify-between items-center gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Status</p>
+                    <h3 className={`text-[10px] md:text-xs font-black italic ${loja.verificada ? 'text-[#55833d]' : 'text-[#f9943b]'}`}>
+                      {loja.verificada ? 'Verificada' : 'Pendente'}
+                    </h3>
+                  </div>
+                  {loja.verificada
+                    ? <CheckCircle className="text-[#55833d] shrink-0" size={24} />
+                    : <ShieldOff className="text-[#f9943b] shrink-0" size={24} />}
+                </Card>
+              </section>
 
-            <Card padding="md">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm md:text-base font-black uppercase italic text-[#394158]">Últimos pedidos</h3>
-                <Link to="#" onClick={(e) => { e.preventDefault(); setAbaAtiva('pedidos'); }}
-                  className="text-[10px] font-black uppercase text-[#55833d] hover:underline">Ver todos</Link>
-              </div>
-              {pedidos.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-8">Nenhum pedido ainda</p>
-              ) : (
-                <div className="space-y-2">
-                  {pedidos.slice(0, 3).map(p => (
-                    <div key={p.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
-                      <div className="min-w-0">
-                        <p className="text-xs font-black text-[#394158]">#{p.id}</p>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase">{p.statusEntrega || '—'}</p>
+              <Card padding="md">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm md:text-base font-black uppercase italic text-[#394158]">Últimos pedidos</h3>
+                  <Link to="#" onClick={(e) => { e.preventDefault(); setAbaAtiva('pedidos'); }}
+                    className="text-[10px] font-black uppercase text-[#55833d] hover:underline">Ver todos</Link>
+                </div>
+                {pedidos.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-8">Nenhum pedido ainda</p>
+                ) : (
+                  <div className="space-y-2">
+                    {pedidos.slice(0, 3).map(p => (
+                      <div key={p.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
+                        <div className="min-w-0">
+                          <p className="text-xs font-black text-[#394158]">#{p.id}</p>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase">{p.statusEntrega || '—'}</p>
+                        </div>
+                        <p className="text-sm font-black text-[#55833d]">R$ {Number(p.valorTotal).toFixed(2)}</p>
                       </div>
-                      <p className="text-sm font-black text-[#55833d]">R$ {Number(p.valorTotal).toFixed(2)}</p>
-                    </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </>
+          )}
+
+          {/* PRODUTOS */}
+          {abaAtiva === 'produtos' && (
+            <>
+              <div className="flex justify-between items-center">
+                <h2 className="text-base md:text-xl font-black uppercase italic text-[#394158]">Meus produtos</h2>
+                <Button onClick={abrirNovoProduto} iconLeft={<Plus size={16} />}>Adicionar</Button>
+              </div>
+              {produtos.length === 0 ? (
+                <Card padding="lg" className="text-center">
+                  <Package className="text-gray-300 mx-auto mb-3" size={40} />
+                  <p className="text-sm text-gray-400">Você ainda não tem produtos. Cadastre o primeiro!</p>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {produtos.map(p => (
+                    <Card key={p.id} padding="sm" className="flex flex-col">
+                      <div className="aspect-square rounded-xl overflow-hidden bg-gray-100 mb-3">
+                        {p.imagemUrl
+                          ? <img src={p.imagemUrl} alt={p.nome} className="w-full h-full object-cover" />
+                          : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon /></div>}
+                      </div>
+                      <h3 className="text-xs font-black uppercase text-[#394158] line-clamp-2 mb-1">{p.nome}</h3>
+                      <p className="text-[10px] font-bold text-gray-400">{p.nomeCategoria}</p>
+                      <p className="text-sm font-black text-[#55833d] mt-1">R$ {Number(p.precoAtual).toFixed(2)}/{p.unidadeMedida}</p>
+                      <p className="text-[10px] font-bold text-gray-400 mt-0.5">Estoque: {p.estoqueAtual}</p>
+                      <div className="mt-3 flex gap-2">
+                        <button onClick={() => abrirEditarProduto(p)}
+                          className="flex-1 p-2 bg-[#F5F2ED] text-[#394158] hover:bg-[#f9943b] hover:text-white rounded-lg transition-colors">
+                          <Edit2 size={12} className="mx-auto" />
+                        </button>
+                        <button onClick={() => setConfirmarDelete({ aberto: true, id: p.id })}
+                          className="flex-1 p-2 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors">
+                          <Trash2 size={12} className="mx-auto" />
+                        </button>
+                      </div>
+                    </Card>
                   ))}
                 </div>
               )}
+            </>
+          )}
+
+          {/* PEDIDOS */}
+          {abaAtiva === 'pedidos' && (
+            <>
+              <h2 className="text-base md:text-xl font-black uppercase italic text-[#394158]">Pedidos recebidos</h2>
+              {pedidos.length === 0 ? (
+                <Card padding="lg" className="text-center">
+                  <ShoppingBag className="text-gray-300 mx-auto mb-3" size={40} />
+                  <p className="text-sm text-gray-400">Nenhum pedido ainda</p>
+                </Card>
+              ) : (
+                <div className="space-y-3">
+                  {pedidos.map(p => (
+                  <Card key={p.id} padding="md" className="flex flex-col gap-4">
+                    {/* HEADER DO PEDIDO */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-black uppercase text-[#394158]">Pedido #{p.id}</h3>
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase bg-gray-50 px-2 py-0.5 rounded-md">
+                            {p.statusPagamento || '—'}
+                          </span>
+                          <span className="text-[10px] font-bold text-[#55833d] uppercase bg-[#55833d]/10 px-2 py-0.5 rounded-md">
+                            {p.itens?.length || 0} itens
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
+                        <span className="text-base font-black text-[#55833d] md:mr-3">R$ {Number(p.valorTotal).toFixed(2)}</span>
+                        <select
+                          value={p.statusEntrega || 'PEDIDO_RECEBIDO'}
+                          onChange={(e) => avancarStatusPedido(p.id, e.target.value)}
+                          className="bg-[#55833d] text-white text-[10px] font-black uppercase px-3 py-2 rounded-lg outline-none cursor-pointer hover:bg-[#436830] transition-colors appearance-none text-center shadow-sm"
+                          style={{ textAlignLast: 'center' }}
+                        >
+                          <option value="PEDIDO_RECEBIDO">Pedido Recebido</option>
+                          <option value="AGUARDANDO_ENTREGADOR">Aguardando Entregador</option>
+                          <option value="ENTREGADOR_ACEITOU">Entregador Aceitou</option>
+                          <option value="PEDIDO_EM_COLETA">Em Coleta / Embalando</option>
+                          <option value="SAIU_PARA_ENTREGA">Saiu para Entrega</option>
+                          <option value="RETIRADA_DISPONIVEL">Pronto para Retirada</option>
+                          <option value="ENTREGUE">Entregue</option>
+                          <option value="CANCELADO">Cancelado</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* INFORMAÇÕES DO CLIENTE */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      <div className="flex items-start gap-2 text-gray-600">
+                        <User size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
+                        <div>
+                          <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Comprador</p>
+                          <p className="font-black text-[#394158] uppercase">{p.nomeComprador || 'Cliente não identificado'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2 text-gray-600">
+                        <MapPin size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
+                        <div>
+                          <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Entrega / Retirada</p>
+                          <p className="font-black text-[#394158]">{p.enderecoEntrega || 'RETIRADA NA LOJA'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* LISTA DE PRODUTOS */}
+                    <div className="bg-[#F5F2ED] rounded-xl p-3 space-y-2">
+                      <p className="font-black uppercase text-[10px] text-[#394158] tracking-widest mb-2">Produtos do Pedido</p>
+                      {p.itens?.map((item: any, i: number) => (
+                        <div key={i} className="flex justify-between items-center text-xs border-b border-gray-200/50 last:border-0 pb-2 last:pb-0">
+                          <span className="font-bold text-gray-600">
+                            <span className="text-[#55833d] mr-1">{item.quantidade}x</span> 
+                            {item.nomeProduto}
+                          </span>
+                          <span className="font-black text-[#394158]">R$ {Number(item.subtotal).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* LOJA */}
+          {abaAtiva === 'loja' && (
+            <Card padding="lg">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-base md:text-xl font-black uppercase italic text-[#394158]">Minha loja</h2>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                    {loja.verificada ? 'Verificada ✓' : 'Aguardando verificação'}
+                  </p>
+                </div>
+                <Button onClick={() => { setFormLoja({ ...formLoja, ...loja }); setModalLoja(true); }}
+                  variant="ghost" iconLeft={<Edit2 size={14} />}>Editar</Button>
+              </div>
+              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div><dt className="text-[10px] font-black uppercase text-gray-400">Nome</dt><dd className="font-bold mt-1">{loja.nomeLoja}</dd></div>
+                <div><dt className="text-[10px] font-black uppercase text-gray-400">Cidade</dt><dd className="font-bold mt-1">{loja.cidade}/{loja.estado}</dd></div>
+                <div><dt className="text-[10px] font-black uppercase text-gray-400">Aceita retirada</dt><dd className="font-bold mt-1">{loja.aceitaRetirada ? 'Sim' : 'Não'}</dd></div>
+                <div><dt className="text-[10px] font-black uppercase text-gray-400">Faz entrega</dt><dd className="font-bold mt-1">{loja.fazEntrega ? 'Sim' : 'Não'}</dd></div>
+                <div className="md:col-span-2"><dt className="text-[10px] font-black uppercase text-gray-400">Bio</dt><dd className="font-medium text-gray-600 mt-1">{loja.descricaoBio || '—'}</dd></div>
+              </dl>
             </Card>
-          </>
-        )}
-
-        {/* PRODUTOS */}
-        {abaAtiva === 'produtos' && (
-          <>
-            <div className="flex justify-between items-center">
-              <h2 className="text-base md:text-xl font-black uppercase italic text-[#394158]">Meus produtos</h2>
-              <Button onClick={abrirNovoProduto} iconLeft={<Plus size={16} />}>Adicionar</Button>
-            </div>
-            {produtos.length === 0 ? (
-              <Card padding="lg" className="text-center">
-                <Package className="text-gray-300 mx-auto mb-3" size={40} />
-                <p className="text-sm text-gray-400">Você ainda não tem produtos. Cadastre o primeiro!</p>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {produtos.map(p => (
-                  <Card key={p.id} padding="sm" className="flex flex-col">
-                    <div className="aspect-square rounded-xl overflow-hidden bg-gray-100 mb-3">
-                      {p.imagemUrl
-                        ? <img src={p.imagemUrl} alt={p.nome} className="w-full h-full object-cover" />
-                        : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon /></div>}
-                    </div>
-                    <h3 className="text-xs font-black uppercase text-[#394158] line-clamp-2 mb-1">{p.nome}</h3>
-                    <p className="text-[10px] font-bold text-gray-400">{p.nomeCategoria}</p>
-                    <p className="text-sm font-black text-[#55833d] mt-1">R$ {Number(p.precoAtual).toFixed(2)}/{p.unidadeMedida}</p>
-                    <p className="text-[10px] font-bold text-gray-400 mt-0.5">Estoque: {p.estoqueAtual}</p>
-                    <div className="mt-3 flex gap-2">
-                      <button onClick={() => abrirEditarProduto(p)}
-                        className="flex-1 p-2 bg-[#F5F2ED] text-[#394158] hover:bg-[#f9943b] hover:text-white rounded-lg transition-colors">
-                        <Edit2 size={12} className="mx-auto" />
-                      </button>
-                      <button onClick={() => setConfirmarDelete({ aberto: true, id: p.id })}
-                        className="flex-1 p-2 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors">
-                        <Trash2 size={12} className="mx-auto" />
-                      </button>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* PEDIDOS */}
-        {abaAtiva === 'pedidos' && (
-          <>
-            <h2 className="text-base md:text-xl font-black uppercase italic text-[#394158]">Pedidos recebidos</h2>
-            {pedidos.length === 0 ? (
-              <Card padding="lg" className="text-center">
-                <ShoppingBag className="text-gray-300 mx-auto mb-3" size={40} />
-                <p className="text-sm text-gray-400">Nenhum pedido ainda</p>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {pedidos.map(p => (
-                  <Card key={p.id} padding="md" className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-black uppercase text-[#394158]">Pedido #{p.id}</h3>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5">
-                        Status: {p.statusEntrega || '—'} · {p.itens?.length || 0} itens
-                      </p>
-                      <p className="text-[10px] font-bold text-gray-400 mt-0.5">Pago: {p.statusPagamento || '—'}</p>
-                    </div>
-                    <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
-                      <span className="text-base font-black text-[#55833d] md:mr-3">R$ {Number(p.valorTotal).toFixed(2)}</span>
-                      {STATUS_PEDIDO_PROXIMO[p.statusEntrega] && (
-                        <Button size="sm" onClick={() => avancarStatusPedido(p.id, p.statusEntrega)}>
-                          Avançar status
-                        </Button>
-                      )}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* LOJA */}
-        {abaAtiva === 'loja' && (
-          <Card padding="lg">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h2 className="text-base md:text-xl font-black uppercase italic text-[#394158]">Minha loja</h2>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                  {loja.verificada ? 'Verificada ✓' : 'Aguardando verificação'}
-                </p>
-              </div>
-              <Button onClick={() => { setFormLoja({ ...formLoja, ...loja }); setModalLoja(true); }}
-                variant="ghost" iconLeft={<Edit2 size={14} />}>Editar</Button>
-            </div>
-            <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div><dt className="text-[10px] font-black uppercase text-gray-400">Nome</dt><dd className="font-bold mt-1">{loja.nomeLoja}</dd></div>
-              <div><dt className="text-[10px] font-black uppercase text-gray-400">Cidade</dt><dd className="font-bold mt-1">{loja.cidade}/{loja.estado}</dd></div>
-              <div><dt className="text-[10px] font-black uppercase text-gray-400">Aceita retirada</dt><dd className="font-bold mt-1">{loja.aceitaRetirada ? 'Sim' : 'Não'}</dd></div>
-              <div><dt className="text-[10px] font-black uppercase text-gray-400">Faz entrega</dt><dd className="font-bold mt-1">{loja.fazEntrega ? 'Sim' : 'Não'}</dd></div>
-              <div className="md:col-span-2"><dt className="text-[10px] font-black uppercase text-gray-400">Bio</dt><dd className="font-medium text-gray-600 mt-1">{loja.descricaoBio || '—'}</dd></div>
-            </dl>
-          </Card>
-        )}
-      </div>
+          )}
+        </div>
       </main>
 
       {renderModalLoja()}
@@ -599,11 +637,11 @@ export default function PainelVendedor() {
 
       <BottomTabBar
         tabs={[
-          { to: '/vendedor',         label: 'Vitrine',  Icon: HomeIcon },
-          { to: '/painelvendedor',   label: 'Painel',   Icon: LayoutDashboard },
+          { to: '/vendedor', label: 'Vitrine', Icon: HomeIcon },
+          { to: '/painelvendedor', label: 'Painel', Icon: LayoutDashboard },
           { to: '/receitasvendedor', label: 'Receitas', Icon: BookOpen },
-          { to: '/chat',             label: 'Chat',     Icon: MessageCircle },
-          { to: '/perfilvendedor',   label: 'Perfil',   Icon: User },
+          { to: '/chat', label: 'Chat', Icon: MessageCircle },
+          { to: '/perfilvendedor', label: 'Perfil', Icon: User },
         ]}
       />
     </div>
@@ -635,7 +673,7 @@ export default function PainelVendedor() {
             <FormField label="Bairro" value={formLoja.bairro || ''}
               onChange={e => setFormLoja({ ...formLoja, bairro: e.target.value })} />
           </div>
-          <FormField label="Logradouro" value={formLoja.logradouro || ''}
+          <FormField label="Endereço Completo (Rua, Número, Complemento)" value={formLoja.logradouro || ''}
             onChange={e => setFormLoja({ ...formLoja, logradouro: e.target.value })} />
 
           <div>

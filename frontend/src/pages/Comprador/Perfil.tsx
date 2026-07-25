@@ -8,9 +8,9 @@ import {
   CreditCard as CardIcon, ShoppingCart, Filter, HeartOff, Eye, Trash2, X,
 } from 'lucide-react';
 import {
-  getMeusPedidos, atualizarMeuPerfil,
+  getMeusPedidos, atualizarMeuPerfil, getMeuPerfil,
   getMeusEnderecos, criarEndereco, deletarEndereco,
-  getMeusCartoes, criarCartao, deletarCartao,
+  getMeusCartoes, criarCartao, deletarCartao, getProdutoPorId,
 } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -40,7 +40,7 @@ interface Cartao {
 
 export default function Perfil() {
   const navigate = useNavigate();
-  const { usuario, logout } = useAuth();
+  const { usuario, logout, atualizarTokens } = useAuth();
   const { success, error: toastError } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -92,7 +92,7 @@ export default function Perfil() {
 
   // foto preview (para upload de foto antes de persistir)
   const [fotoPerfil, setFotoPerfil] = useState<string>(
-    'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?w=200'
+    usuario?.fotoPerfilUrl || 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?w=200'
   );
 
   // ── Inicialização: carrega dados do backend ────────────────────
@@ -101,17 +101,51 @@ export default function Perfil() {
       getMeusPedidos().catch(() => ({ content: [] })),
       getMeusEnderecos().catch(() => []),
       getMeusCartoes().catch(() => []),
-    ]).then(([pedidosData, ends, cards]) => {
+      getMeuPerfil().catch(() => null),
+    ]).then(([pedidosData, ends, cards, perfilData]) => {
       setPedidos(pedidosData.content || []);
       setMeusEnderecos(ends);
       setMeusCartoes(cards);
+      if (perfilData?.fotoPerfilUrl) {
+        setFotoPerfil(perfilData.fotoPerfilUrl);
+        atualizarTokens({ fotoPerfilUrl: perfilData.fotoPerfilUrl });
+      }
     });
+
+    // Carregar favoritos
+    const carregarFavoritos = async () => {
+      try {
+        const salvos = localStorage.getItem('favoritos_itens');
+        if (salvos) {
+          const ids: number[] = JSON.parse(salvos);
+          const prods = await Promise.all(
+            ids.map(id => getProdutoPorId(id).catch(() => null))
+          );
+          setMeusFavoritos(prods.filter(p => p !== null));
+        }
+      } catch (err) {
+        console.error('Erro ao carregar favoritos', err);
+      }
+    };
+    carregarFavoritos();
   }, []);
+
+  // Remover favorito
+  const removerFavorito = (id: number) => {
+    setMeusFavoritos(prev => prev.filter(f => f.id !== id));
+    const fav = JSON.parse(localStorage.getItem('favoritos_itens') || '[]');
+    const newFav = fav.filter((fId: number) => fId !== id);
+    localStorage.setItem('favoritos_itens', JSON.stringify(newFav));
+    window.dispatchEvent(new Event('storage'));
+  };
 
   // Quando o usuário do contexto chega, atualiza dados visíveis
   useEffect(() => {
     if (usuario) {
       setDadosUsuario((d) => ({ ...d, nome: usuario.nome, email: usuario.email }));
+      if (usuario.fotoPerfilUrl && usuario.fotoPerfilUrl !== fotoPerfil) {
+        setFotoPerfil(usuario.fotoPerfilUrl);
+      }
     }
   }, [usuario]);
 
@@ -124,6 +158,7 @@ export default function Perfil() {
       setFotoPerfil(base64String);
       try {
         await atualizarMeuPerfil({ fotoPerfilUrl: base64String });
+        atualizarTokens({ fotoPerfilUrl: base64String });
         success('Foto atualizada');
       } catch (err: any) {
         toastError(err.message || 'Erro ao salvar foto');
@@ -225,8 +260,10 @@ export default function Perfil() {
   };
 
   const favoritosOrdenados = [...meusFavoritos].sort((a, b) => {
-    if (filtroFavoritos === 'barato') return a.preco - b.preco;
-    if (filtroFavoritos === 'caro') return b.preco - a.preco;
+    const precoA = a.precoAtual || a.preco || 0;
+    const precoB = b.precoAtual || b.preco || 0;
+    if (filtroFavoritos === 'barato') return precoA - precoB;
+    if (filtroFavoritos === 'caro') return precoB - precoA;
     return 0;
   });
 
@@ -276,13 +313,13 @@ export default function Perfil() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 pb-10 px-2">
           {favoritosOrdenados.map((prod) => (
             <div key={prod.id} className="bg-white rounded-2xl p-3 shadow-md border border-white flex flex-col h-full relative">
-              <button onClick={() => setMeusFavoritos(meusFavoritos.filter(f => f.id !== prod.id))}
+              <button onClick={() => removerFavorito(prod.id)}
                 className="absolute top-3 right-3 z-10 p-2 bg-white/90 shadow-md rounded-full text-red-400 hover:text-red-600 active:scale-90 transition-all">
                 <HeartOff size={14} />
               </button>
               <div onClick={() => navigate(`/produto/${prod.id}`)} className="cursor-pointer group flex flex-col flex-1">
                 <div className="w-full aspect-square rounded-xl overflow-hidden bg-[#F5F2ED] mb-3">
-                  <img src={prod.img} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={prod.nome} />
+                  <img src={prod.imagemUrl || prod.img || 'https://via.placeholder.com/400'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={prod.nome} />
                 </div>
                 <p className="text-[11px] font-black text-[#394158] leading-tight px-1">{prod.nome}</p>
               </div>
@@ -452,22 +489,90 @@ export default function Perfil() {
     }
   };
 
-  const renderDetalhePedido = () => (
-    <div className="space-y-6 animate-in slide-in-from-right duration-300">
-      <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-white">
-        <div className="bg-[#394158] p-8 text-white"><p className="text-[10px] font-black uppercase opacity-60 mb-1">Recibo Digital</p><h3 className="text-2xl font-black italic uppercase tracking-tighter">{pedidoSelecionado?.id}</h3></div>
-        <div className="p-8 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-[#F5F2ED] p-4 rounded-2xl flex items-center gap-4 border border-gray-100"><Calendar size={20} className="text-[#f9943b]" /><div><p className="text-[8px] font-black uppercase opacity-40">Data</p><p className="text-xs font-bold">{pedidoSelecionado?.dataPedido?.substring(0, 10) || '—'}</p></div></div>
-            <div className="bg-[#F5F2ED] p-4 rounded-2xl flex items-center gap-4 border border-gray-100"><CardIcon size={20} className="text-[#f9943b]" /><div><p className="text-[8px] font-black uppercase opacity-40">Pagamento</p><p className="text-xs font-bold">{pedidoSelecionado?.metodoPagamento || 'CARTAO'}</p></div></div>
+  const renderDetalhePedido = () => {
+    if (!pedidoSelecionado) return null;
+
+    const status = pedidoSelecionado.statusEntrega || 'PEDIDO_RECEBIDO';
+    const isCancelado = status === 'CANCELADO';
+    
+    // Calcula o progresso (0 a 3)
+    let progresso = 0;
+    if (['AGUARDANDO_ENTREGADOR', 'ENTREGADOR_ACEITOU', 'PEDIDO_EM_COLETA'].includes(status)) progresso = 1;
+    if (['SAIU_PARA_ENTREGA', 'RETIRADA_DISPONIVEL'].includes(status)) progresso = 2;
+    if (status === 'ENTREGUE') progresso = 3;
+
+    return (
+      <div className="space-y-6 animate-in slide-in-from-right duration-300">
+        <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-white">
+          <div className="bg-[#394158] p-8 text-white">
+            <p className="text-[10px] font-black uppercase opacity-60 mb-1">Recibo Digital</p>
+            <h3 className="text-2xl font-black italic uppercase tracking-tighter">Pedido #{pedidoSelecionado.id}</h3>
           </div>
-          <div className="pt-6 border-t border-dashed flex flex-col gap-4">
-            <div className="flex justify-between items-baseline px-2"><span className="font-black uppercase text-[10px] opacity-30">Total Pago</span><span className="text-2xl font-black text-[#55833d]">R$ {pedidoSelecionado?.valorTotal || pedidoSelecionado?.total}</span></div>
+          <div className="p-8 space-y-8">
+            
+            {/* WIZARD TRACKING */}
+            {isCancelado ? (
+              <div className="bg-red-50 p-6 rounded-2xl border border-red-100 flex flex-col items-center justify-center text-center">
+                <X size={32} className="text-red-500 mb-2" />
+                <h4 className="text-red-600 font-black uppercase text-sm">Pedido Cancelado</h4>
+                <p className="text-[10px] font-bold text-red-400 mt-1 uppercase tracking-widest">Este pedido não será entregue.</p>
+              </div>
+            ) : (
+              <div className="relative pt-4 pb-8">
+                {/* Linha de progresso no fundo */}
+                <div className="absolute top-[28px] md:top-[32px] left-8 right-8 h-1 bg-gray-100 rounded-full z-0 overflow-hidden">
+                  <div className="h-full bg-[#55833d] transition-all duration-700 ease-in-out" style={{ width: `${(progresso / 3) * 100}%` }} />
+                </div>
+                
+                {/* Os 4 passos */}
+                <div className="relative z-10 flex justify-between">
+                  {[
+                    { label: 'Recebido', icon: ShoppingBag, concluido: progresso >= 0 },
+                    { label: 'Preparando', icon: Package, concluido: progresso >= 1 },
+                    { label: 'A Caminho', icon: Truck, concluido: progresso >= 2 },
+                    { label: 'Entregue', icon: CheckCircle, concluido: progresso >= 3 },
+                  ].map((passo, idx) => (
+                    <div key={idx} className="flex flex-col items-center gap-2 w-16 md:w-24">
+                      <div className={`w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all duration-500 shadow-sm border-4 border-white ${passo.concluido ? 'bg-[#55833d] text-white' : 'bg-gray-100 text-gray-300'}`}>
+                        <passo.icon size={20} />
+                      </div>
+                      <span className={`text-[8px] md:text-[9px] font-black uppercase text-center tracking-widest leading-tight ${passo.concluido ? 'text-[#394158]' : 'text-gray-300'}`}>
+                        {passo.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-[#F5F2ED] p-4 rounded-2xl flex items-center gap-4 border border-gray-100">
+                <Calendar size={20} className="text-[#f9943b]" />
+                <div>
+                  <p className="text-[8px] font-black uppercase opacity-40">Data</p>
+                  <p className="text-xs font-bold">{pedidoSelecionado.dataPedido?.substring(0, 10) || '—'}</p>
+                </div>
+              </div>
+              <div className="bg-[#F5F2ED] p-4 rounded-2xl flex items-center gap-4 border border-gray-100">
+                <CardIcon size={20} className="text-[#f9943b]" />
+                <div>
+                  <p className="text-[8px] font-black uppercase opacity-40">Pagamento</p>
+                  <p className="text-xs font-bold">{pedidoSelecionado.metodoPagamento || 'CARTAO'}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="pt-6 border-t border-dashed flex flex-col gap-4">
+              <div className="flex justify-between items-baseline px-2">
+                <span className="font-black uppercase text-[10px] opacity-30">Total Pago</span>
+                <span className="text-2xl font-black text-[#55833d]">R$ {Number(pedidoSelecionado.valorTotal || pedidoSelecionado.total).toFixed(2)}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderRastreioPedido = () => (
     <div className="space-y-6 animate-in slide-in-from-right duration-300">
