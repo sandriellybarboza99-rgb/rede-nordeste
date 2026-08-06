@@ -11,29 +11,29 @@ import { useAuth } from './context/AuthContext';
 import type { Perfil as TipoPerfil } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
 
-import Home            from './pages/Home/Home';
-import HomeComprador   from './pages/Comprador/HomeComprador';
-import Login           from './pages/Auth/Login';
-import Register        from './pages/Auth/Register';
-import Receitas        from './pages/Comprador/Receitas';
+import Home from './pages/Home/Home';
+import HomeComprador from './pages/Comprador/HomeComprador';
+import Login from './pages/Auth/Login';
+import Register from './pages/Auth/Register';
+import Receitas from './pages/Comprador/Receitas';
 import ProdutoDetalhes from './pages/Comprador/ProdutoDetalhes';
-import Carrinho        from './pages/Comprador/Carrinho';
-import Chat            from './pages/Comprador/Chat';
-import Blog            from './pages/Blog/Blog';
-import Post            from './pages/Blog/Post';
-import Loja            from './pages/Comprador/Loja';
-import Perfil          from './pages/Comprador/Perfil';
-import Notificacao     from './pages/Comprador/Notificacao';
-import HomeVendedor    from './pages/Vendedor/HomeVendedor';
-import PainelVendedor  from './pages/Vendedor/PainelVendedor';
-import HomeAdmin       from './pages/Admin/HomeAdmin';
-import PerfilVendedor  from './pages/Vendedor/PerfilVendedor';
+import Carrinho from './pages/Comprador/Carrinho';
+import Chat from './pages/Comprador/Chat';
+import Blog from './pages/Blog/Blog';
+import Post from './pages/Blog/Post';
+import Loja from './pages/Comprador/Loja';
+import Perfil from './pages/Comprador/Perfil';
+import Notificacao from './pages/Comprador/Notificacao';
+import HomeVendedor from './pages/Vendedor/HomeVendedor';
+import PainelVendedor from './pages/Vendedor/PainelVendedor';
+import HomeAdmin from './pages/Admin/HomeAdmin';
+import PerfilVendedor from './pages/Vendedor/PerfilVendedor';
 import ReceitasVendedor from './pages/Vendedor/ReceitasVendedor';
 
 // ── Helpers ───────────────────────────────────────────────────────
 const HOME_POR_PERFIL: Record<TipoPerfil, string> = {
-  ADMIN:     '/admin',
-  PRODUTOR:  '/vendedor',
+  ADMIN: '/admin',
+  PRODUTOR: '/vendedor',
   COMPRADOR: '/home2',
 };
 
@@ -110,23 +110,23 @@ function App() {
         <Routes>
 
           {/* ── PÚBLICAS ─────────────────────────────────────── */}
-          <Route path="/"         element={<Home />} />
-          <Route path="/blog"     element={<Blog />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:id" element={<Post />} />
-          <Route path="/login"    element={<RotaAuth><Login /></RotaAuth>} />
+          <Route path="/login" element={<RotaAuth><Login /></RotaAuth>} />
           <Route path="/cadastro" element={<RotaAuth><Register /></RotaAuth>} />
 
           {/* ── MARKETPLACE — qualquer logado pode comprar ─────────
              Regra: COMPRADOR só compra; PRODUTOR vende E também pode
              comprar de outras lojas. Por isso todas as rotas de "área
              de compra" aceitam ambos. ADMIN passa em qualquer rota. */}
-          <Route path="/home2"        element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><HomeComprador /></RotaProtegida>} />
-          <Route path="/receitas"     element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Receitas /></RotaProtegida>} />
-          <Route path="/produto/:id"  element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><ProdutoDetalhes /></RotaProtegida>} />
-          <Route path="/loja/:id"     element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Loja /></RotaProtegida>} />
-          <Route path="/carrinho"     element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Carrinho /></RotaProtegida>} />
+          <Route path="/home2" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><HomeComprador /></RotaProtegida>} />
+          <Route path="/receitas" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Receitas /></RotaProtegida>} />
+          <Route path="/produto/:id" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><ProdutoDetalhes /></RotaProtegida>} />
+          <Route path="/loja/:id" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Loja /></RotaProtegida>} />
+          <Route path="/carrinho" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Carrinho /></RotaProtegida>} />
           <Route path="/notificacoes" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Notificacao /></RotaProtegida>} />
-          <Route path="/perfil"       element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Perfil /></RotaProtegida>} />
+          <Route path="/perfil" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Perfil /></RotaProtegida>} />
 
           {/* ── CHAT — comprador ou vendedor ─────────────────── */}
           <Route path="/chat" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Chat /></RotaProtegida>} />
@@ -135,9 +135,9 @@ function App() {
           <Route path="/empreendedoras" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><HomeComprador /></RotaProtegida>} />
 
           {/* ── VENDEDOR ─────────────────────────────────────── */}
-          <Route path="/vendedor"         element={<RotaProtegida permitidos={['PRODUTOR']}><HomeVendedor /></RotaProtegida>} />
-          <Route path="/painelvendedor"   element={<RotaProtegida permitidos={['PRODUTOR']}><PainelVendedor /></RotaProtegida>} />
-          <Route path="/perfilvendedor"   element={<RotaProtegida permitidos={['PRODUTOR']}><PerfilVendedor /></RotaProtegida>} />
+          <Route path="/vendedor" element={<RotaProtegida permitidos={['PRODUTOR']}><HomeVendedor /></RotaProtegida>} />
+          <Route path="/painelvendedor" element={<RotaProtegida permitidos={['PRODUTOR']}><PainelVendedor /></RotaProtegida>} />
+          <Route path="/perfilvendedor" element={<RotaProtegida permitidos={['PRODUTOR']}><PerfilVendedor /></RotaProtegida>} />
           <Route path="/receitasvendedor" element={<RotaProtegida permitidos={['PRODUTOR']}><ReceitasVendedor /></RotaProtegida>} />
 
           {/* ── ADMIN ────────────────────────────────────────── */}

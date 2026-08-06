@@ -5,6 +5,8 @@ import java.time.OffsetDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -88,4 +90,18 @@ public class Loja {
 
     @Column(name = "motivo_suspensao", columnDefinition = "TEXT")
     private String motivoSuspensao;
+
+    /**
+     * Chave PIX do produtor para receber pagamentos diretamente.
+     * Aceita: CPF, CNPJ, e-mail, telefone ou chave aleatória (UUID).
+     */
+    @Column(name = "chave_pix", length = 100)
+    private String chavePix;
+
+    /**
+     * Tipo da chave PIX (CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_chave_pix", length = 20)
+    private TipoChavePix tipoChavePix;
 }

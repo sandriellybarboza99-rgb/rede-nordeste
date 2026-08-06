@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 import com.semeia_nordeste.backend.model.Loja;
+import com.semeia_nordeste.backend.model.TipoChavePix;
 
 public record LojaResponse(
         Long id,
@@ -24,7 +25,10 @@ public record LojaResponse(
         Double latitudeLoja,
         Double longitudeLoja,
         Boolean verificada,
-        Boolean suspensa) {
+        Boolean suspensa,
+        String chavePix,
+        TipoChavePix tipoChavePix) {
+
     public static LojaResponse fromEntity(Loja l) {
         return new LojaResponse(
                 l.getId(),
@@ -45,6 +49,8 @@ public record LojaResponse(
                 l.getLatitudeLoja(),
                 l.getLongitudeLoja(),
                 l.getVerificada(),
-                l.getSuspensa());
+                l.getSuspensa(),
+                l.getChavePix(),
+                l.getTipoChavePix());
     }
 }

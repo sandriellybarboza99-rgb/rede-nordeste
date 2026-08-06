@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Trash2, Minus, Plus, Truck, Store, ChevronRight,
-  ShoppingBag, CreditCard, Barcode, Landmark, MapPin, PlusCircle, CheckCircle, Copy, Square, CheckSquare,
+  ShoppingBag, CreditCard, Barcode, Landmark, MapPin, PlusCircle, CheckCircle, Copy, Square, CheckSquare, X
 } from 'lucide-react';
 import {
   getCarrinho, adicionarAoCarrinho, removerDoCarrinho, checkout, simularFrete,
@@ -35,11 +35,6 @@ interface Cartao {
   validade: string;
 }
 
-/**
- * Carrinho do vendedor — mesmo fluxo do comprador (PRODUTOR também pode
- * comprar de outras lojas), com cor de header levemente diferente.
- * Endereços/cartões persistidos no backend, isolados por usuário.
- */
 export default function CarrinhoVendedor() {
   const navigate = useNavigate();
   const { success, error: toastError } = useToast();
@@ -65,6 +60,10 @@ export default function CarrinhoVendedor() {
   const [exibirFormNovoCartao, setExibirFormNovoCartao] = useState(false);
   const [meusCartoes, setMeusCartoes] = useState<Cartao[]>([]);
   const [novoCartao, setNovoCartao] = useState({ numero: '', titular: '', validade: '', cvv: '' });
+
+  // Estado para armazenar os dados do pedido retornado pelo backend (inclusive o PIX)
+  const [pedidoRealizado, setPedidoRealizado] = useState<any>(null);
+  const [exibirModalPix, setExibirModalPix] = useState(false);
 
   useEffect(() => {
     const carregarTudo = async () => {
@@ -95,7 +94,11 @@ export default function CarrinhoVendedor() {
     const itemSel = carrinho.itens.find((i: any) => itensSelecionados.includes(i.produtoId));
     if (!itemSel) return;
 
-    simularFrete(itemSel.lojaId, end.latitudeDestino, end.longitudeDestino)
+    simularFrete(
+      itemSel.lojaId,
+      end.latitudeDestino ?? 0,
+      end.longitudeDestino ?? 0
+    )
       .then((data: any) => setValorFrete(Number(data.valorFrete)))
       .catch(() => setValorFrete(0));
   }, [metodoEntrega, enderecoSelecionado, carrinho.itens, itensSelecionados, meusEnderecos]);
@@ -177,7 +180,7 @@ export default function CarrinhoVendedor() {
     setProcessando(true);
     try {
       const end = meusEnderecos[enderecoSelecionado];
-      await checkout({
+      const res = await checkout({
         metodoPagamento,
         retiradaNaLoja: metodoEntrega === 'retirada',
         enderecoEntrega: metodoEntrega === 'entrega' && end
@@ -187,14 +190,28 @@ export default function CarrinhoVendedor() {
         latitudeDestino: metodoEntrega === 'entrega' ? end?.latitudeDestino : undefined,
         longitudeDestino: metodoEntrega === 'entrega' ? end?.longitudeDestino : undefined,
       });
-      success('Pedido realizado com sucesso!');
+
+      setPedidoRealizado(res);
       setCarrinho({ itens: [], totalItens: 0, valorTotal: 0 });
       setItensSelecionados([]);
-      navigate('/perfilvendedor');
+
+      if (metodoPagamento === 'PIX' && res?.pagamento?.pixPayload) {
+        setExibirModalPix(true);
+      } else {
+        success('Pedido realizado com sucesso!');
+        navigate('/perfilvendedor');
+      }
     } catch (err: any) {
       toastError(err.message);
     } finally {
       setProcessando(false);
+    }
+  };
+
+  const copiarPix = () => {
+    if (pedidoRealizado?.pagamento?.pixPayload) {
+      navigator.clipboard.writeText(pedidoRealizado.pagamento.pixPayload);
+      success('Código PIX copiado para a área de transferência!');
     }
   };
 
@@ -210,13 +227,13 @@ export default function CarrinhoVendedor() {
 
   const tituloEtapa =
     step === 1 ? `Minha Cesta (${carrinho.totalItens})` :
-    step === 2 ? 'Opções de Entrega' :
-    'Pagamento e Revisão';
+      step === 2 ? 'Opções de Entrega' :
+        'Pagamento e Revisão';
 
   const handleVoltarEtapa = () => (step === 1 ? navigate(-1) : setStep(step - 1));
 
   return (
-    <div className="min-h-screen bg-[#F5F2ED] font-sans text-[#394158] pb-20 md:pb-10">
+    <div className="min-h-screen bg-[#F5F2ED] font-sans text-[#394158] pb-20 md:pb-10 relative">
       <main className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8">
         <PageHeader
           titulo={tituloEtapa}
@@ -451,14 +468,12 @@ export default function CarrinhoVendedor() {
                     )}
 
                     {metodoPagamento === 'PIX' && (
-                      <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 flex flex-col items-center animate-in fade-in">
-                        <div className="w-32 h-32 bg-white rounded-xl mb-4 flex items-center justify-center border-4 border-[#f9943b] overflow-hidden">
-                          <img src="https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg" className="w-full h-full opacity-80" alt="QR Code PIX" />
-                        </div>
-                        <p className="text-[10px] font-bold text-gray-500 text-center mb-4">Escaneie o QR Code ou copie o código abaixo para pagar no seu banco.</p>
-                        <button className="flex items-center gap-2 bg-[#f9943b] text-white px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform">
-                          <Copy size={14} /> Copiar Código Pix
-                        </button>
+                      <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 flex flex-col items-center text-center animate-in fade-in">
+                        <Landmark size={36} className="text-[#f9943b] mb-2" />
+                        <h4 className="font-black text-sm uppercase">Pagamento via PIX</h4>
+                        <p className="text-[10px] font-bold text-gray-500 mt-1">
+                          Ao clicar em <strong>Concluir Compra</strong>, o QR Code real será gerado na tela com o código para copiar e pagar no seu banco.
+                        </p>
                       </div>
                     )}
 
@@ -496,20 +511,85 @@ export default function CarrinhoVendedor() {
                 else handleFinalizarPedido();
               }}
                 disabled={processando}
-                className={`w-full py-5 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 transition-all ${
-                  processando ? 'bg-gray-300 text-gray-400 cursor-not-allowed'
+                className={`w-full py-5 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 transition-all ${processando ? 'bg-gray-300 text-gray-400 cursor-not-allowed'
                   : 'bg-[#f9943b] hover:bg-[#ff8a23] hover:shadow-lg hover:shadow-[#f9943b]/30 text-white active:scale-95'
-                }`}>
+                  }`}>
                 {processando ? 'Processando...'
                   : step === 1 ? 'Avançar para Entrega'
-                  : step === 2 ? 'Avançar para Pagamento'
-                  : 'Concluir Compra'}
+                    : step === 2 ? 'Avançar para Pagamento'
+                      : 'Concluir Compra'}
                 {!processando && <ChevronRight size={18} />}
               </button>
             </footer>
           )}
         </div>
       </main>
+
+      {/* MODAL DE EXIBIÇÃO DO QR CODE REAL DO PIX */}
+      {exibirModalPix && pedidoRealizado?.pagamento?.pixPayload && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl flex flex-col items-center text-center relative border border-gray-100">
+            <button
+              onClick={() => {
+                setExibirModalPix(false);
+                navigate('/perfilvendedor');
+              }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="w-12 h-12 bg-[#f9943b]/10 rounded-2xl flex items-center justify-center text-[#f9943b] mb-3">
+              <Landmark size={24} />
+            </div>
+
+            <h3 className="font-black text-lg text-[#394158]">Pagamento PIX Gerado!</h3>
+            <p className="text-[11px] text-gray-500 font-bold mt-1">
+              Escaneie o QR Code ou copie a chave abaixo no aplicativo do seu banco:
+            </p>
+
+            {/* Renderização real da imagem do QR Code a partir do Payload do Backend */}
+            <div className="my-5 p-3 bg-white rounded-2xl border-4 border-[#f9943b] shadow-inner">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                  pedidoRealizado.pagamento.pixPayload
+                )}`}
+                alt="QR Code PIX"
+                className="w-44 h-44 object-contain"
+              />
+            </div>
+
+            <p className="text-xs font-black text-[#55833d] mb-4">
+              Total: R$ {Number(pedidoRealizado.valorTotal || total).toFixed(2)}
+            </p>
+
+            <div className="w-full bg-gray-50 p-3 rounded-2xl border border-gray-200 flex items-center justify-between gap-2 mb-5">
+              <input
+                type="text"
+                readOnly
+                value={pedidoRealizado.pagamento.pixPayload}
+                className="bg-transparent text-[10px] text-gray-600 truncate font-mono w-full outline-none"
+              />
+              <button
+                onClick={copiarPix}
+                className="bg-[#f9943b] hover:bg-[#ff8a23] text-white text-[10px] font-black uppercase px-3 py-2 rounded-xl shrink-0 flex items-center gap-1 active:scale-95 transition-transform"
+              >
+                <Copy size={12} /> Copiar
+              </button>
+            </div>
+
+            <button
+              onClick={() => {
+                setExibirModalPix(false);
+                navigate('/perfilvendedor');
+              }}
+              className="w-full py-4 bg-[#394158] text-white font-black text-xs uppercase tracking-widest rounded-full hover:bg-[#2c3346] transition-colors"
+            >
+              Acompanhar Meus Pedidos
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

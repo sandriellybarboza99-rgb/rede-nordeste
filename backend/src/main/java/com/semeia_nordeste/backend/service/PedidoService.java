@@ -1,52 +1,82 @@
 package com.semeia_nordeste.backend.service;
 
-import com.semeia_nordeste.backend.dto.*;
-import com.semeia_nordeste.backend.model.*;
-import com.semeia_nordeste.backend.repository.*;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.util.List;
+import com.semeia_nordeste.backend.config.PixConfig;
+import com.semeia_nordeste.backend.dto.CheckoutRequest;
+import com.semeia_nordeste.backend.model.CategoriaCarga;
+import com.semeia_nordeste.backend.model.Entrega;
+import com.semeia_nordeste.backend.model.Entregador;
+import com.semeia_nordeste.backend.model.ItemCarrinho;
+import com.semeia_nordeste.backend.model.ItemPedido;
+import com.semeia_nordeste.backend.model.Loja;
+import com.semeia_nordeste.backend.model.Pagamento;
+import com.semeia_nordeste.backend.model.Pedido;
+import com.semeia_nordeste.backend.model.Produto;
+import com.semeia_nordeste.backend.model.StatusEntrega;
+import com.semeia_nordeste.backend.model.StatusPagamento;
+import com.semeia_nordeste.backend.model.TipoChavePix;
+import com.semeia_nordeste.backend.model.TipoNotificacao;
+import com.semeia_nordeste.backend.model.TipoVeiculo;
+import com.semeia_nordeste.backend.model.Usuario;
+import com.semeia_nordeste.backend.repository.PedidoRepository;
+import com.semeia_nordeste.backend.repository.ProdutoRepository;
 
+/**
+ * Serviço responsável pelo ciclo de vida dos pedidos.
+ */
 @Service
 public class PedidoService {
+
+    private static final Logger log = LoggerFactory.getLogger(PedidoService.class);
 
     private final PedidoRepository pedidoRepository;
     private final CarrinhoService carrinhoService;
     private final ProdutoRepository produtoRepository;
     private final FreteService freteService;
     private final EntregadorService entregadorService;
-    private final LojaRepository lojaRepository;
     private final NotificacaoService notificacaoService;
+    private final PixService pixService;
+    private final PixConfig pixConfig;
 
-    public PedidoService(PedidoRepository pedidoRepository,
+    public PedidoService(
+            PedidoRepository pedidoRepository,
             CarrinhoService carrinhoService,
             ProdutoRepository produtoRepository,
             FreteService freteService,
             EntregadorService entregadorService,
-            LojaRepository lojaRepository,
-            NotificacaoService notificacaoService) {
+            NotificacaoService notificacaoService,
+            PixService pixService,
+            PixConfig pixConfig) {
+
         this.pedidoRepository = pedidoRepository;
         this.carrinhoService = carrinhoService;
         this.produtoRepository = produtoRepository;
         this.freteService = freteService;
         this.entregadorService = entregadorService;
-        this.lojaRepository = lojaRepository;
         this.notificacaoService = notificacaoService;
+        this.pixService = pixService;
+        this.pixConfig = pixConfig;
     }
 
     @Transactional
     public Pedido checkout(CheckoutRequest request, Usuario usuario) {
-        List<ItemCarrinho> itensCarrinho = carrinhoService
-                .listarItensParaCheckout(usuario.getId());
+
+        List<ItemCarrinho> itensCarrinho = carrinhoService.listarItensParaCheckout(usuario.getId());
 
         if (itensCarrinho.isEmpty())
             throw new RuntimeException("Seu carrinho está vazio.");
 
-        // ── Monta itens e desconta estoque ───────────────────────────────
+        // ── Itens ─────────────────────────────────────────────────────
         List<ItemPedido> itensPedido = itensCarrinho.stream().map(ic -> {
             Produto produto = ic.getProduto();
             if (produto.getEstoqueAtual() < ic.getQuantidade())
@@ -67,7 +97,10 @@ public class PedidoService {
                         .multiply(BigDecimal.valueOf(i.getQuantidade())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // ── Monta entrega ─────────────────────────────────────────────────
+        // ── Loja de origem (primeiro item do carrinho) ────────────────
+        Loja lojaOrigem = itensCarrinho.get(0).getProduto().getLoja();
+
+        // ── Entrega ───────────────────────────────────────────────────
         Entrega entrega = new Entrega();
 
         if (request.retiradaNaLoja()) {
@@ -75,8 +108,8 @@ public class PedidoService {
             entrega.setStatusEntrega(StatusEntrega.RETIRADA_DISPONIVEL);
             entrega.setEnderecoEntrega("Retirada na loja");
             entrega.setValorFrete(BigDecimal.ZERO);
+
         } else {
-            // Valida que coordenadas foram enviadas
             if (request.latitudeDestino() == null || request.longitudeDestino() == null)
                 throw new RuntimeException("Coordenadas de entrega são obrigatórias.");
 
@@ -85,30 +118,24 @@ public class PedidoService {
                 throw new RuntimeException(
                         "Entregas disponíveis apenas dentro do estado de Sergipe.");
 
-            // Pega coordenadas da loja (origem — usa a loja do primeiro produto)
-            Loja loja = itensCarrinho.get(0).getProduto().getLoja();
-            double latOrigem = loja.getLatitudeLoja() != null ? loja.getLatitudeLoja() : -10.9167;
-            double lonOrigem = loja.getLongitudeLoja() != null ? loja.getLongitudeLoja() : -37.0500;
+            double latOrigem = lojaOrigem.getLatitudeLoja() != null ? lojaOrigem.getLatitudeLoja() : -10.9167;
+            double lonOrigem = lojaOrigem.getLongitudeLoja() != null ? lojaOrigem.getLongitudeLoja() : -37.0500;
 
             BigDecimal distancia = freteService.calcularDistanciaKm(
                     latOrigem, lonOrigem,
                     request.latitudeDestino(), request.longitudeDestino());
-
             BigDecimal pesoTotal = freteService.calcularPesoTotal(itensPedido);
-            CategoriaCarga categoria = freteService.classificarCarga(pesoTotal);
-            TipoVeiculo veiculo = freteService.definirVeiculo(categoria, distancia);
+            CategoriaCarga cat = freteService.classificarCarga(pesoTotal);
+            TipoVeiculo veiculo = freteService.definirVeiculo(cat, distancia);
             boolean areaRemota = distancia.doubleValue() > 80;
             BigDecimal frete = freteService.calcularFrete(veiculo, distancia, areaRemota);
 
-            // Associa entregador automaticamente
             Entregador entregador = null;
             try {
-                entregador = entregadorService.encontrarMaisAdequado(
-                        veiculo, latOrigem, lonOrigem);
-                entregador.setDisponivel(false); // marca como ocupado
+                entregador = entregadorService.encontrarMaisAdequado(veiculo, latOrigem, lonOrigem);
+                entregador.setDisponivel(false);
             } catch (RuntimeException ex) {
-                // Se não há entregador, cria entrega pendente sem associação
-            }
+                /* sem entregador disponível */ }
 
             entrega.setRetiradaNaLoja(false);
             entrega.setStatusEntrega(entregador != null
@@ -121,21 +148,46 @@ public class PedidoService {
             entrega.setDistanciaKm(distancia);
             entrega.setValorFrete(frete);
             entrega.setTipoVeiculoNecessario(veiculo);
-            entrega.setCategoriaCarga(categoria);
+            entrega.setCategoriaCarga(cat);
             entrega.setPesoTotalKg(pesoTotal);
             entrega.setEntregador(entregador);
         }
 
-        // ── Pagamento ─────────────────────────────────────────────────────
-        Pagamento pagamento = new Pagamento();
-        pagamento.setMetodoPagamento(request.metodoPagamento());
-        pagamento.setStatusPagamento(StatusPagamento.AGUARDANDO);
-
-        // ── Total final (produtos + frete) ───────────────────────────────
+        // ── Total final ───────────────────────────────────────────────
         BigDecimal totalFinal = totalProdutos.add(
                 entrega.getValorFrete() != null ? entrega.getValorFrete() : BigDecimal.ZERO);
 
-        // ── Pedido ───────────────────────────────────────────────────────
+        // ── Pagamento ─────────────────────────────────────────────────
+        Pagamento pagamento = new Pagamento();
+        pagamento.setMetodoPagamento(request.metodoPagamento());
+
+        boolean isPix = "PIX".equalsIgnoreCase(request.metodoPagamento());
+
+        // ── PIX: usa chave, tipo, nome e cidade da loja (fallback → PixConfig)
+        if (isPix) {
+            String txid = pixService.gerarTxid();
+            String chaveLoja = lojaOrigem.getChavePix();
+            TipoChavePix tipoChave = lojaOrigem.getTipoChavePix();
+            String nomeLoja = lojaOrigem.getNomeLoja();
+            String cidadeLoja = lojaOrigem.getCidade();
+
+            String payload = pixService.gerarPayloadParaLoja(
+                    totalFinal, txid, chaveLoja, tipoChave, nomeLoja, cidadeLoja);
+
+            pagamento.setPixPayload(payload);
+            pagamento.setPixTxid(txid);
+            pagamento.setPixChave(
+                    (chaveLoja != null && !chaveLoja.isBlank())
+                            ? chaveLoja
+                            : pixConfig.getChave());
+
+            // Status específico: BR Code gerado, aguardando pagamento no banco
+            pagamento.setStatusPagamento(StatusPagamento.PENDENTE_PIX);
+        } else {
+            pagamento.setStatusPagamento(StatusPagamento.AGUARDANDO);
+        }
+
+        // ── Pedido ────────────────────────────────────────────────────
         Pedido pedido = new Pedido();
         pedido.setComprador(usuario);
         pedido.setPagamento(pagamento);
@@ -148,30 +200,25 @@ public class PedidoService {
         Pedido salvo = pedidoRepository.save(pedido);
         carrinhoService.limpar(usuario);
 
-        // ── Notificações: comprador + cada produtor envolvido ────────────
-        // Best-effort: se a notificação falhar não desfazemos o pedido.
+        // ── Notificações (best-effort) ────────────────────────────────
         try {
-            notificacaoService.notificar(
-                    usuario,
-                    com.semeia_nordeste.backend.model.TipoNotificacao.PEDIDO,
+            notificacaoService.notificar(usuario, TipoNotificacao.PEDIDO,
                     "Pedido confirmado",
-                    "Recebemos seu pedido #" + salvo.getId() + ". Total: R$ " + salvo.getValorTotal() + ".",
+                    "Recebemos seu pedido #" + salvo.getId()
+                            + ". Total: R$ " + salvo.getValorTotal() + ".",
                     "/perfil");
 
-            // Cada loja diferente envolvida recebe uma notificação de venda
             salvo.getItens().stream()
                     .map(i -> i.getProduto().getLoja().getUsuario())
                     .distinct()
                     .forEach(produtor -> notificacaoService.notificar(
-                            produtor,
-                            com.semeia_nordeste.backend.model.TipoNotificacao.PEDIDO,
+                            produtor, TipoNotificacao.PEDIDO,
                             "Nova venda!",
-                            usuario.getNomeCompleto() + " comprou da sua loja. Pedido #" + salvo.getId() + ".",
+                            usuario.getNomeCompleto()
+                                    + " comprou da sua loja. Pedido #" + salvo.getId() + ".",
                             "/painelvendedor"));
         } catch (Exception e) {
-            // Notificação falhou — pedido continua válido, mas registramos
-            org.slf4j.LoggerFactory.getLogger(PedidoService.class)
-                    .warn("Falha ao criar notificações para pedido {}: {}", salvo.getId(), e.getMessage());
+            log.warn("Falha ao criar notificações para pedido {}: {}", salvo.getId(), e.getMessage());
         }
 
         return salvo;
@@ -184,11 +231,8 @@ public class PedidoService {
     public Pedido buscarPorId(Long id, Usuario usuario) {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pedido não encontrado."));
-
-        // Garante que só o dono vê o pedido
         if (!pedido.getComprador().getId().equals(usuario.getId()))
             throw new RuntimeException("Acesso negado.");
-
         return pedido;
     }
 
@@ -203,22 +247,19 @@ public class PedidoService {
 
         boolean pertenceAoProdutor = pedido.getItens().stream()
                 .anyMatch(i -> i.getProduto().getLoja().getUsuario().getId().equals(produtor.getId()));
-
         if (!pertenceAoProdutor)
             throw new RuntimeException("Acesso negado.");
 
         pedido.getEntrega().setStatusEntrega(novoStatus);
-        pedido.getEntrega().setDataAtualizacao(java.time.OffsetDateTime.now());
+        pedido.getEntrega().setDataAtualizacao(OffsetDateTime.now());
         Pedido salvo = pedidoRepository.save(pedido);
 
-        // ── Notifica comprador sobre mudança de status (best-effort) ─────
         try {
-            String titulo;
-            String mensagem;
+            String titulo, mensagem;
             switch (novoStatus) {
                 case SAIU_PARA_ENTREGA -> {
                     titulo = "Seu pedido está a caminho";
-                    mensagem = "Pedido #" + salvo.getId() + " saiu para entrega. Acompanhe pelo rastreio.";
+                    mensagem = "Pedido #" + salvo.getId() + " saiu para entrega.";
                 }
                 case ENTREGUE -> {
                     titulo = "Pedido entregue";
@@ -229,21 +270,48 @@ public class PedidoService {
                     mensagem = "Seu pedido #" + salvo.getId() + " foi cancelado pela loja.";
                 }
                 case RETIRADA_DISPONIVEL -> {
-                    titulo = "Pedido disponível para retirada";
+                    titulo = "Pronto para retirada";
                     mensagem = "Seu pedido #" + salvo.getId() + " está pronto na loja.";
                 }
                 default -> {
                     titulo = "Atualização do pedido";
-                    mensagem = "O status do pedido #" + salvo.getId() + " mudou para " + novoStatus.name() + ".";
+                    mensagem = "Status do pedido #" + salvo.getId() + ": " + novoStatus.name() + ".";
                 }
             }
-            notificacaoService.notificar(
-                    salvo.getComprador(),
-                    com.semeia_nordeste.backend.model.TipoNotificacao.PEDIDO,
-                    titulo, mensagem, "/perfil");
+            notificacaoService.notificar(salvo.getComprador(), TipoNotificacao.PEDIDO, titulo, mensagem, "/perfil");
         } catch (Exception e) {
-            org.slf4j.LoggerFactory.getLogger(PedidoService.class)
-                    .warn("Falha ao notificar mudança de status do pedido {}: {}", salvo.getId(), e.getMessage());
+            log.warn("Falha ao notificar status do pedido {}: {}", salvo.getId(), e.getMessage());
+        }
+
+        return salvo;
+    }
+
+    /**
+     * Marca um pagamento PIX como aprovado.
+     * Chame este método a partir de um webhook do PSP ou de uma checagem
+     * manual/administrativa de confirmação de recebimento.
+     */
+    @Transactional
+    public Pedido confirmarPagamentoPix(Long pedidoId) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RuntimeException("Pedido não encontrado."));
+
+        if (pedido.getPagamento().getStatusPagamento() != StatusPagamento.PENDENTE_PIX) {
+            throw new RuntimeException("Este pedido não está aguardando pagamento PIX.");
+        }
+
+        pedido.getPagamento().setStatusPagamento(StatusPagamento.APROVADO);
+        pedido.getPagamento().setDataPagamento(OffsetDateTime.now());
+        Pedido salvo = pedidoRepository.save(pedido);
+
+        try {
+            notificacaoService.notificar(
+                    salvo.getComprador(), TipoNotificacao.PEDIDO,
+                    "Pagamento confirmado",
+                    "Recebemos o pagamento PIX do seu pedido #" + salvo.getId() + ".",
+                    "/perfil");
+        } catch (Exception e) {
+            log.warn("Falha ao notificar confirmação de pagamento do pedido {}: {}", salvo.getId(), e.getMessage());
         }
 
         return salvo;

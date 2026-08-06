@@ -35,8 +35,13 @@ public class LojaService {
 
     @Transactional
     public Loja atualizar(LojaRequest request, Usuario usuario) {
-        Loja loja = lojaRepository.findByUsuarioId(usuario.getId())
-                .orElseThrow(() -> new NotFoundException("Loja não encontrada."));
+        Loja loja = buscarPorUsuario(usuario);
+
+        if (!loja.getNomeLoja().equalsIgnoreCase(request.nomeLoja())
+                && lojaRepository.existsByNomeLoja(request.nomeLoja())) {
+            throw new BusinessException("Já existe outra loja com esse nome.");
+        }
+
         return salvarDados(loja, request, usuario);
     }
 
@@ -64,8 +69,12 @@ public class LojaService {
         loja.setValorMinimoPedido(request.valorMinimoPedido());
         loja.setTaxaEntregaFixa(request.taxaEntregaFixa());
         loja.setLogoUrl(request.logoUrl());
-        if (request.latitudeLoja() != null) loja.setLatitudeLoja(request.latitudeLoja());
-        if (request.longitudeLoja() != null) loja.setLongitudeLoja(request.longitudeLoja());
+        loja.setLatitudeLoja(request.latitudeLoja());
+        loja.setLongitudeLoja(request.longitudeLoja());
+
+        loja.setChavePix(request.chavePix());
+        loja.setTipoChavePix(request.tipoChavePix());
+
         return lojaRepository.save(loja);
     }
 }

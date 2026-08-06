@@ -2,6 +2,7 @@ package com.semeia_nordeste.backend.config;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,22 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 
+/**
+ * CORREÇÃO (causa raiz do erro "duplicate key value violates unique
+ * constraint sessoes_refresh_token_key"):
+ *
+ * O token era gerado apenas com subject + claims + issuedAt (granularidade
+ * de milissegundos) + expiration. Se duas requisições de login/refresh
+ * chegassem para o MESMO usuário dentro do MESMO milissegundo (comum em
+ * cliques duplicados no frontend ou retries automáticos), o JWT resultante
+ * era byte-a-byte IDÊNTICO — porque todos os inputs da assinatura eram
+ * iguais. Isso fazia o SessaoService tentar inserir duas linhas com o
+ * mesmo refresh_token, violando a constraint UNIQUE.
+ *
+ * A correção adiciona um claim "jti" (JWT ID) com um UUID aleatório a
+ * CADA token gerado. Isso garante que dois tokens nunca sejam idênticos,
+ * mesmo que emitidos no mesmo instante para o mesmo usuário.
+ */
 @Service
 public class TokenService {
 
@@ -28,6 +45,7 @@ public class TokenService {
 
     public String gerarAccessToken(Usuario usuario) {
         return Jwts.builder()
+                .setId(UUID.randomUUID().toString())
                 .setSubject(usuario.getEmail())
                 .claim("perfil", usuario.getTipoPerfil().name())
                 .claim("tipo", "access")
@@ -39,6 +57,8 @@ public class TokenService {
 
     public String gerarRefreshToken(Usuario usuario) {
         return Jwts.builder()
+                // jti garante unicidade mesmo em geração concorrente no mesmo ms.
+                .setId(UUID.randomUUID().toString())
                 .setSubject(usuario.getEmail())
                 .claim("tipo", "refresh")
                 .setIssuedAt(new Date())

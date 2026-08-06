@@ -14,7 +14,12 @@ public record PedidoResponse(
         StatusPagamento statusPagamento,
         StatusEntrega statusEntrega,
         String enderecoEntrega,
-        List<ItemPedidoResponse> itens) {
+        List<ItemPedidoResponse> itens,
+
+        // ── Campos PIX (null quando método não é PIX) ─────────────────
+        String pixPayload,
+        String pixTxid) {
+
     public static PedidoResponse fromEntity(Pedido p) {
         return new PedidoResponse(
                 p.getId(),
@@ -25,6 +30,8 @@ public record PedidoResponse(
                 p.getPagamento().getStatusPagamento(),
                 p.getEntrega().getStatusEntrega(),
                 p.getEntrega().getEnderecoEntrega(),
-                p.getItens().stream().map(ItemPedidoResponse::fromEntity).toList());
+                p.getItens().stream().map(ItemPedidoResponse::fromEntity).toList(),
+                p.getPagamento().getPixPayload(),
+                p.getPagamento().getPixTxid());
     }
 }
