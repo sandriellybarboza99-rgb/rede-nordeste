@@ -4,6 +4,8 @@ import {
   Trash2, Search, CheckCheck, Inbox,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { Navbar } from '../../components/ui/Navbar';
+import { BottomTabBar } from '../../components/ui/BottomTabBar';
 import { Card } from '../../components/ui/Card';
 import { useToast } from '../../context/ToastContext';
 import {
@@ -135,7 +137,8 @@ export default function Notificacao() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F5F2ED]">
+    <div className="min-h-screen bg-[#F5F2ED] text-[#394158] font-sans antialiased">
+      <Navbar rotaAtiva="/notificacoes" />
       <main className="max-w-3xl mx-auto px-4 md:px-6 py-6 md:py-8 page-enter">
         <PageHeader
           titulo="Notificações"

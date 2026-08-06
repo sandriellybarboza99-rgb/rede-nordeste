@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  User, Mail, Lock, FileText, Phone, 
+  User, Mail, Lock, FileText, Phone, Users,
   ArrowRight, ChevronLeft, Eye, EyeOff 
 } from 'lucide-react';
 import { registrarUsuario } from '../../services/api';
@@ -17,6 +17,7 @@ export default function Register() {
   nomeCompleto: '',
   cpfCnpj: '',
   telefone: '',
+  genero: '',
   email: '',
   senha: '',
   tipoPerfil: perfilInicial  
@@ -60,6 +61,7 @@ export default function Register() {
         nomeCompleto: formData.nomeCompleto,
         cpfCnpj: formData.cpfCnpj.replace(/\D/g, ''),
         telefone: formData.telefone.replace(/\D/g, ''),
+        genero: formData.genero,
         email: formData.email,
         senha: formData.senha,
         tipoPerfil: formData.tipoPerfil,
@@ -131,6 +133,22 @@ export default function Register() {
               value={formData.telefone}
               required
             />
+          </div>
+
+          <div className="relative">
+            <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <select 
+              name="genero"
+              className="w-full bg-[#F5F2ED]/50 py-4 pl-12 pr-4 rounded-2xl outline-none appearance-none focus:ring-2 focus:ring-[#55833d] transition-all text-gray-700"
+              onChange={handleChange}
+              value={formData.genero}
+              required
+            >
+              <option value="" disabled>Como você se identifica?</option>
+              <option value="FEMININO">Feminino</option>
+              <option value="MASCULINO">Masculino</option>
+              <option value="NAO_INFORMAR">Prefiro não informar</option>
+            </select>
           </div>
 
           <div className="relative">

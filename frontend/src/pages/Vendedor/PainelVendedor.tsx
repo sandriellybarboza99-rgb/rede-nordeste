@@ -13,6 +13,7 @@ import {
 } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { UserMenu } from '../../components/ui/UserMenu';
+import { Navbar } from '../../components/ui/Navbar';
 import { BottomTabBar } from '../../components/ui/BottomTabBar';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
@@ -31,7 +32,7 @@ export default function PainelVendedor() {
   const [carregandoLoja, setCarregandoLoja] = useState(true);
   const [modalLoja, setModalLoja] = useState(false);
   const [formLoja, setFormLoja] = useState<any>({
-    nomeLoja: '', descricaoBio: '', cidade: '', estado: 'SE', cep: '',
+    nomeLoja: '', descricaoBio: '', historia: '', cidade: '', estado: 'SE', cep: '',
     logradouro: '', bairro: '', logoUrl: '',
     aceitaRetirada: true, fazEntrega: false,
     valorMinimoPedido: 0, taxaEntregaFixa: 0,
@@ -265,7 +266,8 @@ export default function PainelVendedor() {
 
   if (!loja) {
     return (
-      <div className="min-h-screen bg-[#F5F2ED] flex flex-col">
+      <div className="min-h-screen bg-[#F5F2ED] font-sans antialiased flex flex-col">
+        <Navbar rotaAtiva="/painelvendedor" />
         <PageHeader
           titulo="Bem-vindo, vendedor"
           subtitulo="Primeiro passo: criar sua loja"
@@ -299,7 +301,8 @@ export default function PainelVendedor() {
   // PAINEL PRINCIPAL
   // ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F5F2ED] text-[#394158] font-sans pb-20 md:pb-0">
+    <div className="min-h-screen bg-[#F5F2ED] text-[#394158] font-sans antialiased pb-20 md:pb-0">
+      <Navbar rotaAtiva="/painelvendedor" />
       <main className="px-4 md:px-12 pt-6 md:pt-8 page-enter">
         <PageHeader
           titulo={loja.nomeLoja}
@@ -571,6 +574,7 @@ export default function PainelVendedor() {
                 <div><dt className="text-[10px] font-black uppercase text-gray-400">Aceita retirada</dt><dd className="font-bold mt-1">{loja.aceitaRetirada ? 'Sim' : 'Não'}</dd></div>
                 <div><dt className="text-[10px] font-black uppercase text-gray-400">Faz entrega</dt><dd className="font-bold mt-1">{loja.fazEntrega ? 'Sim' : 'Não'}</dd></div>
                 <div className="md:col-span-2"><dt className="text-[10px] font-black uppercase text-gray-400">Bio</dt><dd className="font-medium text-gray-600 mt-1">{loja.descricaoBio || '—'}</dd></div>
+                <div className="md:col-span-2"><dt className="text-[10px] font-black uppercase text-gray-400">Nossa História</dt><dd className="font-medium text-gray-600 mt-1 italic">{loja.historia ? `"${loja.historia}"` : '—'}</dd></div>
               </dl>
             </Card>
           )}
@@ -659,6 +663,13 @@ export default function PainelVendedor() {
             <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Bio</label>
             <textarea rows={2} value={formLoja.descricaoBio || ''}
               onChange={e => setFormLoja({ ...formLoja, descricaoBio: e.target.value })}
+              className="w-full p-3 bg-[#F5F2ED]/50 text-[#394158] font-medium rounded-2xl outline-none border-2 border-transparent focus:border-[#55833d] resize-none" />
+          </div>
+          <div>
+            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Nossa História</label>
+            <textarea rows={3} value={formLoja.historia || ''}
+              onChange={e => setFormLoja({ ...formLoja, historia: e.target.value })}
+              placeholder="Conte a história da sua loja, sua trajetória como empreendedora..."
               className="w-full p-3 bg-[#F5F2ED]/50 text-[#394158] font-medium rounded-2xl outline-none border-2 border-transparent focus:border-[#55833d] resize-none" />
           </div>
           <div className="grid grid-cols-2 gap-3">

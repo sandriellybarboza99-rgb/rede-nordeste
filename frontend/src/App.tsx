@@ -24,6 +24,7 @@ import Post from './pages/Blog/Post';
 import Loja from './pages/Comprador/Loja';
 import Perfil from './pages/Comprador/Perfil';
 import Notificacao from './pages/Comprador/Notificacao';
+import Empreendedoras from './pages/Comprador/Empreendedoras';
 import HomeVendedor from './pages/Vendedor/HomeVendedor';
 import PainelVendedor from './pages/Vendedor/PainelVendedor';
 import HomeAdmin from './pages/Admin/HomeAdmin';
@@ -132,7 +133,7 @@ function App() {
           <Route path="/chat" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Chat /></RotaProtegida>} />
 
           {/* ── EMPREENDEDORAS ───────────────────────────────── */}
-          <Route path="/empreendedoras" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><HomeComprador /></RotaProtegida>} />
+          <Route path="/empreendedoras" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Empreendedoras /></RotaProtegida>} />
 
           {/* ── VENDEDOR ─────────────────────────────────────── */}
           <Route path="/vendedor" element={<RotaProtegida permitidos={['PRODUTOR']}><HomeVendedor /></RotaProtegida>} />

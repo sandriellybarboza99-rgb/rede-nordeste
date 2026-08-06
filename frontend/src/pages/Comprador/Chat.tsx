@@ -21,6 +21,7 @@ import {
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { Navbar } from '../../components/ui/Navbar';
 import { BottomTabBar } from "../../components/ui/BottomTabBar";
 import { ChatListItem } from "../../components/ui/ChatListItem";
 import { MensagemBolha } from "../../components/ui/MensagemBolha";
@@ -220,7 +221,8 @@ export default function Chat() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-[#394158] antialiased pb-20 font-sans">
+    <div className="min-h-screen bg-[#F5F2ED] text-[#394158] antialiased pb-20 font-sans">
+      <Navbar rotaAtiva="/chat" />
       <main className="max-w-6xl mx-auto px-4 py-4">
         <PageHeader
           titulo="Conversas"
@@ -240,13 +242,13 @@ export default function Chat() {
                 chatAtivoId ? "hidden md:flex" : "flex"
               } w-full md:w-80 md:border-r border-gray-200 flex-col`}
             >
-              <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+              <div className="px-4 py-3 border-b border-gray-100 bg-[#F5F2ED] md:rounded-tl-2xl">
                 <h2 className="font-semibold text-gray-800">
                   {chats.length} {chats.length === 1 ? "conversa" : "conversas"}
                 </h2>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto bg-white">
                 {carregando && (
                   <p className="p-6 text-center text-sm text-gray-500">
                     Carregando...
@@ -291,9 +293,11 @@ export default function Chat() {
               } flex-1 flex-col bg-gray-100`}
             >
               {!chatAtivo && (
-                <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-                  <MessageCircle className="w-16 h-16 mb-3" />
-                  <p className="text-sm">Selecione uma conversa para começar</p>
+                <div className="flex-1 flex flex-col items-center justify-center">
+                  <div className="w-16 h-16 bg-[#55833d]/10 text-[#55833d] rounded-full flex items-center justify-center mb-4 shadow-sm">
+                    <MessageCircle size={32} />
+                  </div>
+                  <p className="text-[#394158] font-bold">Selecione uma conversa para começar</p>
                 </div>
               )}
 

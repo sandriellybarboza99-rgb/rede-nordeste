@@ -121,6 +121,7 @@ export const registrarUsuario = async (dados: {
   nomeCompleto: string;
   cpfCnpj: string;
   telefone: string;
+  genero: string;
   email: string;
   senha: string;
   tipoPerfil: string;

@@ -11,6 +11,7 @@ import {
 } from '../../services/api';
 import { gerarPayloadPix } from '../../utils/pixPayload';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { Navbar } from '../../components/ui/Navbar';
 import { useToast } from '../../context/ToastContext';
 
 interface Endereco {
@@ -349,7 +350,7 @@ export default function Carrinho() {
           <h2 className="text-2xl font-black text-[#394158]">Pedido Realizado!</h2>
 
           {pixDados ? (
-            <div className="space-y-5 bg-gray-50 p-6 rounded-2xl border border-gray-100 text-left">
+            <div className="space-y-5 bg-white p-6 rounded-2xl border border-gray-100 text-left">
               <div className="text-center">
                 <p className="text-xs font-bold text-[#394158]">Escaneie o QR Code para Pagar via PIX</p>
                 <p className="text-[10px] text-gray-400 mt-0.5">O pagamento é identificado instantaneamente</p>
@@ -406,7 +407,8 @@ export default function Carrinho() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F2ED] text-[#394158] pb-24">
+    <div className="min-h-screen bg-[#F5F2ED] text-[#394158] antialiased pb-20 md:pb-0 font-sans">
+      <Navbar rotaAtiva="/carrinho" />
       <main className="max-w-4xl mx-auto px-4 pt-6 space-y-6">
         <PageHeader
           titulo="Meu Carrinho"
@@ -479,7 +481,7 @@ export default function Carrinho() {
 
                       return (
                         <div key={prodId} className="py-4 flex items-center gap-4">
-                          <img src={imagem} alt={nome} className="w-16 h-16 rounded-2xl object-cover bg-gray-50" />
+                          <img src={imagem} alt={nome} className="w-16 h-16 rounded-2xl object-cover bg-white" />
                           <div className="flex-1">
                             <h4 className="font-bold text-xs text-[#394158]">{nome}</h4>
                             <p className="text-xs font-black text-[#55833d] mt-1">
