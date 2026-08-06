@@ -36,6 +36,8 @@ export interface UsuarioLogado {
   refreshToken: string;
   nome: string;
   email: string;
+  telefone?: string;
+  fotoPerfilUrl?: string;
   perfil: Perfil;
 }
 

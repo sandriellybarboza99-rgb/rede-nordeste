@@ -371,8 +371,8 @@ export default function Receitas() {
         </div>
       )}
 
-      <footer className="w-full text-center p-20 bg-transparent text-[#394158]/30">
-        <span className="text-[8px] font-black uppercase tracking-[0.4em]">© 2026 Rede Nordeste — Todos os direitos reservados.</span>
+      <footer className="w-full text-center p-20 bg-gray-50 border-t border-gray-100">
+        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#394158]/60">© 2026 Rede Nordeste - Todos os direitos reservados.</span>
       </footer>
     </div>
   );

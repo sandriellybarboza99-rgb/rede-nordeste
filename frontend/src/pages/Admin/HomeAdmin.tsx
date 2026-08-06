@@ -5,6 +5,7 @@ import {
   AlertTriangle, CheckCircle, UserCheck,
   Newspaper, Image as ImageIcon, Plus, Edit2,
   Trash2, XCircle, ShieldOff, Package, FileText, Crown, ArrowDownCircle,
+  UtensilsCrossed, Clock, Flame, Link2,
 } from 'lucide-react';
 import {
   getProdutosPendentes, aprovarOuRejeitarProduto,
@@ -20,7 +21,40 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { FormField } from '../../components/ui/Input';
 
-type Aba = 'dashboard' | 'verificacao' | 'usuarios' | 'destaques' | 'noticias';
+type Aba = 'dashboard' | 'verificacao' | 'usuarios' | 'destaques' | 'noticias' | 'receitas';
+
+const RECEITAS_INICIAIS = [
+  { id: 1, titulo: 'Escondidinho de Carne', tempo: '45 min', dificuldade: 'Média',
+    imagem: 'https://images.unsplash.com/photo-1595666548990-788e19dc3885?q=80&w=1170&auto=format&fit=crop',
+    descricao: 'O clássico sertanejo com macaxeira cremosa e queijo coalho gratinado.',
+    ingredientes: ['500g de carne de sol','1kg de macaxeira cozida','200g de queijo coalho','1 cebola roxa','Nata a gosto'],
+    preparo: 'Dessalgue a carne, refogue com cebola. Amasse a macaxeira com nata para o purê. Monte em camadas e gratine com o queijo.' },
+  { id: 2, titulo: 'Tapioca Gourmet de Queijo', tempo: '10 min', dificuldade: 'Fácil',
+    imagem: 'https://sabores-new.s3.amazonaws.com/public/2024/11/tapiocaalecrim_comqueijo.jpeg',
+    descricao: 'Crocante e recheada com o melhor queijo da nossa terra.',
+    ingredientes: ['1 xícara de goma de tapioca','2 fatias grossas de queijo coalho','Manteiga de garrafa'],
+    preparo: 'Peneire a goma na frigideira quente. Quando ligar, coloque o queijo. Dobre e pincele manteiga de garrafa.' },
+  { id: 3, titulo: 'Cuscuz Nordestino', tempo: '20 min', dificuldade: 'Fácil',
+    imagem: 'https://www.sabornamesa.com.br/media/k2/items/cache/4fd575b03eae045941eb58c35ab6b353_XL.jpg',
+    descricao: 'O café da manhã perfeito com ovos caipira e queijo derretido.',
+    ingredientes: ['2 xícaras de flocão de milho','1 xícara de água','Sal a gosto','Ovos e queijo para acompanhar'],
+    preparo: 'Hidrate o flocão por 10 min. Cozinhe no vapor por 10 min. Sirva com ovos fritos na manteiga e queijo derretido.' },
+  { id: 4, titulo: 'Bolo de Rolo', tempo: '1h 20min', dificuldade: 'Difícil',
+    imagem: 'https://images.unsplash.com/photo-1593872423141-bb230bd352c6?q=80&w=687&auto=format&fit=crop',
+    descricao: 'A iguaria mais famosa de Pernambuco, com camadas finas e goiabada cascão.',
+    ingredientes: ['Manteiga','Açúcar','Farinha de Trigo','Goiabada Cascão'],
+    preparo: 'Asse camadas finas, recheie com a goiabada derretida e enrole com cuidado ainda quente.' },
+  { id: 5, titulo: 'Baião de Dois', tempo: '40 min', dificuldade: 'Média',
+    imagem: 'https://www.yoki.com.br/_next/image?url=https%3A%2F%2Fprodcontent.yoki.com.br%2Fwp-content%2Fuploads%2F2024%2F09%2FBaiao-de-dois-800x450-1.jpg&w=1400&q=75',
+    descricao: 'O arroz com feijão de corda que é a cara do Nordeste. Prático e delicioso.',
+    ingredientes: ['Arroz','Feijão de corda','Queijo coalho','Toucinho'],
+    preparo: 'Cozinhe o feijão, adicione o arroz e finalize com pedaços generosos de queijo coalho.' },
+  { id: 6, titulo: 'Arroz doce verdadeiro', tempo: '1h 30min', dificuldade: 'Média',
+    imagem: 'https://bakeandcakegourmet.com.br/uploads/site/receitas/arroz-doce-sem-leite-ikz3g2us.jpg',
+    descricao: 'Para os amantes de doces clássicos, a receita de arroz doce verdadeiro é uma opção perfeita!',
+    ingredientes: ['1 e 1/2 litro de leite','3 xícaras de açúcar','1 lata de leite condensado','2 xícaras de arroz branco (já lavado)','canela em pau a gosto'],
+    preparo: 'Cozinhe o arroz no leite, juntamente com a canela. Após 20 minutos, mexa de tempos em tempos. Acrescente o açúcar e deixe por 20 minutos. Logo em seguida, acrescente o leite condensado e deixe por mais 20 minutos. Coloque em uma linda travessa.' },
+];
 
 export default function HomeAdmin() {
   const { success, error: toastError } = useToast();
@@ -38,14 +72,16 @@ export default function HomeAdmin() {
   const [totalProdutosPendentes, setTotalProdutosPendentes] = useState(0);
   const [banners, setBanners] = useState<any[]>([]);
   const [noticias, setNoticias] = useState<any[]>([]);
+  const [receitas, setReceitas] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(false);
 
   // ── Modais ────────────────────────────────────────────────────
   const [modalBanner, setModalBanner] = useState(false);
   const [modalNoticia, setModalNoticia] = useState(false);
+  const [modalReceita, setModalReceita] = useState(false);
   const [confirmar, setConfirmar] = useState<{
     aberto: boolean;
-    tipo: 'banner' | 'noticia' | 'suspenderLoja' | null;
+    tipo: 'banner' | 'noticia' | 'suspenderLoja' | 'receita' | null;
     id: number | null;
     motivo?: string;
   }>({ aberto: false, tipo: null, id: null });
@@ -58,14 +94,19 @@ export default function HomeAdmin() {
     id: null, titulo: '', subtitulo: '', categoria: 'NOTICIA',
     imagemUrl: '', descricao: '', citacao: '', tempoLeitura: '3 min', publicada: true,
   });
+  const [formReceita, setFormReceita] = useState<any>({
+    id: null, titulo: '', tempo: '', dificuldade: 'Fácil',
+    imagem: '', descricao: '', ingredientes: '', preparo: '',
+  });
 
   // ── Carrega dados conforme aba ────────────────────────────────
   useEffect(() => {
     if (abaAtiva === 'dashboard')   carregarMetricas();
     if (abaAtiva === 'verificacao') { carregarLojasPendentes(); carregarProdutosPendentes(); }
     if (abaAtiva === 'usuarios')    carregarUsuarios();
-    if (abaAtiva === 'destaques')   carregarBanners();
+    if (abaAtiva === 'destaques')   { carregarBanners(); carregarNoticias(); }
     if (abaAtiva === 'noticias')    carregarNoticias();
+    if (abaAtiva === 'receitas')    carregarReceitas();
   }, [abaAtiva]);
 
   const carregarMetricas = async () => {
@@ -107,6 +148,16 @@ export default function HomeAdmin() {
       const data = await adminListarNoticias();
       setNoticias(data.content || []);
     } catch { setNoticias([]); }
+  };
+
+  const carregarReceitas = () => {
+    const salvas = localStorage.getItem('receitas_globais');
+    if (salvas) {
+      setReceitas(JSON.parse(salvas));
+    } else {
+      localStorage.setItem('receitas_globais', JSON.stringify(RECEITAS_INICIAIS));
+      setReceitas(RECEITAS_INICIAIS);
+    }
   };
 
   // ── Ações: usuários ──────────────────────────────────────────
@@ -249,6 +300,62 @@ export default function HomeAdmin() {
     } catch (err: any) { toastError(err?.message || 'Erro ao remover notícia'); }
   };
 
+  // ── Ações: receitas ──────────────────────────────────────────
+  const abrirNovaReceita = () => {
+    setFormReceita({
+      id: null, titulo: '', tempo: '', dificuldade: 'Fácil',
+      imagem: '', descricao: '', ingredientes: '', preparo: '',
+    });
+    setModalReceita(true);
+  };
+
+  const abrirEditarReceita = (r: any) => {
+    setFormReceita({
+      ...r,
+      ingredientes: Array.isArray(r.ingredientes) ? r.ingredientes.join('\n') : (r.ingredientes || ''),
+    });
+    setModalReceita(true);
+  };
+
+  const salvarReceita = () => {
+    if (!formReceita.titulo || !formReceita.tempo || !formReceita.preparo) {
+      toastError('Preencha título, tempo e modo de preparo');
+      return;
+    }
+    const ingredientesArray = formReceita.ingredientes
+      .split('\n')
+      .map((i: string) => i.trim())
+      .filter(Boolean);
+
+    let novasReceitas: any[];
+    if (formReceita.id) {
+      novasReceitas = receitas.map(r =>
+        r.id === formReceita.id
+          ? { ...formReceita, ingredientes: ingredientesArray }
+          : r
+      );
+      success('Receita atualizada');
+    } else {
+      const novoId = receitas.length > 0 ? Math.max(...receitas.map(r => r.id)) + 1 : 1;
+      novasReceitas = [
+        ...receitas,
+        { ...formReceita, id: novoId, ingredientes: ingredientesArray },
+      ];
+      success('Receita publicada');
+    }
+    localStorage.setItem('receitas_globais', JSON.stringify(novasReceitas));
+    setReceitas(novasReceitas);
+    setModalReceita(false);
+  };
+
+  const deletarReceita = (id: number) => {
+    const novasReceitas = receitas.filter(r => r.id !== id);
+    localStorage.setItem('receitas_globais', JSON.stringify(novasReceitas));
+    setReceitas(novasReceitas);
+    setConfirmar({ aberto: false, tipo: null, id: null });
+    success('Receita removida');
+  };
+
   // ── Upload de imagem (base64) ─────────────────────────────────
   const lerImagemBase64 = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -272,6 +379,7 @@ export default function HomeAdmin() {
     { id: 'usuarios',    label: 'Usuários',            icon: Users },
     { id: 'destaques',   label: 'Banners da Home',     icon: ImageIcon },
     { id: 'noticias',    label: 'Blog',                icon: Newspaper },
+    { id: 'receitas',    label: 'Receitas',            icon: UtensilsCrossed },
   ];
 
   // ────────────────────────────────────────────────────────────────
@@ -552,6 +660,11 @@ export default function HomeAdmin() {
                     <div className="p-4 flex-1 flex flex-col">
                       <h3 className="font-black text-sm uppercase text-[#394158] line-clamp-1">{b.titulo}</h3>
                       <p className="text-[10px] font-bold text-gray-400 uppercase line-clamp-2 italic mt-1">{b.subtitulo}</p>
+                      {b.linkBlogId && (
+                        <p className="text-[9px] font-bold text-[#55833d] mt-1.5 flex items-center gap-1">
+                          <Link2 size={8} /> Notícia #{b.linkBlogId} vinculada
+                        </p>
+                      )}
                       <div className="mt-auto pt-3 flex justify-end gap-2">
                         <button onClick={() => abrirEditarBanner(b)} className="w-8 h-8 flex items-center justify-center rounded-full bg-[#F5F2ED] text-[#394158] hover:bg-[#f9943b] hover:text-white transition-colors"><Edit2 size={12} /></button>
                         <button onClick={() => setConfirmar({ aberto: true, tipo: 'banner', id: b.id })} className="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={12} /></button>
@@ -593,6 +706,53 @@ export default function HomeAdmin() {
               </div>
             </div>
           )}
+
+          {/* RECEITAS */}
+          {abaAtiva === 'receitas' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 md:p-6 rounded-2xl border border-gray-100 gap-3 shadow-sm">
+                <div>
+                  <h2 className="text-lg md:text-xl font-black uppercase italic text-[#394158]">Receitas</h2>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Gerencie as receitas que aparecem para compradores e vendedores</p>
+                </div>
+                <Button onClick={abrirNovaReceita} iconLeft={<Plus size={16} />}>Nova Receita</Button>
+              </div>
+
+              {receitas.length === 0 ? (
+                <div className="bg-white p-12 rounded-2xl border border-gray-100 shadow-sm text-center">
+                  <UtensilsCrossed className="text-gray-300 mx-auto mb-3" size={40} />
+                  <p className="text-sm text-gray-400">Nenhuma receita cadastrada</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {receitas.map(r => (
+                    <div key={r.id} className="bg-white rounded-2xl overflow-hidden shadow-md border border-white flex flex-col">
+                      <div className="aspect-video relative overflow-hidden bg-gray-100">
+                        {(r.imagem || r.img) && <img src={r.imagem || r.img} className="w-full h-full object-cover" alt={r.titulo} />}
+                        <div className="absolute top-3 left-3 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-[8px] font-black uppercase text-[#55833d] flex items-center gap-1">
+                          <Clock size={8} /> {r.tempo}
+                        </div>
+                        <div className="absolute top-3 right-3 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-[8px] font-black uppercase text-[#f9943b] flex items-center gap-1">
+                          <Flame size={8} /> {r.dificuldade}
+                        </div>
+                      </div>
+                      <div className="p-4 flex-1 flex flex-col">
+                        <h3 className="font-black text-sm uppercase text-[#394158] line-clamp-1">{r.titulo}</h3>
+                        <p className="text-[10px] font-bold text-gray-400 line-clamp-2 italic mt-1">{r.descricao}</p>
+                        <p className="text-[9px] font-bold text-[#55833d] mt-2">
+                          {Array.isArray(r.ingredientes) ? r.ingredientes.length : 0} ingredientes
+                        </p>
+                        <div className="mt-auto pt-3 flex justify-end gap-2">
+                          <button onClick={() => abrirEditarReceita(r)} className="w-8 h-8 flex items-center justify-center rounded-full bg-[#F5F2ED] text-[#394158] hover:bg-[#f9943b] hover:text-white transition-colors"><Edit2 size={12} /></button>
+                          <button onClick={() => setConfirmar({ aberto: true, tipo: 'receita', id: r.id })} className="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={12} /></button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </main>
 
@@ -600,6 +760,44 @@ export default function HomeAdmin() {
       <Modal open={modalBanner} onClose={() => setModalBanner(false)}
         title={formBanner.id ? 'Editar banner' : 'Novo banner'}>
         <div className="space-y-4">
+          {/* VINCULAR NOTÍCIA */}
+          <div>
+            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5 flex items-center gap-1">
+              <Link2 size={10} /> Vincular notícia
+            </label>
+            <select
+              value={formBanner.linkBlogId || ''}
+              onChange={e => {
+                const selectedId = e.target.value ? Number(e.target.value) : null;
+                if (selectedId) {
+                  const noticia = noticias.find((n: any) => n.id === selectedId);
+                  if (noticia) {
+                    setFormBanner({
+                      ...formBanner,
+                      linkBlogId: selectedId,
+                      titulo: noticia.titulo || formBanner.titulo,
+                      subtitulo: noticia.subtitulo || formBanner.subtitulo,
+                      imagemUrl: noticia.imagemUrl || formBanner.imagemUrl,
+                      tipo: noticia.categoria || formBanner.tipo,
+                    });
+                  }
+                } else {
+                  setFormBanner({ ...formBanner, linkBlogId: null });
+                }
+              }}
+              className="w-full p-3 bg-[#F5F2ED]/50 text-[#394158] font-bold rounded-2xl outline-none border-2 border-transparent focus:border-[#55833d]"
+            >
+              <option value="">Nenhuma (banner independente)</option>
+              {noticias.map((n: any) => (
+                <option key={n.id} value={n.id}>{n.titulo}</option>
+              ))}
+            </select>
+            {formBanner.linkBlogId && (
+              <p className="text-[9px] font-bold text-[#55833d] mt-1.5 ml-1 flex items-center gap-1">
+                <Link2 size={8} /> Vinculada — o botão "Saiba Mais" levará para esta notícia
+              </p>
+            )}
+          </div>
           <FormField label="Tag" value={formBanner.tipo}
             onChange={e => setFormBanner({ ...formBanner, tipo: e.target.value })} />
           <FormField label="Título" value={formBanner.titulo}
@@ -669,6 +867,63 @@ export default function HomeAdmin() {
         </div>
       </Modal>
 
+      {/* MODAL RECEITA */}
+      <Modal open={modalReceita} onClose={() => setModalReceita(false)}
+        title={formReceita.id ? 'Editar receita' : 'Nova receita'} size="lg">
+        <div className="space-y-4">
+          <FormField label="Título" value={formReceita.titulo}
+            onChange={e => setFormReceita({ ...formReceita, titulo: e.target.value })} />
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Tempo de preparo" placeholder="Ex: 45 min" value={formReceita.tempo}
+              onChange={e => setFormReceita({ ...formReceita, tempo: e.target.value })} />
+            <div>
+              <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Dificuldade</label>
+              <select value={formReceita.dificuldade}
+                onChange={e => setFormReceita({ ...formReceita, dificuldade: e.target.value })}
+                className="w-full p-3 bg-[#F5F2ED]/50 text-[#394158] font-bold rounded-2xl outline-none border-2 border-transparent focus:border-[#55833d]">
+                <option value="Fácil">Fácil</option>
+                <option value="Média">Média</option>
+                <option value="Difícil">Difícil</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Descrição curta</label>
+            <textarea rows={2} value={formReceita.descricao}
+              onChange={e => setFormReceita({ ...formReceita, descricao: e.target.value })}
+              className="w-full p-3 bg-[#F5F2ED]/50 text-[#394158] font-medium rounded-2xl outline-none border-2 border-transparent focus:border-[#55833d] resize-none" />
+          </div>
+          <div>
+            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Ingredientes (um por linha)</label>
+            <textarea rows={4} value={formReceita.ingredientes}
+              placeholder={"500g de carne de sol\n1kg de macaxeira cozida\n200g de queijo coalho"}
+              onChange={e => setFormReceita({ ...formReceita, ingredientes: e.target.value })}
+              className="w-full p-3 bg-[#F5F2ED]/50 text-[#394158] font-medium rounded-2xl outline-none border-2 border-transparent focus:border-[#55833d] resize-none" />
+          </div>
+          <div>
+            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Modo de Preparo</label>
+            <textarea rows={4} value={formReceita.preparo}
+              onChange={e => setFormReceita({ ...formReceita, preparo: e.target.value })}
+              className="w-full p-3 bg-[#F5F2ED]/50 text-[#394158] font-medium rounded-2xl outline-none border-2 border-transparent focus:border-[#55833d] resize-none" />
+          </div>
+          <div>
+            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Imagem</label>
+            <label className="w-full p-3 bg-[#F5F2ED]/50 text-gray-400 font-bold rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#f9943b] flex items-center justify-center gap-2 cursor-pointer">
+              <ImageIcon size={18} />
+              {formReceita.imagem ? 'Selecionada ✓' : 'Escolher imagem'}
+              <input type="file" className="hidden" accept="image/*"
+                onChange={e => lerImagemBase64(e, url => setFormReceita({ ...formReceita, imagem: url }))} />
+            </label>
+            {formReceita.imagem && <img src={formReceita.imagem} className="mt-3 w-full h-32 object-cover rounded-xl" alt="preview" />}
+          </div>
+          <FormField label="URL da imagem (alternativa)" placeholder="https://..." value={formReceita.imagem || ''}
+            onChange={e => setFormReceita({ ...formReceita, imagem: e.target.value })} />
+          <Button onClick={salvarReceita} fullWidth size="lg" iconLeft={<CheckCircle size={18} />}>
+            {formReceita.id ? 'Atualizar' : 'Publicar receita'}
+          </Button>
+        </div>
+      </Modal>
+
       {/* CONFIRMAR EXCLUSÃO */}
       <Modal open={confirmar.aberto} onClose={() => setConfirmar({ aberto: false, tipo: null, id: null })} size="sm">
         <div className="text-center space-y-4">
@@ -678,12 +933,14 @@ export default function HomeAdmin() {
             {confirmar.tipo === 'banner' && 'Este banner será removido da home.'}
             {confirmar.tipo === 'noticia' && 'Esta notícia será removida do blog.'}
             {confirmar.tipo === 'suspenderLoja' && 'A loja será suspensa e não poderá vender.'}
+            {confirmar.tipo === 'receita' && 'Esta receita será removida para compradores e vendedores.'}
           </p>
           <div className="flex gap-2 pt-2">
             <Button variant="ghost" fullWidth onClick={() => setConfirmar({ aberto: false, tipo: null, id: null })}>Cancelar</Button>
             <Button variant="danger" fullWidth onClick={async () => {
               if (confirmar.tipo === 'banner' && confirmar.id) await deletarBanner(confirmar.id);
               if (confirmar.tipo === 'noticia' && confirmar.id) await deletarNoticia(confirmar.id);
+              if (confirmar.tipo === 'receita' && confirmar.id) deletarReceita(confirmar.id);
               if (confirmar.tipo === 'suspenderLoja' && confirmar.id) {
                 try {
                   await adminSuspenderLoja(confirmar.id, 'Recusado pelo admin');

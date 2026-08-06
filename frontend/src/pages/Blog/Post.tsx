@@ -155,15 +155,18 @@ export default function Post() {
           </div>
         </article>
 
-        <footer className="mt-20 pt-10 border-t border-gray-100 text-center">
+        <div className="mt-20 pt-10 border-t border-gray-100 text-center">
              <button 
                 onClick={() => navigate('/blog')}
                 className="text-[#55833d] font-black uppercase text-xs border-b-2 border-[#55833d] pb-1 hover:text-[#f9943b] hover:border-[#f9943b] transition-all cursor-pointer"
              >
                 Explorar mais notícias
              </button>
-        </footer>
+        </div>
       </main>
+      <footer className="w-full text-center p-20 bg-gray-50 border-t border-gray-100">
+        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#394158]/60">© 2026 Rede Nordeste - Todos os direitos reservados.</span>
+      </footer>
     </div>
   );
 }

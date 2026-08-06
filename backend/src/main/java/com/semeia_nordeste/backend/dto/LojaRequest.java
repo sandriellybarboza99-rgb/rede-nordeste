@@ -8,27 +8,30 @@ import jakarta.validation.constraints.Size;
 
 public record LojaRequest(
 
-        @NotBlank(message = "O nome da loja é obrigatório") @Size(max = 100) String nomeLoja,
+                @NotBlank(message = "O nome da loja é obrigatório") @Size(max = 100) String nomeLoja,
 
-        String descricaoBio,
-        String logradouro,
-        String bairro,
+                String descricaoBio,
+                String logradouro,
+                String bairro,
 
-        @NotBlank(message = "A cidade é obrigatória") String cidade,
+                @NotBlank(message = "A cidade é obrigatória") String cidade,
 
-        @Size(min = 2, max = 2, message = "Estado deve ter 2 caracteres") String estado,
+                @Size(min = 2, max = 2, message = "Estado deve ter 2 caracteres") String estado,
 
-        @Size(min = 8, max = 8, message = "CEP deve ter 8 dígitos") String cep,
+                @Size(min = 8, max = 8, message = "CEP deve ter 8 dígitos") String cep,
 
-        Boolean aceitaRetirada,
-        Boolean fazEntrega,
+                Boolean aceitaRetirada,
+                Boolean fazEntrega,
 
-        @DecimalMin(value = "0.0") BigDecimal valorMinimoPedido,
+                @DecimalMin(value = "0.0") BigDecimal valorMinimoPedido,
 
-        @DecimalMin(value = "0.0") BigDecimal taxaEntregaFixa,
+                @DecimalMin(value = "0.0") BigDecimal taxaEntregaFixa,
 
-        String logoUrl,
+                String logoUrl,
 
-        Double latitudeLoja,
-        Double longitudeLoja) {
+                Double latitudeLoja,
+                Double longitudeLoja,
+
+                @Size(max = 150, message = "A chave PIX não pode exceder 150 caracteres") String chavePix,
+                @Size(max = 30, message = "O tipo da chave PIX não pode exceder 30 caracteres") String tipoChavePix) {
 }

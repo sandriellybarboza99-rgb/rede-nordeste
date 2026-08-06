@@ -47,6 +47,7 @@ export default function CarrinhoVendedor() {
   const [carrinho, setCarrinho] = useState<any>({ itens: [], totalItens: 0, valorTotal: 0 });
   const [carregando, setCarregando] = useState(true);
   const [processando, setProcessando] = useState(false);
+  const [calculandoFrete, setCalculandoFrete] = useState(false);
 
   const [itensSelecionados, setItensSelecionados] = useState<number[]>([]);
   const [metodoEntrega, setMetodoEntrega] = useState<'entrega' | 'retirada'>('entrega');
@@ -95,10 +96,32 @@ export default function CarrinhoVendedor() {
     const itemSel = carrinho.itens.find((i: any) => itensSelecionados.includes(i.produtoId));
     if (!itemSel) return;
 
+    setCalculandoFrete(true);
     simularFrete(itemSel.lojaId, end.latitudeDestino, end.longitudeDestino)
       .then((data: any) => setValorFrete(Number(data.valorFrete)))
-      .catch(() => setValorFrete(0));
+      .catch(() => setValorFrete(0))
+      .finally(() => setCalculandoFrete(false));
   }, [metodoEntrega, enderecoSelecionado, carrinho.itens, itensSelecionados, meusEnderecos]);
+
+  const buscarCep = async (cep: string) => {
+    const cepNumeros = cep.replace(/\D/g, '');
+    if (cepNumeros.length !== 8) return;
+    
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cepNumeros}/json/`);
+      const data = await response.json();
+      if (!data.erro) {
+        setNovoEndereco(prev => ({
+          ...prev,
+          estadoCidade: `${data.localidade} - ${data.uf}`,
+          bairro: data.bairro,
+          rua: data.logradouro
+        }));
+      }
+    } catch (err) {
+      console.error("Erro ao buscar CEP", err);
+    }
+  };
 
   const atualizarQtd = async (produtoId: number, novaQtd: number) => {
     if (novaQtd < 1) return;
@@ -232,7 +255,7 @@ export default function CarrinhoVendedor() {
                 {carrinho.itens.length > 0 ? carrinho.itens.map((item: any) => {
                   const isSelected = itensSelecionados.includes(item.produtoId);
                   return (
-                    <div key={item.id} className={`flex gap-4 items-center p-3 rounded-2xl border-2 transition-all ${isSelected ? 'border-[#f9943b] bg-white shadow-sm' : 'border-gray-100 bg-gray-50 opacity-70'}`}>
+                    <div key={item.id} className={`flex gap-4 items-center p-3 rounded-2xl border-2 transition-all ${isSelected ? 'border-[#f9943b] bg-white shadow-sm' : 'border-gray-100 bg-white opacity-70'}`}>
                       <button onClick={() => toggleSelecao(item.produtoId)} className="text-[#f9943b] flex-shrink-0">
                         {isSelected ? <CheckSquare size={24} /> : <Square size={24} className="text-gray-300" />}
                       </button>
@@ -270,11 +293,11 @@ export default function CarrinhoVendedor() {
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Como você quer receber?</h4>
                   <div className="flex gap-3">
                     <button onClick={() => setMetodoEntrega('entrega')}
-                      className={`flex-1 p-5 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all ${metodoEntrega === 'entrega' ? 'border-[#f9943b] bg-white shadow-md' : 'border-transparent bg-gray-50 opacity-50'}`}>
+                      className={`flex-1 p-5 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all ${metodoEntrega === 'entrega' ? 'border-[#f9943b] bg-white shadow-md' : 'border-transparent bg-white opacity-50'}`}>
                       <Truck size={24} /><span className="text-xs font-black uppercase tracking-widest">Entrega</span>
                     </button>
                     <button onClick={() => setMetodoEntrega('retirada')}
-                      className={`flex-1 p-5 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all ${metodoEntrega === 'retirada' ? 'border-[#f9943b] bg-white shadow-md' : 'border-transparent bg-gray-50 opacity-50'}`}>
+                      className={`flex-1 p-5 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all ${metodoEntrega === 'retirada' ? 'border-[#f9943b] bg-white shadow-md' : 'border-transparent bg-white opacity-50'}`}>
                       <Store size={24} /><span className="text-xs font-black uppercase tracking-widest">Retirada</span>
                     </button>
                   </div>
@@ -292,12 +315,21 @@ export default function CarrinhoVendedor() {
                     </div>
 
                     {exibirFormNovoEndereco ? (
-                      <div className="space-y-3 bg-gray-50 p-5 rounded-3xl border border-gray-100">
+                      <div className="space-y-3 bg-white p-5 rounded-3xl border border-gray-100">
                         <h4 className="font-black text-sm uppercase italic mb-2">Novo Endereço</h4>
                         <input type="text" placeholder="Quem vai receber? (Destinatário)" className="w-full text-xs font-bold bg-white p-3 rounded-xl outline-none" value={novoEndereco.destinatario} onChange={e => setNovoEndereco({ ...novoEndereco, destinatario: e.target.value })} />
                         <input type="text" placeholder="Telefone para contato" className="w-full text-xs font-bold bg-white p-3 rounded-xl outline-none" value={novoEndereco.telefone} onChange={e => setNovoEndereco({ ...novoEndereco, telefone: e.target.value })} />
                         <div className="flex gap-2">
-                          <input type="text" placeholder="CEP" className="w-1/2 text-xs font-bold bg-white p-3 rounded-xl outline-none" value={novoEndereco.cep} onChange={e => setNovoEndereco({ ...novoEndereco, cep: e.target.value })} />
+                          <input type="text" placeholder="CEP" className="w-1/2 text-xs font-bold bg-white p-3 rounded-xl outline-none" 
+                            value={novoEndereco.cep} 
+                            onChange={e => {
+                              setNovoEndereco({ ...novoEndereco, cep: e.target.value });
+                              if (e.target.value.replace(/\D/g, '').length === 8) {
+                                buscarCep(e.target.value);
+                              }
+                            }}
+                            onBlur={(e) => buscarCep(e.target.value)}
+                          />
                           <input type="text" placeholder="Cidade - UF" className="w-1/2 text-xs font-bold bg-white p-3 rounded-xl outline-none" value={novoEndereco.estadoCidade} onChange={e => setNovoEndereco({ ...novoEndereco, estadoCidade: e.target.value })} />
                         </div>
                         <input type="text" placeholder="Bairro" className="w-full text-xs font-bold bg-white p-3 rounded-xl outline-none" value={novoEndereco.bairro} onChange={e => setNovoEndereco({ ...novoEndereco, bairro: e.target.value })} />
@@ -315,7 +347,7 @@ export default function CarrinhoVendedor() {
                       <div className="space-y-3">
                         {meusEnderecos.map((end, idx) => (
                           <button key={end.id} onClick={() => { setEnderecoSelecionado(idx); setMudarEndereco(false); }}
-                            className={`w-full text-left p-4 rounded-2xl border-2 transition-all flex gap-3 items-start ${enderecoSelecionado === idx ? 'border-[#f9943b] bg-white' : 'border-transparent bg-gray-50 opacity-60'}`}>
+                            className={`w-full text-left p-4 rounded-2xl border-2 transition-all flex gap-3 items-start ${enderecoSelecionado === idx ? 'border-[#f9943b] bg-white' : 'border-transparent bg-white opacity-60'}`}>
                             <div className={`mt-1 w-4 h-4 rounded-full border-2 flex items-center justify-center ${enderecoSelecionado === idx ? 'border-[#f9943b]' : 'border-gray-300'}`}>
                               {enderecoSelecionado === idx && <div className="w-2 h-2 bg-[#f9943b] rounded-full" />}
                             </div>
@@ -352,7 +384,7 @@ export default function CarrinhoVendedor() {
                       <div className="bg-[#f9943b]/5 p-4 rounded-2xl flex flex-col border border-[#f9943b]/20">
                         <div className="flex justify-between items-center">
                           <span className="text-[10px] font-black uppercase text-[#f9943b]">Frete calculado para este CEP:</span>
-                          <span className="font-black text-[#f9943b] text-sm">{valorFrete > 0 ? `R$ ${valorFrete.toFixed(2)}` : 'Calculando...'}</span>
+                          <span className="font-black text-[#f9943b] text-sm">{calculandoFrete ? 'Calculando...' : (valorFrete > 0 ? `R$ ${valorFrete.toFixed(2)}` : 'Grátis')}</span>
                         </div>
                       </div>
                     )}
@@ -378,7 +410,7 @@ export default function CarrinhoVendedor() {
               <div className="space-y-8 animate-in slide-in-from-right duration-300">
                 <div className="space-y-4">
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Produtos Selecionados</h4>
-                  <div className="bg-gray-50 p-4 rounded-3xl border border-gray-100 space-y-3">
+                  <div className="bg-white p-4 rounded-3xl border border-gray-100 space-y-3">
                     {itensParaComprar.map((item: any) => (
                       <div key={item.id} className="flex items-center gap-3 bg-white p-2 rounded-2xl shadow-sm">
                         <img src={item.imagemUrl || 'https://via.placeholder.com/100'} className="w-10 h-10 rounded-xl object-cover" alt="" />
@@ -410,7 +442,7 @@ export default function CarrinhoVendedor() {
                     {metodoPagamento === 'CARTAO' && (
                       <div className="space-y-3 animate-in fade-in">
                         {exibirFormNovoCartao ? (
-                          <div className="bg-gray-50 p-5 rounded-3xl border border-gray-100 space-y-3">
+                          <div className="bg-white p-5 rounded-3xl border border-gray-100 space-y-3">
                             <h4 className="font-black text-sm uppercase italic mb-2">Novo Cartão</h4>
                             <input type="text" placeholder="Número do Cartão" className="w-full text-xs font-bold bg-white p-3 rounded-xl outline-none" value={novoCartao.numero} onChange={e => setNovoCartao({ ...novoCartao, numero: e.target.value })} />
                             <input type="text" placeholder="Nome impresso" className="w-full text-xs font-bold bg-white p-3 rounded-xl outline-none uppercase" value={novoCartao.titular} onChange={e => setNovoCartao({ ...novoCartao, titular: e.target.value })} />
@@ -427,7 +459,7 @@ export default function CarrinhoVendedor() {
                           <div className="space-y-3">
                             {meusCartoes.length > 0 ? meusCartoes.map((cartao, idx) => (
                               <button key={cartao.id} onClick={() => setCartaoSelecionado(idx)}
-                                className={`w-full text-left p-4 rounded-2xl border-2 transition-all flex gap-3 items-center ${cartaoSelecionado === idx ? 'border-[#394158] bg-white' : 'border-gray-100 bg-gray-50 opacity-60'}`}>
+                                className={`w-full text-left p-4 rounded-2xl border-2 transition-all flex gap-3 items-center ${cartaoSelecionado === idx ? 'border-[#394158] bg-white' : 'border-gray-100 bg-white opacity-60'}`}>
                                 <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${cartaoSelecionado === idx ? 'border-[#394158]' : 'border-gray-300'}`}>
                                   {cartaoSelecionado === idx && <div className="w-2 h-2 bg-[#394158] rounded-full" />}
                                 </div>
@@ -451,7 +483,7 @@ export default function CarrinhoVendedor() {
                     )}
 
                     {metodoPagamento === 'PIX' && (
-                      <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 flex flex-col items-center animate-in fade-in">
+                      <div className="bg-white p-6 rounded-3xl border border-gray-100 flex flex-col items-center animate-in fade-in">
                         <div className="w-32 h-32 bg-white rounded-xl mb-4 flex items-center justify-center border-4 border-[#f9943b] overflow-hidden">
                           <img src="https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg" className="w-full h-full opacity-80" alt="QR Code PIX" />
                         </div>
@@ -463,7 +495,7 @@ export default function CarrinhoVendedor() {
                     )}
 
                     {metodoPagamento === 'BOLETO' && (
-                      <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 text-center animate-in fade-in">
+                      <div className="bg-white p-6 rounded-3xl border border-gray-100 text-center animate-in fade-in">
                         <Barcode size={48} className="mx-auto text-gray-300 mb-3" />
                         <p className="text-xs font-bold text-gray-500">O boleto será gerado após a confirmação da compra.</p>
                       </div>

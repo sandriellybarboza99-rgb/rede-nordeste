@@ -8,9 +8,9 @@ import {
   CreditCard as CardIcon, ShoppingCart, Filter, HeartOff, Eye, Trash2, X,
 } from 'lucide-react';
 import {
-  getMeusPedidos, atualizarMeuPerfil,
+  getMeusPedidos, atualizarMeuPerfil, getMeuPerfil,
   getMeusEnderecos, criarEndereco, deletarEndereco,
-  getMeusCartoes, criarCartao, deletarCartao,
+  getMeusCartoes, criarCartao, deletarCartao, getProdutoPorId,
 } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -40,7 +40,7 @@ interface Cartao {
 
 export default function Perfil() {
   const navigate = useNavigate();
-  const { usuario, logout } = useAuth();
+  const { usuario, logout, atualizarTokens } = useAuth();
   const { success, error: toastError } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -92,7 +92,7 @@ export default function Perfil() {
 
   // foto preview (para upload de foto antes de persistir)
   const [fotoPerfil, setFotoPerfil] = useState<string>(
-    'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?w=200'
+    usuario?.fotoPerfilUrl || 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?w=200'
   );
 
   // ── Inicialização: carrega dados do backend ────────────────────
@@ -101,17 +101,51 @@ export default function Perfil() {
       getMeusPedidos().catch(() => ({ content: [] })),
       getMeusEnderecos().catch(() => []),
       getMeusCartoes().catch(() => []),
-    ]).then(([pedidosData, ends, cards]) => {
+      getMeuPerfil().catch(() => null),
+    ]).then(([pedidosData, ends, cards, perfilData]) => {
       setPedidos(pedidosData.content || []);
       setMeusEnderecos(ends);
       setMeusCartoes(cards);
+      if (perfilData?.fotoPerfilUrl) {
+        setFotoPerfil(perfilData.fotoPerfilUrl);
+        atualizarTokens({ fotoPerfilUrl: perfilData.fotoPerfilUrl });
+      }
     });
+
+    // Carregar favoritos
+    const carregarFavoritos = async () => {
+      try {
+        const salvos = localStorage.getItem('favoritos_itens');
+        if (salvos) {
+          const ids: number[] = JSON.parse(salvos);
+          const prods = await Promise.all(
+            ids.map(id => getProdutoPorId(id).catch(() => null))
+          );
+          setMeusFavoritos(prods.filter(p => p !== null));
+        }
+      } catch (err) {
+        console.error('Erro ao carregar favoritos', err);
+      }
+    };
+    carregarFavoritos();
   }, []);
+
+  // Remover favorito
+  const removerFavorito = (id: number) => {
+    setMeusFavoritos(prev => prev.filter(f => f.id !== id));
+    const fav = JSON.parse(localStorage.getItem('favoritos_itens') || '[]');
+    const newFav = fav.filter((fId: number) => fId !== id);
+    localStorage.setItem('favoritos_itens', JSON.stringify(newFav));
+    window.dispatchEvent(new Event('storage'));
+  };
 
   // Quando o usuário do contexto chega, atualiza dados visíveis
   useEffect(() => {
     if (usuario) {
       setDadosUsuario((d) => ({ ...d, nome: usuario.nome, email: usuario.email }));
+      if (usuario.fotoPerfilUrl && usuario.fotoPerfilUrl !== fotoPerfil) {
+        setFotoPerfil(usuario.fotoPerfilUrl);
+      }
     }
   }, [usuario]);
 
@@ -124,6 +158,7 @@ export default function Perfil() {
       setFotoPerfil(base64String);
       try {
         await atualizarMeuPerfil({ fotoPerfilUrl: base64String });
+        atualizarTokens({ fotoPerfilUrl: base64String });
         success('Foto atualizada');
       } catch (err: any) {
         toastError(err.message || 'Erro ao salvar foto');
@@ -225,8 +260,10 @@ export default function Perfil() {
   };
 
   const favoritosOrdenados = [...meusFavoritos].sort((a, b) => {
-    if (filtroFavoritos === 'barato') return a.preco - b.preco;
-    if (filtroFavoritos === 'caro') return b.preco - a.preco;
+    const precoA = a.precoAtual || a.preco || 0;
+    const precoB = b.precoAtual || b.preco || 0;
+    if (filtroFavoritos === 'barato') return precoA - precoB;
+    if (filtroFavoritos === 'caro') return precoB - precoA;
     return 0;
   });
 
@@ -234,7 +271,7 @@ export default function Perfil() {
 
   const renderVistoRecentemente = () => (
     <div className="space-y-6 animate-in slide-in-from-right duration-300 max-w-5xl mx-auto">
-<h3 className="text-xl font-black uppercase italic text-[#394158] px-2 tracking-tighter">Visto Recentemente</h3>
+      <h3 className="text-xl font-black uppercase italic text-[#394158] px-2 tracking-tighter">Visto Recentemente</h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 pb-10 px-2">
         {vistoRecently.map((prod) => (
           <div key={prod.id} onClick={() => navigate(`/produto/${prod.id}`)} className="bg-white rounded-2xl p-3 shadow-md border border-white flex flex-col h-full cursor-pointer active:scale-95 transition-all group">
@@ -257,7 +294,7 @@ export default function Perfil() {
   const renderFavoritos = () => (
     <div className="space-y-6 animate-in slide-in-from-right duration-300 max-w-5xl mx-auto">
       <div className="flex items-center justify-between px-2">
-    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-50">
+        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-50">
           <Filter size={14} className="text-[#55833d]" />
           <select value={filtroFavoritos} onChange={(e) => setFiltroFavoritos(e.target.value as any)} className="text-[9px] font-black uppercase bg-transparent outline-none text-[#394158] cursor-pointer">
             <option value="recentes">Recentes</option>
@@ -276,13 +313,13 @@ export default function Perfil() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 pb-10 px-2">
           {favoritosOrdenados.map((prod) => (
             <div key={prod.id} className="bg-white rounded-2xl p-3 shadow-md border border-white flex flex-col h-full relative">
-              <button onClick={() => setMeusFavoritos(meusFavoritos.filter(f => f.id !== prod.id))}
-                      className="absolute top-3 right-3 z-10 p-2 bg-white/90 shadow-md rounded-full text-red-400 hover:text-red-600 active:scale-90 transition-all">
+              <button onClick={() => removerFavorito(prod.id)}
+                className="absolute top-3 right-3 z-10 p-2 bg-white/90 shadow-md rounded-full text-red-400 hover:text-red-600 active:scale-90 transition-all">
                 <HeartOff size={14} />
               </button>
               <div onClick={() => navigate(`/produto/${prod.id}`)} className="cursor-pointer group flex flex-col flex-1">
                 <div className="w-full aspect-square rounded-xl overflow-hidden bg-[#F5F2ED] mb-3">
-                  <img src={prod.img} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={prod.nome} />
+                  <img src={prod.imagemUrl || prod.img || 'https://via.placeholder.com/400'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={prod.nome} />
                 </div>
                 <p className="text-[11px] font-black text-[#394158] leading-tight px-1">{prod.nome}</p>
               </div>
@@ -452,22 +489,90 @@ export default function Perfil() {
     }
   };
 
-  const renderDetalhePedido = () => (
-    <div className="space-y-6 animate-in slide-in-from-right duration-300">
-      <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-white">
-        <div className="bg-[#394158] p-8 text-white"><p className="text-[10px] font-black uppercase opacity-60 mb-1">Recibo Digital</p><h3 className="text-2xl font-black italic uppercase tracking-tighter">{pedidoSelecionado?.id}</h3></div>
-        <div className="p-8 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-[#F5F2ED] p-4 rounded-2xl flex items-center gap-4 border border-gray-100"><Calendar size={20} className="text-[#f9943b]" /><div><p className="text-[8px] font-black uppercase opacity-40">Data</p><p className="text-xs font-bold">{pedidoSelecionado?.dataPedido?.substring(0, 10) || '—'}</p></div></div>
-            <div className="bg-[#F5F2ED] p-4 rounded-2xl flex items-center gap-4 border border-gray-100"><CardIcon size={20} className="text-[#f9943b]" /><div><p className="text-[8px] font-black uppercase opacity-40">Pagamento</p><p className="text-xs font-bold">{pedidoSelecionado?.metodoPagamento || 'CARTAO'}</p></div></div>
+  const renderDetalhePedido = () => {
+    if (!pedidoSelecionado) return null;
+
+    const status = pedidoSelecionado.statusEntrega || 'PEDIDO_RECEBIDO';
+    const isCancelado = status === 'CANCELADO';
+    
+    // Calcula o progresso (0 a 3)
+    let progresso = 0;
+    if (['AGUARDANDO_ENTREGADOR', 'ENTREGADOR_ACEITOU', 'PEDIDO_EM_COLETA'].includes(status)) progresso = 1;
+    if (['SAIU_PARA_ENTREGA', 'RETIRADA_DISPONIVEL'].includes(status)) progresso = 2;
+    if (status === 'ENTREGUE') progresso = 3;
+
+    return (
+      <div className="space-y-6 animate-in slide-in-from-right duration-300">
+        <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-white">
+          <div className="bg-[#394158] p-8 text-white">
+            <p className="text-[10px] font-black uppercase opacity-60 mb-1">Recibo Digital</p>
+            <h3 className="text-2xl font-black italic uppercase tracking-tighter">Pedido #{pedidoSelecionado.id}</h3>
           </div>
-          <div className="pt-6 border-t border-dashed flex flex-col gap-4">
-            <div className="flex justify-between items-baseline px-2"><span className="font-black uppercase text-[10px] opacity-30">Total Pago</span><span className="text-2xl font-black text-[#55833d]">R$ {pedidoSelecionado?.valorTotal || pedidoSelecionado?.total}</span></div>
+          <div className="p-8 space-y-8">
+            
+            {/* WIZARD TRACKING */}
+            {isCancelado ? (
+              <div className="bg-red-50 p-6 rounded-2xl border border-red-100 flex flex-col items-center justify-center text-center">
+                <X size={32} className="text-red-500 mb-2" />
+                <h4 className="text-red-600 font-black uppercase text-sm">Pedido Cancelado</h4>
+                <p className="text-[10px] font-bold text-red-400 mt-1 uppercase tracking-widest">Este pedido não será entregue.</p>
+              </div>
+            ) : (
+              <div className="relative pt-4 pb-8">
+                {/* Linha de progresso no fundo */}
+                <div className="absolute top-[28px] md:top-[32px] left-8 right-8 h-1 bg-gray-100 rounded-full z-0 overflow-hidden">
+                  <div className="h-full bg-[#55833d] transition-all duration-700 ease-in-out" style={{ width: `${(progresso / 3) * 100}%` }} />
+                </div>
+                
+                {/* Os 4 passos */}
+                <div className="relative z-10 flex justify-between">
+                  {[
+                    { label: 'Recebido', icon: ShoppingBag, concluido: progresso >= 0 },
+                    { label: 'Preparando', icon: Package, concluido: progresso >= 1 },
+                    { label: 'A Caminho', icon: Truck, concluido: progresso >= 2 },
+                    { label: 'Entregue', icon: CheckCircle, concluido: progresso >= 3 },
+                  ].map((passo, idx) => (
+                    <div key={idx} className="flex flex-col items-center gap-2 w-16 md:w-24">
+                      <div className={`w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all duration-500 shadow-sm border-4 border-white ${passo.concluido ? 'bg-[#55833d] text-white' : 'bg-gray-100 text-gray-300'}`}>
+                        <passo.icon size={20} />
+                      </div>
+                      <span className={`text-[8px] md:text-[9px] font-black uppercase text-center tracking-widest leading-tight ${passo.concluido ? 'text-[#394158]' : 'text-gray-300'}`}>
+                        {passo.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-[#F5F2ED] p-4 rounded-2xl flex items-center gap-4 border border-gray-100">
+                <Calendar size={20} className="text-[#f9943b]" />
+                <div>
+                  <p className="text-[8px] font-black uppercase opacity-40">Data</p>
+                  <p className="text-xs font-bold">{pedidoSelecionado.dataPedido?.substring(0, 10) || '—'}</p>
+                </div>
+              </div>
+              <div className="bg-[#F5F2ED] p-4 rounded-2xl flex items-center gap-4 border border-gray-100">
+                <CardIcon size={20} className="text-[#f9943b]" />
+                <div>
+                  <p className="text-[8px] font-black uppercase opacity-40">Pagamento</p>
+                  <p className="text-xs font-bold">{pedidoSelecionado.metodoPagamento || 'CARTAO'}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="pt-6 border-t border-dashed flex flex-col gap-4">
+              <div className="flex justify-between items-baseline px-2">
+                <span className="font-black uppercase text-[10px] opacity-30">Total Pago</span>
+                <span className="text-2xl font-black text-[#55833d]">R$ {Number(pedidoSelecionado.valorTotal || pedidoSelecionado.total).toFixed(2)}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderRastreioPedido = () => (
     <div className="space-y-6 animate-in slide-in-from-right duration-300">
@@ -503,9 +608,9 @@ export default function Perfil() {
 
   // Cor + ícone da aba ativa para uso visual no card
   const visualAba = {
-    pagar:       { cor: 'text-[#f9943b]', bg: 'from-[#f9943b]/10 to-[#f9943b]/5', borda: 'border-[#f9943b]/10', label: 'Aguardando pagamento' },
-    preparando:  { cor: 'text-[#802D44]', bg: 'from-[#802D44]/10 to-[#802D44]/5', borda: 'border-[#802D44]/10', label: 'Em preparação' },
-    caminho:     { cor: 'text-[#f9943b]', bg: 'from-[#f9943b]/10 to-[#f9943b]/5', borda: 'border-[#f9943b]/10', label: 'A caminho' },
+    pagar: { cor: 'text-[#f9943b]', bg: 'from-[#f9943b]/10 to-[#f9943b]/5', borda: 'border-[#f9943b]/10', label: 'Aguardando pagamento' },
+    preparando: { cor: 'text-[#802D44]', bg: 'from-[#802D44]/10 to-[#802D44]/5', borda: 'border-[#802D44]/10', label: 'Em preparação' },
+    caminho: { cor: 'text-[#f9943b]', bg: 'from-[#f9943b]/10 to-[#f9943b]/5', borda: 'border-[#f9943b]/10', label: 'A caminho' },
     finalizados: { cor: 'text-[#55833d]', bg: 'from-[#55833d]/10 to-[#55833d]/5', borda: 'border-[#55833d]/10', label: 'Finalizado' },
   } as const;
 
@@ -518,9 +623,9 @@ export default function Perfil() {
         <section className="bg-white rounded-2xl shadow-xl border border-white overflow-hidden">
           <div className="flex border-b border-gray-50 overflow-x-auto bg-white">
             {([
-              { id: 'pagar',       l: 'A Pagar',     i: Wallet },
-              { id: 'preparando',  l: 'Preparando',  i: Package },
-              { id: 'caminho',     l: 'A Caminho',   i: Truck },
+              { id: 'pagar', l: 'A Pagar', i: Wallet },
+              { id: 'preparando', l: 'Preparando', i: Package },
+              { id: 'caminho', l: 'A Caminho', i: Truck },
               { id: 'finalizados', l: 'Finalizados', i: ShoppingBag },
             ] as const).map((tab) => {
               const count = filtrarPedidosPorAba(pedidos, tab.id).length;
@@ -528,9 +633,8 @@ export default function Perfil() {
                 <button
                   key={tab.id}
                   onClick={() => setAbaAtiva(tab.id)}
-                  className={`flex-1 min-w-[80px] py-6 flex flex-col items-center gap-2 relative transition-colors ${
-                    abaAtiva === tab.id ? 'text-[#55833d]' : 'text-gray-300 hover:text-[#394158]'
-                  }`}
+                  className={`flex-1 min-w-[80px] py-6 flex flex-col items-center gap-2 relative transition-colors ${abaAtiva === tab.id ? 'text-[#55833d]' : 'text-gray-300 hover:text-[#394158]'
+                    }`}
                 >
                   <div className="relative">
                     <tab.i size={18} />
@@ -584,12 +688,12 @@ export default function Perfil() {
   // ── Header contextual (título muda por sub-tela) ───────────────
   const tituloPagina =
     telaAtual === 'configuracoes' ? 'Configurações' :
-    telaAtual === 'compras' ? 'Minhas Compras' :
-    telaAtual === 'detalhe-pedido' ? 'Detalhe do Pedido' :
-    telaAtual === 'rastreio-pedido' ? 'Rastreio do Pedido' :
-    telaAtual === 'favoritos' ? 'Meus Favoritos' :
-    telaAtual === 'recentes' ? 'Visto Recentemente' :
-    'Meu Perfil';
+      telaAtual === 'compras' ? 'Minhas Compras' :
+        telaAtual === 'detalhe-pedido' ? 'Detalhe do Pedido' :
+          telaAtual === 'rastreio-pedido' ? 'Rastreio do Pedido' :
+            telaAtual === 'favoritos' ? 'Meus Favoritos' :
+              telaAtual === 'recentes' ? 'Visto Recentemente' :
+                'Meu Perfil';
 
   // Navegação contextual: detalhe/rastreio → compras → perfil → home.
   // Em configurações com sub-aba aberta, volta para o menu de config primeiro.
@@ -612,9 +716,9 @@ export default function Perfil() {
   // Label dinâmico — comunica para onde vai
   const labelVoltarHeader =
     telaAtual === 'detalhe-pedido' || telaAtual === 'rastreio-pedido' ? 'Compras' :
-    telaAtual === 'configuracoes' && secaoConfig !== 'menu' ? 'Configurações' :
-    telaAtual === 'perfil' ? 'Início' :
-    'Perfil';
+      telaAtual === 'configuracoes' && secaoConfig !== 'menu' ? 'Configurações' :
+        telaAtual === 'perfil' ? 'Início' :
+          'Perfil';
 
   return (
     <div className="min-h-screen bg-[#F5F2ED] text-[#394158] font-inter pb-24 md:pb-10">
@@ -640,67 +744,67 @@ export default function Perfil() {
         />
 
         {telaAtual === 'configuracoes' ? renderConfiguracoes() :
-         telaAtual === 'compras' ? renderTelaCompras() :
-         telaAtual === 'detalhe-pedido' ? renderDetalhePedido() :
-         telaAtual === 'rastreio-pedido' ? renderRastreioPedido() :
-         telaAtual === 'favoritos' ? renderFavoritos() :
-         telaAtual === 'recentes' ? renderVistoRecentemente() : (
-          <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="bg-gradient-to-r from-[#f9943b] to-[#fbac66] rounded-2xl p-8 shadow-2xl flex flex-col md:flex-row items-center gap-6 text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20"></div>
-              <div className="relative">
-                <div className="w-24 h-24 rounded-full border-4 border-white/30 overflow-hidden shadow-inner bg-white/20"><img src={fotoPerfil} className="w-full h-full object-cover" alt="User" /></div>
-                <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 bg-[#55833d] p-2.5 rounded-full border-2 border-white shadow-lg active:scale-90 transition-all"><Camera size={14} className="text-white" /></button>
-              </div>
-              <div className="text-center md:text-left z-10">
-                <h3 className="text-2xl font-black leading-none mb-2 tracking-tight">{dadosUsuario.nome || 'Comprador'}</h3>
-                <span className="text-[10px] font-black uppercase bg-white px-4 py-1.5 rounded-full inline-flex w-max items-center justify-center gap-1.5 text-[#55833d] shadow-sm"><CheckCircle size={12} className="text-[#4ade80]" /> Comprador Verificado</span>
-              </div>
-            </div>
+          telaAtual === 'compras' ? renderTelaCompras() :
+            telaAtual === 'detalhe-pedido' ? renderDetalhePedido() :
+              telaAtual === 'rastreio-pedido' ? renderRastreioPedido() :
+                telaAtual === 'favoritos' ? renderFavoritos() :
+                  telaAtual === 'recentes' ? renderVistoRecentemente() : (
+                    <div className="space-y-6 animate-in fade-in duration-500">
+                      <div className="bg-gradient-to-r from-[#f9943b] to-[#fbac66] rounded-2xl p-8 shadow-2xl flex flex-col md:flex-row items-center gap-6 text-white relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20"></div>
+                        <div className="relative">
+                          <div className="w-24 h-24 rounded-full border-4 border-white/30 overflow-hidden shadow-inner bg-white/20"><img src={fotoPerfil} className="w-full h-full object-cover" alt="User" /></div>
+                          <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 bg-[#55833d] p-2.5 rounded-full border-2 border-white shadow-lg active:scale-90 transition-all"><Camera size={14} className="text-white" /></button>
+                        </div>
+                        <div className="text-center md:text-left z-10">
+                          <h3 className="text-2xl font-black leading-none mb-2 tracking-tight">{dadosUsuario.nome || 'Comprador'}</h3>
+                          <span className="text-[10px] font-black uppercase bg-white px-4 py-1.5 rounded-full inline-flex w-max items-center justify-center gap-1.5 text-[#55833d] shadow-sm"><CheckCircle size={12} className="text-[#4ade80]" /> Comprador Verificado</span>
+                        </div>
+                      </div>
 
-            <section className="bg-white rounded-2xl p-8 shadow-xl border border-white">
-              <div className="flex justify-between items-center mb-8 px-2">
-                <h4 className="uppercase tracking-[0.2em] text-gray-400 text-[11px] font-bold">Minhas Compras</h4>
-                <button onClick={() => { setAbaAtiva('finalizados'); setTelaAtual('compras'); }} className="uppercase text-[#394158] bg-[#802D44]/5 px-4 py-2 rounded-full active:scale-95 transition-all text-[11px] font-bold">Histórico</button>
-              </div>
-              <div className="grid grid-cols-4 gap-4">
-                {[
-                  { i: Wallet, t: 'A Pagar', id: 'pagar' }, { i: Package, t: 'Preparando', id: 'preparando' },
-                  { i: Truck, t: 'A Caminho', id: 'caminho' }, { i: ShoppingBag, t: 'Finalizados', id: 'finalizados' },
-                ].map((item) => (
-                  <div key={item.t} onClick={() => { setAbaAtiva(item.id as any); setTelaAtual('compras'); }} className="flex flex-col items-center gap-3 group cursor-pointer active:scale-90 transition-all">
-                    <div className="w-14 h-14 bg-[#F5F2ED] rounded-2xl flex items-center justify-center text-[#394158] group-hover:bg-[#55833d] group-hover:text-white transition-all duration-300 shadow-sm"><item.i size={22} /></div>
-                    <span className="text-[12px] font-semibold text-center tracking-tighter">{item.t}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
+                      <section className="bg-white rounded-2xl p-8 shadow-xl border border-white">
+                        <div className="flex justify-between items-center mb-8 px-2">
+                          <h4 className="uppercase tracking-[0.2em] text-gray-400 text-[11px] font-bold">Minhas Compras</h4>
+                          <button onClick={() => { setAbaAtiva('finalizados'); setTelaAtual('compras'); }} className="uppercase text-[#394158] bg-[#802D44]/5 px-4 py-2 rounded-full active:scale-95 transition-all text-[11px] font-bold">Histórico</button>
+                        </div>
+                        <div className="grid grid-cols-4 gap-4">
+                          {[
+                            { i: Wallet, t: 'A Pagar', id: 'pagar' }, { i: Package, t: 'Preparando', id: 'preparando' },
+                            { i: Truck, t: 'A Caminho', id: 'caminho' }, { i: ShoppingBag, t: 'Finalizados', id: 'finalizados' },
+                          ].map((item) => (
+                            <div key={item.t} onClick={() => { setAbaAtiva(item.id as any); setTelaAtual('compras'); }} className="flex flex-col items-center gap-3 group cursor-pointer active:scale-90 transition-all">
+                              <div className="w-14 h-14 bg-[#F5F2ED] rounded-2xl flex items-center justify-center text-[#394158] group-hover:bg-[#55833d] group-hover:text-white transition-all duration-300 shadow-sm"><item.i size={22} /></div>
+                              <span className="text-[12px] font-semibold text-center tracking-tighter">{item.t}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
 
-            <section className="bg-white rounded-2xl p-4 md:p-8 shadow-xl border border-white">
-              <div className="flex justify-center items-center mb-4 md:mb-8 px-2"><h4 className="uppercase tracking-[0.2em] text-gray-400 text-[11px] font-bold">Atividades</h4></div>
-              <div className="grid grid-cols-1 md:grid-cols-3 w-full divide-y divide-gray-100 md:divide-y-0">
-                <div className="flex justify-center w-full py-4 md:py-0">
-                  <button onClick={() => setTelaAtual('favoritos')} className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
-                    <div className="text-[#55833d] group-hover:scale-110 transition-transform"><Heart size={24} /></div>
-                    <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Favoritos</span>
-                  </button>
-                </div>
-                <div className="flex justify-center w-full py-4 md:py-0">
-                  <button onClick={() => setTelaAtual('recentes')} className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
-                    <div className="text-[#802D44] group-hover:scale-110 transition-transform"><History size={24} /></div>
-                    <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Visto<br className="hidden md:block" />Recentemente</span>
-                  </button>
-                </div>
-                <div className="flex justify-center w-full py-4 md:py-0">
-                  <button className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
-                    <div className="text-[#f9943b] group-hover:scale-110 transition-transform"><HelpCircle size={24} /></div>
-                    <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Ajuda e<br className="hidden md:block" />Suporte</span>
-                  </button>
-                </div>
-              </div>
-            </section>
-          </div>
-        )}
+                      <section className="bg-white rounded-2xl p-4 md:p-8 shadow-xl border border-white">
+                        <div className="flex justify-center items-center mb-4 md:mb-8 px-2"><h4 className="uppercase tracking-[0.2em] text-gray-400 text-[11px] font-bold">Atividades</h4></div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 w-full divide-y divide-gray-100 md:divide-y-0">
+                          <div className="flex justify-center w-full py-4 md:py-0">
+                            <button onClick={() => setTelaAtual('favoritos')} className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
+                              <div className="text-[#55833d] group-hover:scale-110 transition-transform"><Heart size={24} /></div>
+                              <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Favoritos</span>
+                            </button>
+                          </div>
+                          <div className="flex justify-center w-full py-4 md:py-0">
+                            <button onClick={() => setTelaAtual('recentes')} className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
+                              <div className="text-[#802D44] group-hover:scale-110 transition-transform"><History size={24} /></div>
+                              <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Visto<br className="hidden md:block" />Recentemente</span>
+                            </button>
+                          </div>
+                          <div className="flex justify-center w-full py-4 md:py-0">
+                            <button className="flex flex-col items-center justify-center p-4 hover:bg-[#F5F2ED] rounded-2xl active:scale-[0.98] group transition-all w-full md:w-32 gap-3 text-center">
+                              <div className="text-[#f9943b] group-hover:scale-110 transition-transform"><HelpCircle size={24} /></div>
+                              <span className="text-[10px] font-black uppercase tracking-widest leading-tight">Ajuda e<br className="hidden md:block" />Suporte</span>
+                            </button>
+                          </div>
+                        </div>
+                      </section>
+                    </div>
+                  )}
       </main>
     </div>
   );

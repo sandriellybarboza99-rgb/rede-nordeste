@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ShoppingCart, MapPin, Store, Info, Minus, Plus, CheckCircle2, Star, ChevronRight } from 'lucide-react';
-import { getProdutoPorId, adicionarAoCarrinho, getLojaPorId } from '../../services/api';
+import { ArrowLeft, ShoppingCart, MapPin, Store, Info, Minus, Plus, CheckCircle2, Star, X } from 'lucide-react';
+import { getProdutoPorId, adicionarAoCarrinho, getLojaPorId, getCarrinho } from '../../services/api';
 
 export default function ProdutoDetalhes() {
   const { id } = useParams();
@@ -11,6 +11,7 @@ export default function ProdutoDetalhes() {
   const [loja, setLoja] = useState<any>(null);
   const [quantidade, setQuantidade] = useState(1);
   const [feedbackCompra, setFeedbackCompra] = useState(false);
+  const [showCartNotif, setShowCartNotif] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
@@ -86,9 +87,16 @@ export default function ProdutoDetalhes() {
   const handleAdicionarAoCarrinho = async () => {
     if (!produto) return;
     try {
-      await adicionarAoCarrinho(produto.id, quantidade);
+      const cartReq = await getCarrinho();
+      const listaItens = cartReq.itens || cartReq.content || cartReq || [];
+      const existing = listaItens.find((i: any) => String(i.produtoId) === String(produto.id));
+      const novaQtd = existing ? existing.quantidade + quantidade : quantidade;
+
+      await adicionarAoCarrinho(produto.id, novaQtd);
       setFeedbackCompra(true);
+      setShowCartNotif(true);
       setTimeout(() => setFeedbackCompra(false), 3000);
+      setTimeout(() => setShowCartNotif(false), 8000);
     } catch (err: any) {
       alert(err.message);
     }
@@ -108,7 +116,36 @@ export default function ProdutoDetalhes() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F5F2ED] text-[#394158] antialiased">
+    <div className="min-h-screen bg-[#F5F2ED] text-[#394158] antialiased pb-10">
+      {/* Notificação de Carrinho */}
+      {showCartNotif && (
+        <div className="fixed top-24 right-4 z-[999] bg-white rounded-2xl shadow-xl p-4 md:p-6 w-80 border-2 border-[#55833d] animate-in slide-in-from-right fade-in">
+          <div className="flex justify-between items-start mb-3">
+            <div className="flex items-center gap-2 text-[#55833d] font-bold">
+              <CheckCircle2 size={20} />
+              <span className="text-sm">Adicionado ao carrinho!</span>
+            </div>
+            <button onClick={() => setShowCartNotif(false)} className="text-gray-400 hover:text-gray-600">
+              <X size={18} />
+            </button>
+          </div>
+          <div className="flex flex-col gap-2 mt-4">
+            <button
+              onClick={() => navigate('/carrinho')}
+              className="w-full bg-[#f9943b] text-white py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#e08635] transition-colors"
+            >
+              Ir para o carrinho
+            </button>
+            <button
+              onClick={() => setShowCartNotif(false)}
+              className="w-full bg-gray-100 text-[#394158] py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-200 transition-colors"
+            >
+              Continuar comprando
+            </button>
+          </div>
+        </div>
+      )}
+
       <header className="w-full bg-white py-6 px-8 border-b border-gray-100 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">

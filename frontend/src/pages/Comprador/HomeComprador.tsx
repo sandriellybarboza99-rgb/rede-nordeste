@@ -18,9 +18,9 @@ const CATEGORIAS_ICONES: Record<string, any> = {
 };
 
 const EMPREENDEDORAS = [
-  { id: 1, nome: "Dona Maria", negocio: "Cerâmicas do Povo", territorio: "Baixo São Francisco", historia: "Mestra ceramista há 30 anos in Santana do São Francisco. Aprendeu a arte com sua avó e hoje lidera uma cooperativa de 12 mulheres.", img: "https://cdn.awsli.com.br/2500x2500/1616/1616697/produto/109903915/e2bbd94d12.jpg" },
-  { id: 2, nome: "Chef Ana Nunes", negocio: "Sabor de Mulher", territorio: "Grande Aracaju", historia: "Especialista em gastronomia afetiva, Ana utiliza apenas ingredientes de produtores locais para criar pratos que contam a história de Sergipe.", img: "https://www.brasildefato.com.br/wp-content/uploads/2024/09/image_processing20201106-23882-1kiy8l9.jpeg" },
-  { id: 3, nome: "Lúcia da Palha", negocio: "Arte Ilha do Ferro", territorio: "Sertão Ocidental", historia: "Lúcia transforma a palha de Ouricuri em peças de design moderno sem perder a essência do artesanato tradicional.", img: "https://agenciasebrae.com.br/wp-content/uploads/2026/02/artesanato-7.jpeg" },
+  { id: 1, lojaId: 1, nome: "Dona Maria", negocio: "Cerâmicas do Povo", territorio: "Baixo São Francisco", historia: "Mestra ceramista há 30 anos in Santana do São Francisco. Aprendeu a arte com sua avó e hoje lidera uma cooperativa de 12 mulheres.", img: "https://cdn.awsli.com.br/2500x2500/1616/1616697/produto/109903915/e2bbd94d12.jpg" },
+  { id: 2, lojaId: 2, nome: "Chef Ana Nunes", negocio: "Sabor de Mulher", territorio: "Grande Aracaju", historia: "Especialista em gastronomia afetiva, Ana utiliza apenas ingredientes de produtores locais para criar pratos que contam a história de Sergipe.", img: "https://www.brasildefato.com.br/wp-content/uploads/2024/09/image_processing20201106-23882-1kiy8l9.jpeg" },
+  { id: 3, lojaId: 3, nome: "Lúcia da Palha", negocio: "Arte Ilha do Ferro", territorio: "Sertão Ocidental", historia: "Lúcia transforma a palha de Ouricuri em peças de design moderno sem perder a essência do artesanato tradicional.", img: "https://agenciasebrae.com.br/wp-content/uploads/2026/02/artesanato-7.jpeg" },
 ];
 
 export default function HomeComprador() {
@@ -310,7 +310,7 @@ export default function HomeComprador() {
                   <div className="flex items-center gap-2 mb-3 text-[#394158]/50 uppercase font-black text-[9px]"><BookOpen size={12} /> Nossa História</div>
                   <p className="text-sm text-[#394158] leading-relaxed italic">"{mulherSelecionada.historia}"</p>
                 </div>
-                <button onClick={() => setMulherSelecionada(null)} className="w-full bg-[#55833d] text-white py-4 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-3"><Store size={16} /> Ver Loja</button>
+                <button onClick={() => { setMulherSelecionada(null); navigate(`/loja/${mulherSelecionada.lojaId}`); }} className="w-full bg-[#55833d] text-white py-4 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-3"><Store size={16} /> Ver Loja</button>
               </div>
             </div>
           </div>
@@ -334,8 +334,7 @@ export default function HomeComprador() {
               <Star size={18} className="fill-[#FFCD0D] text-[#FFCD0D]" />
               <h2 className="text-sm md:text-xl font-black italic uppercase tracking-widest">Empreendedoras de Sergipe</h2>
             </div>
-            {/* Aponta temporariamente de volta para o início para evitar que caia no fallback de tela branca */}
-            <Link to="/home2" className="text-[9px] md:text-[11px] font-black uppercase tracking-widest text-[#f9943b] hover:text-[#55833d] transition-colors flex items-center gap-1 group">
+            <Link to="/empreendedoras" className="text-[9px] md:text-[11px] font-black uppercase tracking-widest text-[#f9943b] hover:text-[#55833d] transition-colors flex items-center gap-1 group">
               Ver mais <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
