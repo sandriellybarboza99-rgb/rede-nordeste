@@ -64,7 +64,8 @@ public class SecurityConfig {
                                                                 "/api/banners",
                                                                 "/api/banners/**",
                                                                 "/api/noticias",
-                                                                "/api/noticias/**")
+                                                                "/api/noticias/**",
+                                                                "/api/cep/**")
                                                 .permitAll()
 
                                                 // 5 — ADMIN

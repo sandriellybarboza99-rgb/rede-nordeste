@@ -6,7 +6,7 @@ import {
   MessageCircle, Heart, ChevronRight, Menu, X, BookOpen, Store, Bell, HelpCircle, Home as HomeIcon
 } from 'lucide-react';
 import {
-  buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas
+  buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho
 } from '../../services/api';
 import { UserMenu } from '../../components/ui/UserMenu';
 import { BottomTabBar } from '../../components/ui/BottomTabBar';
@@ -125,8 +125,13 @@ export default function HomeComprador() {
   const adicionarRapido = async (e: React.MouseEvent, produtoId: number) => {
     e.preventDefault(); e.stopPropagation();
     try {
-      await adicionarAoCarrinho(produtoId, 1);
-      setCarrinhoCount(c => c + 1);
+      const cartReq = await getCarrinho();
+      const listaItens = cartReq.itens || cartReq.content || cartReq || [];
+      const existing = listaItens.find((i: any) => String(i.produtoId || i.produto?.id) === String(produtoId));
+      const novaQtd = existing ? existing.quantidade + 1 : 1;
+
+      await adicionarAoCarrinho(produtoId, novaQtd);
+      setCarrinhoCount(c => existing ? c : c + 1);
     } catch (err: any) {
       alert(err.message);
     }

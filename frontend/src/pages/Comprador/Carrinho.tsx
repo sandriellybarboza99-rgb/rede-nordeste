@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Trash2, Minus, Plus, Truck, Store, ChevronRight,
-  ShoppingBag, CreditCard, Barcode, Landmark, MapPin, PlusCircle, CheckCircle, Copy, Square, CheckSquare, QrCode,
+  ShoppingBag, CreditCard, Barcode, MapPin, PlusCircle, CheckCircle, Copy, QrCode, RefreshCw, Pencil,
 } from 'lucide-react';
 import {
-  getCarrinho, adicionarAoCarrinho, removerDoCarrinho, checkout, simularFrete,
-  getMeusEnderecos, criarEndereco,
+  getCarrinho, adicionarAoCarrinho, removerDoCarrinho, checkout, simularFrete, simularFreteMultiLoja,
+  getMeusEnderecos, criarEndereco, deletarEndereco, atualizarEndereco,
   getMeusCartoes, criarCartao, getLojaPorId,
+  consultarCep, geocodificarEndereco,
 } from '../../services/api';
 import { gerarPayloadPix } from '../../utils/pixPayload';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -51,8 +52,11 @@ export default function Carrinho() {
   const [metodoEntrega, setMetodoEntrega] = useState<'entrega' | 'retirada'>('entrega');
   const [enderecos, setEnderecos] = useState<Endereco[]>([]);
   const [enderecoSelecionado, setEnderecoSelecionado] = useState<number | null>(null);
-  const [valorFrete, setValorFrete] = useState<number>(0);
+  const [valorFrete, setValorFrete] = useState<number | null>(null);
+  const [fretePorLoja, setFretePorLoja] = useState<{ lojaId: number; nomeLoja: string; valorFrete: number; erro?: boolean }[]>([]);
+  const [carregandoFrete, setCarregandoFrete] = useState(false);
   const [modalNovoEndereco, setModalNovoEndereco] = useState(false);
+  const [enderecoEditando, setEnderecoEditando] = useState<Endereco | null>(null);
   const [novoEndereco, setNovoEndereco] = useState({
     destinatario: '',
     telefone: '',
@@ -62,7 +66,13 @@ export default function Carrinho() {
     rua: '',
     numero: '',
     complemento: '',
+    latitudeDestino: undefined as number | undefined,
+    longitudeDestino: undefined as number | undefined,
   });
+  const [geocodificandoCep, setGeocodificandoCep] = useState(false);
+  const [feedbackCep, setFeedbackCep] = useState<'ok' | 'erro' | null>(null);
+  // IDs de endereços cuja localização está sendo atualizada
+  const [atualizandoLocalizacao, setAtualizandoLocalizacao] = useState<Set<number>>(new Set());
 
   const [lojaRetirada, setLojaRetirada] = useState<any>(null);
 
@@ -70,7 +80,7 @@ export default function Carrinho() {
     if (metodoEntrega === 'retirada' && itens.length > 0) {
       const primeiraLojaId = itens[0]?.produto?.lojaId || itens[0]?.produto?.loja?.id || itens[0]?.lojaId;
       if (primeiraLojaId) {
-        getLojaPorId(primeiraLojaId).then(setLojaRetirada).catch(() => {});
+        getLojaPorId(primeiraLojaId).then(setLojaRetirada).catch(() => { });
       }
     }
   }, [metodoEntrega, itens]);
@@ -129,19 +139,42 @@ export default function Carrinho() {
   useEffect(() => {
     if (metodoEntrega === 'retirada' || !enderecoSelecionado || itens.length === 0) {
       setValorFrete(0);
+      setFretePorLoja([]);
       return;
     }
     const end = enderecos.find((e) => e.id === enderecoSelecionado);
-    if (!end || !end.latitudeDestino || !end.longitudeDestino) {
-      setValorFrete(12.00); // Frete fixo/padrão de estimativa
+    if (!end) {
+      setValorFrete(null);
+      setFretePorLoja([]);
       return;
     }
-    const primeiraLojaId = itens[0]?.produto?.lojaId || itens[0]?.lojaId;
-    if (primeiraLojaId) {
-      simularFrete(primeiraLojaId, end.latitudeDestino, end.longitudeDestino)
-        .then((res) => setValorFrete(res.valorFrete || 12.00))
-        .catch(() => setValorFrete(12.00));
+
+    if (!end.latitudeDestino || !end.longitudeDestino) {
+      // Endereço sem coordenadas — avisa mas não usa fallback enganoso
+      setValorFrete(null);
+      setFretePorLoja([]);
+      return;
     }
+
+    const lojaIds = Array.from(new Set(itens.map(i => i.lojaId || i.produto?.lojaId || i.produto?.loja?.id).filter(Boolean)));
+    if (lojaIds.length === 0) {
+      setValorFrete(null);
+      setFretePorLoja([]);
+      return;
+    }
+
+    setCarregandoFrete(true);
+    simularFreteMultiLoja(lojaIds, end.latitudeDestino, end.longitudeDestino)
+      .then((res) => {
+        setFretePorLoja(res as any);
+        const total = res.reduce((acc, curr) => acc + (curr.valorFrete || 0), 0);
+        setValorFrete(total);
+      })
+      .catch(() => {
+        setValorFrete(null);
+        setFretePorLoja([]);
+      })
+      .finally(() => setCarregandoFrete(false));
   }, [enderecoSelecionado, metodoEntrega, itens, enderecos]);
 
   // Alterar Quantidade de Itens
@@ -176,17 +209,143 @@ export default function Carrinho() {
     }
   };
 
-  // Criar Endereço no Modal
+  // Busca CEP e preenche campos automaticamente
+  const handleCepBlur = async () => {
+    if (novoEndereco.cep.replace(/\D/g, '').length !== 8) return;
+    setGeocodificandoCep(true);
+    setFeedbackCep(null);
+    try {
+      const dados = await consultarCep(novoEndereco.cep);
+      if (!dados) { setFeedbackCep('erro'); return; }
+
+      // Preenche campos textuais
+      const estadoCidade = `${dados.uf} - ${dados.localidade}`;
+      setNovoEndereco((prev) => ({
+        ...prev,
+        rua: dados.logradouro || prev.rua,
+        bairro: dados.bairro || prev.bairro,
+        estadoCidade,
+      }));
+
+      // Geocodifica: prefere logradouro completo, mas usa cidade como fallback
+      const logradouro = dados.logradouro || novoEndereco.rua || dados.localidade;
+      const bairro = dados.bairro || novoEndereco.bairro || '';
+      const coords = await geocodificarEndereco(
+        logradouro,
+        novoEndereco.numero,
+        bairro,
+        dados.localidade,
+        dados.uf,
+      );
+      if (coords) {
+        setNovoEndereco((prev) => ({
+          ...prev,
+          latitudeDestino: coords.lat,
+          longitudeDestino: coords.lon,
+        }));
+        setFeedbackCep('ok');
+      } else {
+        // Tenta só com cidade/estado como último recurso
+        const coordsCidade = await geocodificarEndereco('', '', '', dados.localidade, dados.uf);
+        if (coordsCidade) {
+          setNovoEndereco((prev) => ({
+            ...prev,
+            latitudeDestino: coordsCidade.lat,
+            longitudeDestino: coordsCidade.lon,
+          }));
+          setFeedbackCep('ok');
+        } else {
+          setFeedbackCep('erro');
+        }
+      }
+    } finally {
+      setGeocodificandoCep(false);
+    }
+  };
+
+  // Deletar endereço existente
+  const handleDeletarEndereco = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await deletarEndereco(id);
+      setEnderecos((prev) => prev.filter((end) => end.id !== id));
+      if (enderecoSelecionado === id) setEnderecoSelecionado(null);
+      success('Endereço removido.');
+    } catch (err: any) {
+      toastError(err.message || 'Erro ao remover endereço.');
+    }
+  };
+
+  // Atualizar localização de um endereço existente via Nominatim
+  const handleAtualizarLocalizacao = async (end: Endereco, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAtualizandoLocalizacao((prev) => new Set(prev).add(end.id));
+    try {
+      // Tenta geocodificar com logradouro + bairro + cidade
+      const [uf, cidade] = end.estadoCidade?.includes(' - ')
+        ? [end.estadoCidade.split(' - ')[0], end.estadoCidade.split(' - ')[1]]
+        : ['SE', end.estadoCidade || 'Aracaju'];
+
+      let coords = await geocodificarEndereco(end.rua, end.numero, end.bairro, cidade, uf);
+      // Fallback: só cidade/estado
+      if (!coords) coords = await geocodificarEndereco('', '', '', cidade, uf);
+
+      if (!coords) {
+        // Tenta via CEP
+        const dadosCep = await consultarCep(end.cep);
+        if (dadosCep) coords = await geocodificarEndereco(dadosCep.logradouro, end.numero, dadosCep.bairro, dadosCep.localidade, dadosCep.uf);
+      }
+
+      if (coords) {
+        const atualizado = await atualizarEndereco(end.id, {
+          destinatario: end.destinatario,
+          telefone: end.telefone,
+          cep: end.cep,
+          estadoCidade: end.estadoCidade,
+          bairro: end.bairro,
+          rua: end.rua,
+          numero: end.numero,
+          complemento: end.complemento,
+          latitudeDestino: coords.lat,
+          longitudeDestino: coords.lon,
+          principal: end.principal,
+        });
+        setEnderecos((prev) => prev.map((e) => e.id === end.id ? atualizado : e));
+        success('Localização atualizada!');
+      } else {
+        toastError('Não foi possível obter as coordenadas. Verifique o endereço.');
+      }
+    } catch (err: any) {
+      toastError(err.message || 'Erro ao atualizar localização.');
+    } finally {
+      setAtualizandoLocalizacao((prev) => { const s = new Set(prev); s.delete(end.id); return s; });
+    }
+  };
+
+  // Criar ou Editar Endereço no Modal
   const handleSalvarEndereco = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const criado = await criarEndereco({
-        ...novoEndereco,
-        principal: enderecos.length === 0,
-      });
-      setEnderecos((prev) => [...prev, criado]);
-      setEnderecoSelecionado(criado.id);
-      setModalNovoEndereco(false);
+      if (enderecoEditando) {
+        const atualizado = await atualizarEndereco(enderecoEditando.id, {
+          ...novoEndereco,
+          principal: enderecoEditando.principal,
+        });
+        setEnderecos((prev) => prev.map((e) => e.id === enderecoEditando.id ? atualizado : e));
+        setEnderecoEditando(null);
+        setModalNovoEndereco(false);
+        success('Endereço atualizado com sucesso!');
+      } else {
+        const criado = await criarEndereco({
+          ...novoEndereco,
+          principal: enderecos.length === 0,
+        });
+        setEnderecos((prev) => [...prev, criado]);
+        setEnderecoSelecionado(criado.id);
+        setModalNovoEndereco(false);
+        success('Endereço cadastrado com sucesso!');
+      }
+
       setNovoEndereco({
         destinatario: '',
         telefone: '',
@@ -196,8 +355,10 @@ export default function Carrinho() {
         rua: '',
         numero: '',
         complemento: '',
+        latitudeDestino: undefined,
+        longitudeDestino: undefined,
       });
-      success('Endereço cadastrado com sucesso!');
+      setFeedbackCep(null);
     } catch (err: any) {
       toastError(err.message || 'Erro ao salvar endereço.');
     }
@@ -250,7 +411,7 @@ export default function Carrinho() {
       if (metodoPagamento === 'pix') {
         const payloadPix = resposta?.pix || resposta || {};
         let chavePixCopia = payloadPix.pixCopiaECola || payloadPix.chavePix || payloadPix.copiaECola;
-        
+
         // Se não veio do backend, tentamos gerar no frontend buscando a loja
         if (!chavePixCopia) {
           try {
@@ -272,7 +433,7 @@ export default function Carrinho() {
             console.error('Erro ao buscar dados do PIX da loja', e);
           }
         }
-        
+
         // Fallback final
         if (!chavePixCopia) {
           chavePixCopia = '00020126580014BR.GOV.BCB.PIX0114+5579999999999520400005303986540510.005802BR5925REDE NORDESTE COMERCIO6009ARACAJU62070503***6304E2CA';
@@ -311,7 +472,7 @@ export default function Carrinho() {
                   });
                 }
               }
-            } catch (e) {}
+            } catch (e) { }
             if (!chavePixCopia) chavePixCopia = '00020126580014BR.GOV.BCB.PIX0114+5579999999999520400005303986540510.005802BR5925REDE NORDESTE COMERCIO6009ARACAJU62070503***6304E2CA';
             setPixDados({
               qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(chavePixCopia),
@@ -322,8 +483,8 @@ export default function Carrinho() {
           success('Pedido realizado com sucesso!');
           return;
         }
-      } catch (fallbackErr) {}
-      
+      } catch (fallbackErr) { }
+
       toastError(err.message || 'Erro ao finalizar pedido.');
     } finally {
       setProcessando(false);
@@ -336,7 +497,8 @@ export default function Carrinho() {
     return acc + preco * item.quantidade;
   }, 0);
 
-  const total = subtotal + (metodoEntrega === 'entrega' ? valorFrete : 0);
+  const freteEfetivo = metodoEntrega === 'entrega' ? (valorFrete ?? 0) : 0;
+  const total = subtotal + freteEfetivo;
 
   // TELA DE SUCESSO / CONCLUÍDO
   if (sucesso) {
@@ -458,7 +620,7 @@ export default function Carrinho() {
             <h3 className="text-lg font-black uppercase text-[#394158]">Seu carrinho está vazio</h3>
             <p className="text-xs text-gray-400">Adicione produtos da nossa rede para continuar.</p>
             <button
-              onClick={() => navigate('/empreendedoras')}
+              onClick={() => navigate('/home2')}
               className="bg-[#55833d] text-white px-8 py-3 rounded-full font-black text-xs uppercase tracking-widest hover:bg-[#436830] transition-colors"
             >
               Explorar Vitrine
@@ -525,8 +687,8 @@ export default function Carrinho() {
                       <button
                         onClick={() => setMetodoEntrega('entrega')}
                         className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${metodoEntrega === 'entrega'
-                            ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
-                            : 'border-gray-100 text-gray-400 hover:border-gray-200'
+                          ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
+                          : 'border-gray-100 text-gray-400 hover:border-gray-200'
                           }`}
                       >
                         <Truck size={24} />
@@ -535,8 +697,8 @@ export default function Carrinho() {
                       <button
                         onClick={() => setMetodoEntrega('retirada')}
                         className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${metodoEntrega === 'retirada'
-                            ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
-                            : 'border-gray-100 text-gray-400 hover:border-gray-200'
+                          ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
+                          : 'border-gray-100 text-gray-400 hover:border-gray-200'
                           }`}
                       >
                         <Store size={24} />
@@ -562,60 +724,117 @@ export default function Carrinho() {
                           <div
                             key={end.id}
                             onClick={() => setEnderecoSelecionado(end.id)}
-                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 ${enderecoSelecionado === end.id
+                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${enderecoSelecionado === end.id
                                 ? 'border-[#55833d] bg-[#55833d]/5'
                                 : 'border-gray-100 hover:border-gray-200'
                               }`}
                           >
-                            <MapPin size={18} className={enderecoSelecionado === end.id ? 'text-[#55833d]' : 'text-gray-400'} />
-                            <div className="flex-1">
-                              <p className="text-xs font-bold text-[#394158]">{end.destinatario}</p>
-                              <p className="text-[11px] text-gray-500 mt-0.5">
-                                {end.rua}, {end.numero} - {end.bairro}
-                              </p>
-                              <p className="text-[10px] text-gray-400">{end.estadoCidade} | CEP: {end.cep}</p>
+                            <div className="flex items-start gap-3">
+                              <MapPin size={18} className={`shrink-0 mt-0.5 ${enderecoSelecionado === end.id ? 'text-[#55833d]' : 'text-gray-400'}`} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-[#394158]">{end.destinatario}</p>
+                                <p className="text-[11px] text-gray-500 mt-0.5 truncate">
+                                  {end.rua}, {end.numero} - {end.bairro}
+                                </p>
+                                <p className="text-[10px] text-gray-400">{end.estadoCidade} | CEP: {end.cep}</p>
+                              </div>
+                              {/* Ações */}
+                              <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                {/* Botão: atualizar localização (só se não tiver coordenadas) */}
+                                {(!end.latitudeDestino || !end.longitudeDestino) && (
+                                  <button
+                                    title="Atualizar localização"
+                                    onClick={(e) => handleAtualizarLocalizacao(end, e)}
+                                    disabled={atualizandoLocalizacao.has(end.id)}
+                                    className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition-colors disabled:opacity-50"
+                                  >
+                                    <RefreshCw size={13} className={atualizandoLocalizacao.has(end.id) ? 'animate-spin' : ''} />
+                                  </button>
+                                )}
+                                {/* Botão: editar */}
+                                <button
+                                  title="Editar endereço"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEnderecoEditando(end);
+                                    setNovoEndereco({
+                                      destinatario: end.destinatario || '',
+                                      telefone: end.telefone || '',
+                                      cep: end.cep || '',
+                                      estadoCidade: end.estadoCidade || '',
+                                      bairro: end.bairro || '',
+                                      rua: end.rua || '',
+                                      numero: end.numero || '',
+                                      complemento: end.complemento || '',
+                                      latitudeDestino: end.latitudeDestino,
+                                      longitudeDestino: end.longitudeDestino,
+                                    });
+                                    setFeedbackCep(end.latitudeDestino && end.longitudeDestino ? 'ok' : null);
+                                    setModalNovoEndereco(true);
+                                  }}
+                                  className="p-1.5 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                                >
+                                  <Pencil size={13} />
+                                </button>
+                                {/* Botão: deletar */}
+                                <button
+                                  title="Remover endereço"
+                                  onClick={(e) => handleDeletarEndereco(end.id, e)}
+                                  className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
                             </div>
+                            {/* Badge: sem localização */}
+                            {(!end.latitudeDestino || !end.longitudeDestino) && (
+                              <div className="mt-2 ml-7 flex items-center gap-1.5">
+                                <span className="text-[9px] font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                  ⚠ Sem localização — clique em ↺ para atualizar
+                                </span>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
-                      </div>
-                    )}
-                    
-                    {metodoEntrega === 'retirada' && lojaRetirada && (
-                      <div className="bg-white rounded-3xl p-6 shadow-sm border border-[#55833d] space-y-4 mt-6">
-                        <div className="flex justify-between items-center">
-                          <h3 className="text-sm font-black uppercase tracking-wider text-[#394158]">Endereço de Retirada</h3>
-                          <span className="text-[10px] font-black bg-[#55833d]/10 text-[#55833d] px-3 py-1 rounded-full uppercase tracking-widest">
-                            Na Loja
-                          </span>
-                        </div>
+                    </div>
+                  )}
 
-                        <div className="p-4 rounded-2xl border-2 border-[#55833d] bg-[#55833d]/5 flex items-start gap-3">
-                          <Store size={20} className="text-[#55833d] shrink-0 mt-1" />
-                          <div className="flex-1">
-                            <p className="text-xs font-bold text-[#394158] uppercase">{lojaRetirada.nomeLoja || 'Loja'}</p>
-                            <p className="text-[11px] text-gray-500 mt-1">
-                              {lojaRetirada.logradouro || 'Endereço não informado'}
-                            </p>
-                            <p className="text-[10px] text-gray-400">
-                              {lojaRetirada.bairro} - {lojaRetirada.cidade} / {lojaRetirada.estado}
-                            </p>
-                            {lojaRetirada.cep && <p className="text-[10px] text-gray-400">CEP: {lojaRetirada.cep}</p>}
-                          </div>
-                        </div>
-                        
-                        <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 flex items-start gap-2">
-                          <div className="text-orange-500 font-bold shrink-0">Atenção:</div>
-                          <p className="text-[10px] text-orange-600 leading-relaxed">
-                            Você deve aguardar o vendedor alterar o status para "Pronto para Retirada" antes de ir buscar o produto.
+                  {metodoEntrega === 'retirada' && lojaRetirada && (
+                    <div className="bg-white rounded-3xl p-6 shadow-sm border border-[#55833d] space-y-4 mt-6">
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-sm font-black uppercase tracking-wider text-[#394158]">Endereço de Retirada</h3>
+                        <span className="text-[10px] font-black bg-[#55833d]/10 text-[#55833d] px-3 py-1 rounded-full uppercase tracking-widest">
+                          Na Loja
+                        </span>
+                      </div>
+
+                      <div className="p-4 rounded-2xl border-2 border-[#55833d] bg-[#55833d]/5 flex items-start gap-3">
+                        <Store size={20} className="text-[#55833d] shrink-0 mt-1" />
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-[#394158] uppercase">{lojaRetirada.nomeLoja || 'Loja'}</p>
+                          <p className="text-[11px] text-gray-500 mt-1">
+                            {lojaRetirada.logradouro || 'Endereço não informado'}
                           </p>
+                          <p className="text-[10px] text-gray-400">
+                            {lojaRetirada.bairro} - {lojaRetirada.cidade} / {lojaRetirada.estado}
+                          </p>
+                          {lojaRetirada.cep && <p className="text-[10px] text-gray-400">CEP: {lojaRetirada.cep}</p>}
                         </div>
                       </div>
-                    )}
-                  </div>
-                )}
 
-                {/* PASSO 3: PAGAMENTO */}
+                      <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 flex items-start gap-2">
+                        <div className="text-orange-500 font-bold shrink-0">Atenção:</div>
+                        <p className="text-[10px] text-orange-600 leading-relaxed">
+                          Você deve aguardar o vendedor alterar o status para "Pronto para Retirada" antes de ir buscar o produto.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* PASSO 3: PAGAMENTO */}
               {step === 3 && (
                 <div className="space-y-6">
                   <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
@@ -624,8 +843,8 @@ export default function Carrinho() {
                       <button
                         onClick={() => setMetodoPagamento('pix')}
                         className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${metodoPagamento === 'pix'
-                            ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
-                            : 'border-gray-100 text-gray-400 hover:border-gray-200'
+                          ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
+                          : 'border-gray-100 text-gray-400 hover:border-gray-200'
                           }`}
                       >
                         <QrCode size={22} />
@@ -634,8 +853,8 @@ export default function Carrinho() {
                       <button
                         onClick={() => setMetodoPagamento('cartao')}
                         className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${metodoPagamento === 'cartao'
-                            ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
-                            : 'border-gray-100 text-gray-400 hover:border-gray-200'
+                          ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
+                          : 'border-gray-100 text-gray-400 hover:border-gray-200'
                           }`}
                       >
                         <CreditCard size={22} />
@@ -644,8 +863,8 @@ export default function Carrinho() {
                       <button
                         onClick={() => setMetodoPagamento('boleto')}
                         className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${metodoPagamento === 'boleto'
-                            ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
-                            : 'border-gray-100 text-gray-400 hover:border-gray-200'
+                          ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
+                          : 'border-gray-100 text-gray-400 hover:border-gray-200'
                           }`}
                       >
                         <Barcode size={22} />
@@ -672,8 +891,8 @@ export default function Carrinho() {
                             key={car.id}
                             onClick={() => setCartaoSelecionado(car.id)}
                             className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-3 ${cartaoSelecionado === car.id
-                                ? 'border-[#55833d] bg-[#55833d]/5'
-                                : 'border-gray-100 hover:border-gray-200'
+                              ? 'border-[#55833d] bg-[#55833d]/5'
+                              : 'border-gray-100 hover:border-gray-200'
                               }`}
                           >
                             <CreditCard size={20} className={cartaoSelecionado === car.id ? 'text-[#55833d]' : 'text-gray-400'} />
@@ -706,10 +925,33 @@ export default function Carrinho() {
                     <span>Subtotal ({itens.length} itens)</span>
                     <span>R$ {subtotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Frete</span>
-                    <span>{metodoEntrega === 'entrega' ? `R$ ${valorFrete.toFixed(2)}` : 'Grátis'}</span>
+                  <div className="flex flex-col space-y-1">
+                    <div className="flex justify-between">
+                      <span>Frete</span>
+                      <span>
+                        {metodoEntrega === 'retirada' ? 'Grátis'
+                          : carregandoFrete ? <span className="text-[#f9943b] animate-pulse">Calculando...</span>
+                            : valorFrete === null ? <span className="text-amber-500 text-[10px]">Selecione endereço</span>
+                              : `R$ ${valorFrete.toFixed(2)}`}
+                      </span>
+                    </div>
+                    {/* Breakdown por loja */}
+                    {metodoEntrega === 'entrega' && fretePorLoja.length > 0 && !carregandoFrete && (
+                      <div className="pl-2 pr-1 py-1 space-y-1 mt-1 bg-[#F5F2ED] rounded-xl border border-gray-100">
+                        {fretePorLoja.map((frete) => (
+                          <div key={frete.lojaId} className="flex justify-between text-[10px] text-gray-400 font-medium">
+                            <span className="truncate mr-2 flex-1">↳ {frete.nomeLoja}</span>
+                            <span>{frete.erro ? 'Erro' : `R$ ${(frete.valorFrete || 0).toFixed(2)}`}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
+                  {metodoEntrega === 'entrega' && valorFrete === null && !carregandoFrete && enderecoSelecionado && (
+                    <p className="text-[10px] text-amber-600 bg-amber-50 rounded-xl px-3 py-2">
+                      ⚠️ Endereço sem localização. Edite-o ou adicione um novo com CEP válido para calcular o frete.
+                    </p>
+                  )}
                   <div className="flex justify-between items-baseline pt-4 border-t border-gray-100">
                     <span className="text-sm font-black uppercase text-[#394158]">Total a Pagar</span>
                     <span className="text-2xl font-black text-[#55833d] italic">R$ {total.toFixed(2)}</span>
@@ -724,8 +966,8 @@ export default function Carrinho() {
                   }}
                   disabled={processando}
                   className={`w-full py-4 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all ${processando
-                      ? 'bg-gray-300 text-gray-400 cursor-not-allowed'
-                      : 'bg-[#f9943b] hover:bg-[#ff8a23] text-white active:scale-95 shadow-md'
+                    ? 'bg-gray-300 text-gray-400 cursor-not-allowed'
+                    : 'bg-[#f9943b] hover:bg-[#ff8a23] text-white active:scale-95 shadow-md'
                     }`}
                 >
                   {processando
@@ -746,7 +988,9 @@ export default function Carrinho() {
       {modalNovoEndereco && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
-            <h3 className="text-base font-black uppercase text-[#394158]">Novo Endereço</h3>
+            <h3 className="text-base font-black uppercase text-[#394158]">
+              {enderecoEditando ? 'Editar Endereço' : 'Novo Endereço'}
+            </h3>
             <form onSubmit={handleSalvarEndereco} className="space-y-3">
               <input
                 type="text"
@@ -756,14 +1000,32 @@ export default function Carrinho() {
                 onChange={(e) => setNovoEndereco({ ...novoEndereco, destinatario: e.target.value })}
                 className="w-full bg-[#F5F2ED] p-3 rounded-xl text-xs font-bold outline-none"
               />
-              <input
-                type="text"
-                placeholder="CEP"
-                required
-                value={novoEndereco.cep}
-                onChange={(e) => setNovoEndereco({ ...novoEndereco, cep: e.target.value })}
-                className="w-full bg-[#F5F2ED] p-3 rounded-xl text-xs font-bold outline-none"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="CEP (00000-000)"
+                  required
+                  value={novoEndereco.cep}
+                  onChange={(e) => {
+                    setNovoEndereco({ ...novoEndereco, cep: e.target.value });
+                    setFeedbackCep(null);
+                  }}
+                  onBlur={handleCepBlur}
+                  className={`w-full bg-[#F5F2ED] p-3 rounded-xl text-xs font-bold outline-none pr-8 ${feedbackCep === 'ok' ? 'border-2 border-green-400'
+                      : feedbackCep === 'erro' ? 'border-2 border-red-300'
+                        : ''
+                    }`}
+                />
+                {geocodificandoCep && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#f9943b] animate-pulse font-bold">GPS...</span>
+                )}
+                {!geocodificandoCep && feedbackCep === 'ok' && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 text-sm">✔</span>
+                )}
+                {!geocodificandoCep && feedbackCep === 'erro' && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-red-400 text-sm">⚠</span>
+                )}
+              </div>
               <input
                 type="text"
                 placeholder="Estado - Cidade"
@@ -801,7 +1063,15 @@ export default function Carrinho() {
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setModalNovoEndereco(false)}
+                  onClick={() => {
+                    setModalNovoEndereco(false);
+                    setEnderecoEditando(null);
+                    setNovoEndereco({
+                      destinatario: '', telefone: '', cep: '', estadoCidade: '',
+                      bairro: '', rua: '', numero: '', complemento: '',
+                      latitudeDestino: undefined, longitudeDestino: undefined
+                    });
+                  }}
                   className="w-1/2 py-3 bg-gray-100 text-gray-600 rounded-full font-bold text-xs uppercase"
                 >
                   Cancelar

@@ -4,13 +4,14 @@ import {
   LogOut, Camera, CheckCircle,
   Wallet, Package, Truck, Heart, History, RotateCcw, HelpCircle,
   ChevronRight, Settings,
-  MapPin, CreditCard, Lock, ShoppingBag, Calendar,
-  CreditCard as CardIcon, ShoppingCart, Filter, HeartOff, Eye, Trash2, X,
+  MapPin, Clock, ArrowRight, Home, LayoutList, Store, X, 
+  Trash2, Menu, User, Map, CreditCard, ChevronLeft, Pencil
 } from 'lucide-react';
 import {
   getMeusPedidos, atualizarMeuPerfil, getMeuPerfil,
-  getMeusEnderecos, criarEndereco, deletarEndereco,
+  getMeusEnderecos, criarEndereco, atualizarEndereco, deletarEndereco,
   getMeusCartoes, criarCartao, deletarCartao, getProdutoPorId,
+  consultarCep, geocodificarEndereco,
 } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -61,11 +62,16 @@ export default function Perfil() {
 
   // ── Endereços do backend ────────────────────────────────────────
   const [exibirFormEndereco, setExibirFormEndereco] = useState(false);
+  const [enderecoEditando, setEnderecoEditando] = useState<Endereco | null>(null);
   const [meusEnderecos, setMeusEnderecos] = useState<Endereco[]>([]);
   const [novoEndereco, setNovoEndereco] = useState({
     destinatario: '', telefone: '', cep: '', estadoCidade: '',
     bairro: '', rua: '', numero: '', complemento: '',
+    latitudeDestino: undefined as number | undefined,
+    longitudeDestino: undefined as number | undefined,
   });
+  const [geocodificandoCep, setGeocodificandoCep] = useState(false);
+  const [feedbackCepPerfil, setFeedbackCepPerfil] = useState<'ok' | 'erro' | null>(null);
 
   // ── Cartões do backend ──────────────────────────────────────────
   const [exibirFormCartao, setExibirFormCartao] = useState(false);
@@ -189,21 +195,60 @@ export default function Perfil() {
     }
   };
 
-  // ── Salvar novo endereço no backend ─────────────────────────────
+  const handleCepBlurPerfil = async () => {
+    if (novoEndereco.cep.replace(/\D/g, '').length !== 8) return;
+    setGeocodificandoCep(true);
+    setFeedbackCepPerfil(null);
+    try {
+      const dados = await consultarCep(novoEndereco.cep);
+      if (!dados) { setFeedbackCepPerfil('erro'); return; }
+      const estadoCidade = `${dados.uf} - ${dados.localidade}`;
+      setNovoEndereco((prev) => ({
+        ...prev,
+        rua: dados.logradouro || prev.rua,
+        bairro: dados.bairro || prev.bairro,
+        estadoCidade,
+      }));
+      const coords = await geocodificarEndereco(
+        dados.logradouro, novoEndereco.numero, dados.bairro, dados.localidade, dados.uf
+      );
+      if (coords) {
+        setNovoEndereco((prev) => ({ ...prev, latitudeDestino: coords.lat, longitudeDestino: coords.lon }));
+        setFeedbackCepPerfil('ok');
+      } else {
+        setFeedbackCepPerfil('erro');
+      }
+    } finally {
+      setGeocodificandoCep(false);
+    }
+  };
+
+  // ── Salvar ou Editar endereço no backend ─────────────────────────────
   const salvarNovoEndereco = async () => {
     if (!novoEndereco.destinatario || !novoEndereco.cep || !novoEndereco.rua) {
       toastError('Preencha os campos obrigatórios.');
       return;
     }
     try {
-      const criado = await criarEndereco({
-        ...novoEndereco,
-        principal: meusEnderecos.length === 0,
-      });
-      setMeusEnderecos([...meusEnderecos, criado]);
+      if (enderecoEditando) {
+        const atualizado = await atualizarEndereco(enderecoEditando.id, {
+          ...novoEndereco,
+          principal: enderecoEditando.principal,
+        });
+        setMeusEnderecos(meusEnderecos.map((e) => e.id === enderecoEditando.id ? atualizado : e));
+        success('Endereço atualizado!');
+      } else {
+        const criado = await criarEndereco({
+          ...novoEndereco,
+          principal: meusEnderecos.length === 0,
+        });
+        setMeusEnderecos([...meusEnderecos, criado]);
+        success('Endereço salvo!');
+      }
+      setEnderecoEditando(null);
       setExibirFormEndereco(false);
-      setNovoEndereco({ destinatario: '', telefone: '', cep: '', estadoCidade: '', bairro: '', rua: '', numero: '', complemento: '' });
-      success('Endereço salvo!');
+      setNovoEndereco({ destinatario: '', telefone: '', cep: '', estadoCidade: '', bairro: '', rua: '', numero: '', complemento: '', latitudeDestino: undefined, longitudeDestino: undefined });
+      setFeedbackCepPerfil(null);
     } catch (err: any) {
       toastError(err.message || 'Erro ao salvar endereço.');
     }
@@ -375,7 +420,7 @@ export default function Perfil() {
               )}
             </div>
             <div className="px-2">
-              <h3 className="text-xl font-black uppercase italic text-[#394158]">{exibirFormEndereco ? 'Novo Endereço' : 'Meus Endereços'}</h3>
+              <h3 className="text-xl font-black uppercase italic text-[#394158]">{exibirFormEndereco ? (enderecoEditando ? 'Editar Endereço' : 'Novo Endereço') : 'Meus Endereços'}</h3>
             </div>
             {exibirFormEndereco ? (
               <form className="bg-white rounded-2xl p-8 shadow-xl border border-white space-y-4" onSubmit={(e) => { e.preventDefault(); salvarNovoEndereco(); }}>
@@ -385,7 +430,7 @@ export default function Perfil() {
                     <input type="text" value={novoEndereco.destinatario} onChange={(e) => setNovoEndereco({ ...novoEndereco, destinatario: e.target.value })} className="w-full bg-[#F5F2ED]/50 border-2 border-transparent focus:border-[#55833d]/20 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158]" placeholder="Ex: Maria Silva" />
                   </div>
                   <div className="space-y-1.5"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">Telefone</label><input type="text" value={novoEndereco.telefone} onChange={(e) => setNovoEndereco({ ...novoEndereco, telefone: e.target.value })} className="w-full bg-[#F5F2ED]/50 border-2 border-transparent focus:border-[#55833d]/20 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158]" placeholder="(00) 00000-0000" /></div>
-                  <div className="space-y-1.5"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">CEP</label><input type="text" value={novoEndereco.cep} onChange={(e) => setNovoEndereco({ ...novoEndereco, cep: e.target.value })} className="w-full bg-[#F5F2ED]/50 border-2 border-transparent focus:border-[#55833d]/20 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158]" placeholder="00000-000" /></div>
+                  <div className="space-y-1.5 relative"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">CEP</label><input type="text" value={novoEndereco.cep} onChange={(e) => { setNovoEndereco({ ...novoEndereco, cep: e.target.value }); setFeedbackCepPerfil(null); }} onBlur={handleCepBlurPerfil} className={`w-full bg-[#F5F2ED]/50 border-2 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158] pr-14 ${feedbackCepPerfil === 'ok' ? 'border-green-400' : feedbackCepPerfil === 'erro' ? 'border-red-300' : 'border-transparent focus:border-[#55833d]/20'}`} placeholder="00000-000" />{geocodificandoCep && <span className="absolute right-4 bottom-4 text-[10px] text-[#f9943b] animate-pulse font-bold">GPS...</span>}{!geocodificandoCep && feedbackCepPerfil === 'ok' && <span className="absolute right-4 bottom-4 text-green-500">✔</span>}{!geocodificandoCep && feedbackCepPerfil === 'erro' && <span className="absolute right-4 bottom-4 text-red-400">⚠</span>}</div>
                   <div className="space-y-1.5 md:col-span-2"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">Estado - Cidade</label><input type="text" value={novoEndereco.estadoCidade} onChange={(e) => setNovoEndereco({ ...novoEndereco, estadoCidade: e.target.value })} className="w-full bg-[#F5F2ED]/50 border-2 border-transparent focus:border-[#55833d]/20 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158]" placeholder="Sergipe - Aracaju" /></div>
                   <div className="space-y-1.5"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">Bairro</label><input type="text" value={novoEndereco.bairro} onChange={(e) => setNovoEndereco({ ...novoEndereco, bairro: e.target.value })} className="w-full bg-[#F5F2ED]/50 border-2 border-transparent focus:border-[#55833d]/20 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158]" placeholder="Centro" /></div>
                   <div className="space-y-1.5"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">Rua</label><input type="text" value={novoEndereco.rua} onChange={(e) => setNovoEndereco({ ...novoEndereco, rua: e.target.value })} className="w-full bg-[#F5F2ED]/50 border-2 border-transparent focus:border-[#55833d]/20 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158]" placeholder="Rua das Flores" /></div>
@@ -407,7 +452,33 @@ export default function Perfil() {
                         <p className="text-[10px] text-gray-400 font-bold">{end.bairro} • {end.estadoCidade}</p>
                         <p className="text-[10px] text-gray-400 font-bold">CEP: {end.cep}</p>
                       </div>
-                      <button onClick={() => removerEndereco(end.id)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEnderecoEditando(end);
+                            setNovoEndereco({
+                              destinatario: end.destinatario || '',
+                              telefone: end.telefone || '',
+                              cep: end.cep || '',
+                              estadoCidade: end.estadoCidade || '',
+                              bairro: end.bairro || '',
+                              rua: end.rua || '',
+                              numero: end.numero || '',
+                              complemento: end.complemento || '',
+                              latitudeDestino: end.latitudeDestino,
+                              longitudeDestino: end.longitudeDestino,
+                            });
+                            setFeedbackCepPerfil(end.latitudeDestino && end.longitudeDestino ? 'ok' : null);
+                            setExibirFormEndereco(true);
+                          }}
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button onClick={() => removerEndereco(end.id)} className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
                   ))
                 ) : (
