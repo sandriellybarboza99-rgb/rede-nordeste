@@ -74,14 +74,21 @@ export default function Carrinho() {
   // IDs de endereços cuja localização está sendo atualizada
   const [atualizandoLocalizacao, setAtualizandoLocalizacao] = useState<Set<number>>(new Set());
 
-  const [lojaRetirada, setLojaRetirada] = useState<any>(null);
+  const [lojasRetirada, setLojasRetirada] = useState<any[]>([]);
 
   useEffect(() => {
     if (metodoEntrega === 'retirada' && itens.length > 0) {
-      const primeiraLojaId = itens[0]?.produto?.lojaId || itens[0]?.produto?.loja?.id || itens[0]?.lojaId;
-      if (primeiraLojaId) {
-        getLojaPorId(primeiraLojaId).then(setLojaRetirada).catch(() => { });
-      }
+      const storeIds = new Set<number>();
+      itens.forEach(item => {
+        const lojaId = item?.produto?.lojaId || item?.produto?.loja?.id || item?.lojaId;
+        if (lojaId) storeIds.add(lojaId);
+      });
+
+      Promise.all(Array.from(storeIds).map(id => getLojaPorId(id)))
+        .then(lojas => {
+          setLojasRetirada(lojas.filter(l => l));
+        })
+        .catch(() => { });
     }
   }, [metodoEntrega, itens]);
 
@@ -715,7 +722,7 @@ export default function Carrinho() {
                           onClick={() => setModalNovoEndereco(true)}
                           className="text-xs font-bold text-[#55833d] flex items-center gap-1 hover:underline"
                         >
-                          <PlusCircle size={14} /> + Adicionar
+                          <PlusCircle size={14} />Adicionar
                         </button>
                       </div>
 
@@ -725,8 +732,8 @@ export default function Carrinho() {
                             key={end.id}
                             onClick={() => setEnderecoSelecionado(end.id)}
                             className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${enderecoSelecionado === end.id
-                                ? 'border-[#55833d] bg-[#55833d]/5'
-                                : 'border-gray-100 hover:border-gray-200'
+                              ? 'border-[#55833d] bg-[#55833d]/5'
+                              : 'border-gray-100 hover:border-gray-200'
                               }`}
                           >
                             <div className="flex items-start gap-3">
@@ -800,27 +807,31 @@ export default function Carrinho() {
                     </div>
                   )}
 
-                  {metodoEntrega === 'retirada' && lojaRetirada && (
+                  {metodoEntrega === 'retirada' && lojasRetirada.length > 0 && (
                     <div className="bg-white rounded-3xl p-6 shadow-sm border border-[#55833d] space-y-4 mt-6">
                       <div className="flex justify-between items-center">
-                        <h3 className="text-sm font-black uppercase tracking-wider text-[#394158]">Endereço de Retirada</h3>
+                        <h3 className="text-sm font-black uppercase tracking-wider text-[#394158]">{lojasRetirada.length > 1 ? 'Endereços de Retirada' : 'Endereço de Retirada'}</h3>
                         <span className="text-[10px] font-black bg-[#55833d]/10 text-[#55833d] px-3 py-1 rounded-full uppercase tracking-widest">
                           Na Loja
                         </span>
                       </div>
 
-                      <div className="p-4 rounded-2xl border-2 border-[#55833d] bg-[#55833d]/5 flex items-start gap-3">
-                        <Store size={20} className="text-[#55833d] shrink-0 mt-1" />
-                        <div className="flex-1">
-                          <p className="text-xs font-bold text-[#394158] uppercase">{lojaRetirada.nomeLoja || 'Loja'}</p>
-                          <p className="text-[11px] text-gray-500 mt-1">
-                            {lojaRetirada.logradouro || 'Endereço não informado'}
-                          </p>
-                          <p className="text-[10px] text-gray-400">
-                            {lojaRetirada.bairro} - {lojaRetirada.cidade} / {lojaRetirada.estado}
-                          </p>
-                          {lojaRetirada.cep && <p className="text-[10px] text-gray-400">CEP: {lojaRetirada.cep}</p>}
-                        </div>
+                      <div className="space-y-3">
+                        {lojasRetirada.map((loja) => (
+                          <div key={loja.id} className="p-4 rounded-2xl border-2 border-[#55833d] bg-[#55833d]/5 flex items-start gap-3">
+                            <Store size={20} className="text-[#55833d] shrink-0 mt-1" />
+                            <div className="flex-1">
+                              <p className="text-xs font-bold text-[#394158] uppercase">{loja.nomeLoja || 'Loja'}</p>
+                              <p className="text-[11px] text-gray-500 mt-1">
+                                {loja.logradouro || 'Endereço não informado'}
+                              </p>
+                              <p className="text-[10px] text-gray-400">
+                                {loja.bairro} - {loja.cidade} / {loja.estado}
+                              </p>
+                              {loja.cep && <p className="text-[10px] text-gray-400">CEP: {loja.cep}</p>}
+                            </div>
+                          </div>
+                        ))}
                       </div>
 
                       <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 flex items-start gap-2">
@@ -881,7 +892,7 @@ export default function Carrinho() {
                           onClick={() => setModalNovoCartao(true)}
                           className="text-xs font-bold text-[#55833d] flex items-center gap-1 hover:underline"
                         >
-                          <PlusCircle size={14} /> + Adicionar Cartão
+                          <PlusCircle size={14} />Adicionar Cartão
                         </button>
                       </div>
 
@@ -1012,8 +1023,8 @@ export default function Carrinho() {
                   }}
                   onBlur={handleCepBlur}
                   className={`w-full bg-[#F5F2ED] p-3 rounded-xl text-xs font-bold outline-none pr-8 ${feedbackCep === 'ok' ? 'border-2 border-green-400'
-                      : feedbackCep === 'erro' ? 'border-2 border-red-300'
-                        : ''
+                    : feedbackCep === 'erro' ? 'border-2 border-red-300'
+                      : ''
                     }`}
                 />
                 {geocodificandoCep && (

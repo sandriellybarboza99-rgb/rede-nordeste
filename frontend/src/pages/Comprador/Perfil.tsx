@@ -5,7 +5,8 @@ import {
   Wallet, Package, Truck, Heart, History, RotateCcw, HelpCircle,
   ChevronRight, Settings,
   MapPin, Clock, ArrowRight, Home, LayoutList, Store, X, 
-  Trash2, Menu, User, Map, CreditCard, ChevronLeft, Pencil
+  Trash2, Menu, User, Map, CreditCard, CreditCard as CardIcon, ChevronLeft, Pencil,
+  Eye, Filter, HeartOff, Lock, ShoppingBag, Calendar
 } from 'lucide-react';
 import {
   getMeusPedidos, atualizarMeuPerfil, getMeuPerfil,
@@ -29,6 +30,8 @@ interface Endereco {
   numero: string;
   complemento?: string;
   principal: boolean;
+  latitudeDestino?: number;
+  longitudeDestino?: number;
 }
 
 interface Cartao {
