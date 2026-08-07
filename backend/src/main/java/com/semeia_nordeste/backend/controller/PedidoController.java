@@ -33,7 +33,7 @@ public class PedidoController {
     @GetMapping("/comprador/pedidos")
     public ResponseEntity<Page<PedidoResponse>> meusPedidos(
             @AuthenticationPrincipal Usuario usuario,
-            @PageableDefault(size = 10, sort = "dataPedido") Pageable pageable) {
+            @PageableDefault(size = 10, sort = "dataPedido", direction = org.springframework.data.domain.Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(
                 pedidoService.listarMeusPedidos(usuario, pageable).map(PedidoResponse::fromEntity));
     }
@@ -48,7 +48,7 @@ public class PedidoController {
     @GetMapping("/produtor/pedidos")
     public ResponseEntity<Page<PedidoResponse>> pedidosDaLoja(
             @AuthenticationPrincipal Usuario usuario,
-            @PageableDefault(size = 10, sort = "dataPedido") Pageable pageable) {
+            @PageableDefault(size = 10, sort = "dataPedido", direction = org.springframework.data.domain.Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(
                 pedidoService.listarPedidosDaLoja(usuario, pageable).map(PedidoResponse::fromEntity));
     }

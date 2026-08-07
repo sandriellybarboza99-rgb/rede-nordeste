@@ -3,11 +3,12 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, ShoppingCart, User, Plus, Filter, MapPin,
   Star, LayoutGrid, Palette, Beef, Sprout, Wheat, Carrot, Milk, Bed, Utensils, Shirt,
-  MessageCircle, Heart, ChevronRight, ChevronLeft, Menu, X, BookOpen, Store, Bell, HelpCircle, Home as HomeIcon
+  MessageCircle, Heart, ChevronRight, ChevronLeft, Menu, X, BookOpen, Store, Bell, HelpCircle, Home as HomeIcon, LayoutDashboard
 } from 'lucide-react';
 import {
-  buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho, getEmpreendedoras
+  buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho, getEmpreendedoras, getMinhaLoja
 } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { UserMenu } from '../../components/ui/UserMenu';
 import { BottomTabBar } from '../../components/ui/BottomTabBar';
 
@@ -22,6 +23,8 @@ const CATEGORIAS_ICONES: Record<string, any> = {
 export default function HomeComprador() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { usuario } = useAuth();
+  const isVendedor = usuario?.perfil === 'PRODUTOR';
 
   // ── Dados da API ─────────────────────────────────────────────────
   type CategoriaAPI = { id: number; nome: string };
@@ -31,11 +34,13 @@ export default function HomeComprador() {
   const [carregando, setCarregando] = useState(false);
   const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
   const [tentativa, setTentativa] = useState(0); // incrementar força re-fetch
+  const [minhaLojaId, setMinhaLojaId] = useState<number | null>(null);
 
   // ── Filtros e UI ─────────────────────────────────────────────────
   // catAtiva guarda o NOME para destacar o chip; catAtivaId guarda o ID para filtrar
   const [catAtiva, setCatAtiva] = useState('Todos');
   const [catAtivaId, setCatAtivaId] = useState<number | undefined>(undefined);
+  const [notificacoesNaoLidas] = useState(2); // Mock para contagem visual de notificações
   const [busca, setBusca] = useState('');
   const [termoPesquisado, setTermoPesquisado] = useState('');
   const [ordenacao, setOrdenacao] = useState('recomendados');
@@ -72,9 +77,10 @@ export default function HomeComprador() {
     sessionStorage.setItem('origemBlog', 'painel');
 
     // Tutorial
-    if (!localStorage.getItem('tutorial_visto_comprador')) {
+    const tutorialKey = isVendedor ? 'tutorial_visto_vendedor' : 'tutorial_visto_comprador';
+    if (!localStorage.getItem(tutorialKey)) {
       setTutorialAberto(true);
-      localStorage.setItem('tutorial_visto_comprador', 'true');
+      localStorage.setItem(tutorialKey, 'true');
     }
 
     // Carrega categorias e destaques
@@ -98,6 +104,12 @@ export default function HomeComprador() {
       getNaoLidas().then((d: any) => setNaoLidas(d.total)).catch(() => { });
     }
 
+    if (isVendedor) {
+      getMinhaLoja().then((loja: any) => {
+        if (loja && loja.id) setMinhaLojaId(loja.id);
+      }).catch(() => { });
+    }
+
     const salvos = localStorage.getItem('favoritos_itens');
     if (salvos) setFavoritos(JSON.parse(salvos));
   }, []);
@@ -113,7 +125,13 @@ export default function HomeComprador() {
           catAtivaId, // ID real da categoria (undefined quando "Todos")
           paginaAtual
         );
-        setProdutos(data.content || []);
+
+        let prods = data.content || [];
+        if (isVendedor && minhaLojaId) {
+          prods = prods.filter((p: any) => p.lojaId !== minhaLojaId);
+        }
+
+        setProdutos(prods);
         setTotalPaginas(data.totalPages || 1);
       } catch (err: any) {
         // Não esconder o erro: distinguir "falha de carregamento" de "vitrine vazia".
@@ -123,8 +141,14 @@ export default function HomeComprador() {
         setCarregando(false);
       }
     };
+
+    // Se for vendedor, aguarda descobrir o lojaId antes de buscar os produtos
+    if (isVendedor && minhaLojaId === null) {
+      return;
+    }
+
     carregar();
-  }, [termoPesquisado, catAtivaId, paginaAtual, tentativa]);
+  }, [termoPesquisado, catAtivaId, paginaAtual, tentativa, isVendedor, minhaLojaId]);
 
   // ── Redirect de receitas ──────────────────────────────────────────
   useEffect(() => {
@@ -194,9 +218,10 @@ export default function HomeComprador() {
           <div className="flex items-center gap-4 md:gap-10 flex-shrink-0">
             <Link to="/home2"><img src="/assets/logo-home.png" alt="Logo" className="h-10 md:h-12 w-auto object-contain" /></Link>
             <nav className="hidden lg:flex gap-6 text-xs md:text-sm font-medium text-[#394158]">
-              <Link to="/home2" className="text-[#f9943b] border-b-2 border-[#f9943b] pb-1">Início</Link>
+              <Link to="/home2" className={isVendedor ? "text-[#55833d] font-bold border-b-2 border-[#55833d] pb-1" : "text-[#f9943b] border-b-2 border-[#f9943b] pb-1"}>Início</Link>
               <Link to="/receitas" className="hover:text-[#f9943b] transition-colors">Receitas</Link>
-              <Link to="/blog" className="hover:text-[#f9943b]">Notícias</Link>
+              <Link to="/blog" className="hover:text-[#f9943b] transition-colors">Notícias</Link>
+              {isVendedor && <Link to="/painelvendedor" className="hover:text-[#f9943b] transition-colors">Painel Vendedor</Link>}
             </nav>
           </div>
 
@@ -212,14 +237,11 @@ export default function HomeComprador() {
 
           <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
             <div className="hidden md:flex items-center gap-2">
-              <button title="Ajuda" onClick={() => setTutorialAberto(true)} className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158]">
-                <HelpCircle className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
-              </button>
               <Link title="Notificações" to="/notificacoes" className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158] group">
                 <Bell className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
-                {naoLidas > 0 && (
+                {notificacoesNaoLidas > 0 && (
                   <span className="absolute top-0 right-0 md:top-1 md:right-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white group-hover:border-[#f9943b]">
-                    {naoLidas}
+                    {notificacoesNaoLidas}
                   </span>
                 )}
               </Link>
@@ -234,9 +256,14 @@ export default function HomeComprador() {
                   </span>
                 )}
               </Link>
-              <UserMenu perfilPath="/perfil" />
+              <UserMenu perfilPath={isVendedor ? "/perfilvendedor" : "/perfil"} />
             </div>
-            <button onClick={() => setMenuAberto(true)} className="md:hidden p-1 text-[#394158] hover:text-[#f9943b]"><Menu size={24} /></button>
+
+            {/* Mobile: menu hambúrguer + UserMenu compacto (se for Vendedor) */}
+            <div className="flex lg:hidden items-center gap-3">
+              {isVendedor && <UserMenu perfilPath="/perfilvendedor" />}
+              <button onClick={() => setMenuAberto(true)} className={`${isVendedor ? 'p-1' : 'md:hidden p-1'} text-[#394158] hover:text-[#f9943b]`}><Menu size={24} /></button>
+            </div>
           </div>
         </div>
       </header>
@@ -247,16 +274,17 @@ export default function HomeComprador() {
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMenuAberto(false)} />
           <div className="absolute right-0 top-0 h-full w-72 bg-white shadow-2xl p-8 flex flex-col gap-8">
             <button onClick={() => setMenuAberto(false)} className="self-end p-2 bg-[#F5F2ED] rounded-full"><X size={24} /></button>
-            <nav className="flex flex-col gap-5 text-sm font-black uppercase tracking-widest text-[#394158]">
+            <nav className={`flex flex-col gap-5 ${isVendedor ? 'text-sm md:text-base font-medium' : 'text-sm font-black uppercase tracking-widest'} text-[#394158]`}>
               <Link to="/home2" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Início</Link>
               <Link to="/receitas" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Receitas</Link>
               <Link to="/blog" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Notícias</Link>
+              {isVendedor && <Link to="/painelvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Painel Vendedor</Link>}
               <button onClick={() => { setMenuAberto(false); setTutorialAberto(true); }} className="flex items-center gap-4 hover:text-[#55833d] text-left"><HelpCircle size={14} /> Guia Rápido</button>
               <hr className="border-gray-100" />
               <Link to="/notificacoes" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]">
                 <div className="relative">
                   <Bell size={20} />
-                  {naoLidas > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">{naoLidas}</span>}
+                  {notificacoesNaoLidas > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">{notificacoesNaoLidas}</span>}
                 </div>
                 Notificações
               </Link>
@@ -522,13 +550,23 @@ export default function HomeComprador() {
       </main>
 
       <BottomTabBar
-        tabs={[
-          { to: '/home2', label: 'Início', Icon: HomeIcon },
-          { to: '/receitas', label: 'Receitas', Icon: BookOpen },
-          { to: '/carrinho', label: 'Carrinho', Icon: ShoppingCart, badge: carrinhoCount },
-          { to: '/chat', label: 'Chat', Icon: MessageCircle, badge: naoLidas },
-          { to: '/perfil', label: 'Perfil', Icon: User },
-        ]}
+        tabs={
+          isVendedor
+            ? [
+              { to: '/home2', label: 'Vitrine', Icon: HomeIcon },
+              { to: '/painelvendedor', label: 'Painel', Icon: LayoutDashboard },
+              { to: '/receitas', label: 'Receitas', Icon: BookOpen },
+              { to: '/chat', label: 'Chat', Icon: MessageCircle, badge: naoLidas },
+              { to: '/perfilvendedor', label: 'Perfil', Icon: User },
+            ]
+            : [
+              { to: '/home2', label: 'Início', Icon: HomeIcon },
+              { to: '/receitas', label: 'Receitas', Icon: BookOpen },
+              { to: '/carrinho', label: 'Carrinho', Icon: ShoppingCart, badge: carrinhoCount },
+              { to: '/chat', label: 'Chat', Icon: MessageCircle, badge: naoLidas },
+              { to: '/perfil', label: 'Perfil', Icon: User },
+            ]
+        }
       />
     </div>
   );

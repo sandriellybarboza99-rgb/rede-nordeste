@@ -3,14 +3,15 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, ShoppingCart, User, Plus, Filter, MapPin,
   Star, LayoutGrid, Palette, Beef, Sprout, Wheat, Carrot, Milk, Bed, Utensils, Shirt,
-  MessageCircle, Heart, ChevronRight, Menu, X, BookOpen, Store, Bell, ChevronLeft, HelpCircle,
-  Home as HomeIcon, LayoutDashboard
+  MessageCircle, Heart, ChevronRight, ChevronLeft, Menu, X, BookOpen, Store, Bell, HelpCircle,
+  Home as HomeIcon, LayoutDashboard,
 } from 'lucide-react';
 import {
-  buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho, getEmpreendedoras
-} from '../../services/api';
-import { UserMenu } from '../../components/ui/UserMenu';
-import { BottomTabBar } from '../../components/ui/BottomTabBar';
+  buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho, getEmpreendedoras,
+} from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { UserMenu } from '../components/ui/UserMenu';
+import { BottomTabBar } from '../components/ui/BottomTabBar';
 
 const CATEGORIAS_ICONES: Record<string, any> = {
   'Todos': LayoutGrid, 'Artesanato': Palette, 'Carnes': Beef,
@@ -18,20 +19,29 @@ const CATEGORIAS_ICONES: Record<string, any> = {
   'Laticínios': Milk, 'Cama Mesa e Banho': Bed, 'Gastronomia': Utensils, 'Têxtil': Shirt,
 };
 
-// EMPREENDEDORAS será carregado da API
-
-export default function HomeComprador() {
+export default function Home() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { usuario } = useAuth();
+
+  const isVendedor = usuario?.perfil === 'PRODUTOR';
+  const homePath = isVendedor ? '/home2' : '/home2';
+  const perfilPath = isVendedor ? '/perfilvendedor' : '/perfil';
+  const receitasPath = isVendedor ? '/receitas' : '/receitas';
+  const tutorialKey = isVendedor ? 'tutorial_visto_vendedor' : 'tutorial_visto_comprador';
 
   // ── Dados da API ─────────────────────────────────────────────────
+  type CategoriaAPI = { id: number; nome: string };
   const [produtos, setProdutos] = useState<any[]>([]);
-  const [categorias, setCategorias] = useState<string[]>(['Todos']);
+  const [categorias, setCategorias] = useState<CategoriaAPI[]>([{ id: 0, nome: 'Todos' }]);
   const [totalPaginas, setTotalPaginas] = useState(1);
   const [carregando, setCarregando] = useState(false);
+  const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(0);
 
   // ── Filtros e UI ─────────────────────────────────────────────────
   const [catAtiva, setCatAtiva] = useState('Todos');
+  const [catAtivaId, setCatAtivaId] = useState<number | undefined>(undefined);
   const [busca, setBusca] = useState('');
   const [termoPesquisado, setTermoPesquisado] = useState('');
   const [ordenacao, setOrdenacao] = useState('recomendados');
@@ -63,24 +73,22 @@ export default function HomeComprador() {
     setTimeout(atualizarSetas, 350);
   };
 
-  // ── Carrega categorias ────────────────────────────────────────────
+  // ── Inicialização ─────────────────────────────────────────────────
   useEffect(() => {
     sessionStorage.setItem('origemBlog', 'painel');
 
-    // Tutorial
-    if (!localStorage.getItem('tutorial_visto_vendedor')) {
+    if (!localStorage.getItem(tutorialKey)) {
       setTutorialAberto(true);
-      localStorage.setItem('tutorial_visto_vendedor', 'true');
+      localStorage.setItem(tutorialKey, 'true');
     }
 
-    // Carrega categorias e destaques
     const carregaFiltros = async () => {
       try {
         const [cats, emp] = await Promise.all([
           getCategorias(),
-          getEmpreendedoras().catch(() => []) // se falhar, retorna array vazio
+          getEmpreendedoras().catch(() => []),
         ]);
-        setCategorias(['Todos', ...cats.map((c: any) => c.nome)]);
+        setCategorias([{ id: 0, nome: 'Todos' }, ...cats]);
         setEmpreendedoras(emp);
         setTimeout(atualizarSetas, 100);
       } catch (err) {
@@ -89,35 +97,38 @@ export default function HomeComprador() {
     };
     carregaFiltros();
 
-    const raw = localStorage.getItem('usuarioLogado');
-    if (raw) {
-      getNaoLidas().then((d: any) => setNaoLidas(d.total)).catch(() => { });
-    }
+    getNaoLidas().then((d: any) => setNaoLidas(d.total)).catch(() => { });
+    getCarrinho().then((c: any) => {
+      const itens = c.itens || c.content || c || [];
+      setCarrinhoCount(itens.length);
+    }).catch(() => { });
 
     const salvos = localStorage.getItem('favoritos_itens');
     if (salvos) setFavoritos(JSON.parse(salvos));
-  }, []);
+  }, [tutorialKey]);
 
   // ── Carrega produtos ──────────────────────────────────────────────
   useEffect(() => {
     const carregar = async () => {
       setCarregando(true);
+      setErroCarregamento(null);
       try {
         const data = await buscarProdutos(
           termoPesquisado || undefined,
-          undefined,
-          paginaAtual
+          catAtivaId,
+          paginaAtual,
         );
-        setProdutos(data.content);
-        setTotalPaginas(data.totalPages);
-      } catch {
+        setProdutos(data.content || []);
+        setTotalPaginas(data.totalPages || 1);
+      } catch (err: any) {
         setProdutos([]);
+        setErroCarregamento(err?.message || 'Erro ao carregar produtos.');
       } finally {
         setCarregando(false);
       }
     };
     carregar();
-  }, [termoPesquisado, catAtiva, paginaAtual]);
+  }, [termoPesquisado, catAtivaId, paginaAtual, tentativa]);
 
   // ── Redirect de receitas ──────────────────────────────────────────
   useEffect(() => {
@@ -126,6 +137,7 @@ export default function HomeComprador() {
       setBusca(termo);
       setTermoPesquisado(termo);
       setCatAtiva('Todos');
+      setCatAtivaId(undefined);
       setPaginaAtual(0);
     }
   }, [location.state]);
@@ -147,7 +159,6 @@ export default function HomeComprador() {
       const listaItens = cartReq.itens || cartReq.content || cartReq || [];
       const existing = listaItens.find((i: any) => String(i.produtoId || i.produto?.id) === String(produtoId));
       const novaQtd = existing ? existing.quantidade + 1 : 1;
-
       await adicionarAoCarrinho(produtoId, novaQtd);
       setCarrinhoCount(c => existing ? c : c + 1);
     } catch (err: any) {
@@ -158,6 +169,7 @@ export default function HomeComprador() {
   const handlePesquisa = () => {
     setTermoPesquisado(busca);
     setCatAtiva('Todos');
+    setCatAtivaId(undefined);
     setPaginaAtual(0);
   };
 
@@ -165,8 +177,9 @@ export default function HomeComprador() {
     if (e.key === 'Enter') handlePesquisa();
   };
 
-  const handleCategoriaClick = (nome: string) => {
-    setCatAtiva(nome);
+  const handleCategoriaClick = (cat: CategoriaAPI) => {
+    setCatAtiva(cat.nome);
+    setCatAtivaId(cat.nome === 'Todos' ? undefined : cat.id);
     setTermoPesquisado('');
     setBusca('');
     setPaginaAtual(0);
@@ -178,17 +191,44 @@ export default function HomeComprador() {
     return 0;
   });
 
+  // ── Bottom tabs por perfil ────────────────────────────────────────
+  const bottomTabs = isVendedor
+    ? [
+      { to: homePath, label: 'Vitrine', Icon: HomeIcon },
+      { to: '/painelvendedor', label: 'Painel', Icon: LayoutDashboard },
+      { to: receitasPath, label: 'Receitas', Icon: BookOpen },
+      { to: '/chat', label: 'Chat', Icon: MessageCircle, badge: naoLidas },
+      { to: perfilPath, label: 'Perfil', Icon: User },
+    ]
+    : [
+      { to: homePath, label: 'Início', Icon: HomeIcon },
+      { to: receitasPath, label: 'Receitas', Icon: BookOpen },
+      { to: '/carrinho', label: 'Carrinho', Icon: ShoppingCart, badge: carrinhoCount },
+      { to: '/chat', label: 'Chat', Icon: MessageCircle, badge: naoLidas },
+      { to: perfilPath, label: 'Perfil', Icon: User },
+    ];
+
   return (
     <div className="min-h-screen bg-white text-[#394158] antialiased pb-20 font-sans">
+      {/* ── Header ─────────────────────────────────────────────────── */}
       <header className="w-full bg-white py-4 px-4 md:px-8 border-b border-gray-100 sticky top-0 z-50 shadow-sm">
         <div className="max-w-6xl mx-auto flex justify-between items-center gap-4 md:gap-8">
           <div className="flex items-center gap-4 md:gap-10 flex-shrink-0">
-            <Link to="/vendedor"><img src="/assets/logo-home.png" alt="Logo" className="h-10 md:h-12 w-auto object-contain" /></Link>
+            <Link to={homePath}><img src="/assets/logo-home.png" alt="Logo" className="h-10 md:h-12 w-auto object-contain" /></Link>
             <nav className="hidden lg:flex gap-6 text-xs md:text-sm font-medium text-[#394158]">
-              <Link to="/vendedor" className="text-[#55833d] font-bold border-b-2 border-[#55833d] pb-1">Início</Link>
-              <Link to="/receitasvendedor" className="hover:text-[#f9943b] transition-colors">Receitas</Link>
+              <Link
+                to={homePath}
+                className={isVendedor
+                  ? 'text-[#55833d] font-bold border-b-2 border-[#55833d] pb-1'
+                  : 'text-[#f9943b] border-b-2 border-[#f9943b] pb-1'}
+              >
+                Início
+              </Link>
+              <Link to={receitasPath} className="hover:text-[#f9943b] transition-colors">Receitas</Link>
               <Link to="/blog" className="hover:text-[#f9943b] transition-colors">Notícias</Link>
-              <Link to="/painelvendedor" className="hover:text-[#f9943b] transition-colors">Painel Vendedor</Link>
+              {isVendedor && (
+                <Link to="/painelvendedor" className="hover:text-[#f9943b] transition-colors">Painel Vendedor</Link>
+              )}
             </nav>
           </div>
 
@@ -226,31 +266,31 @@ export default function HomeComprador() {
                   </span>
                 )}
               </Link>
-              <UserMenu perfilPath="/perfilvendedor" />
+              <UserMenu perfilPath={perfilPath} />
             </div>
-
-            {/* Mobile: só o menu hambúrguer + UserMenu compacto */}
+            {/* Mobile: hambúrguer + UserMenu compacto (vendedor) ou só hambúrguer (comprador) */}
             <div className="flex lg:hidden items-center gap-3">
-              <UserMenu perfilPath="/perfilvendedor" />
+              {isVendedor && <UserMenu perfilPath={perfilPath} />}
               <button onClick={() => setMenuAberto(true)} className="p-1 text-[#394158] hover:text-[#f9943b]"><Menu size={24} /></button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* ── RESTANTE DO CÓDIGO PERMANECE IGUAL ────────────────────── */}
-      {/* ... (Menu Mobile, Modais, Main Content, Footer) */}
+      {/* ── Menu Mobile ─────────────────────────────────────────────── */}
       {menuAberto && (
         <div className="fixed inset-0 z-[110] md:hidden">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMenuAberto(false)} />
           <div className="absolute right-0 top-0 h-full w-72 bg-white shadow-2xl p-8 flex flex-col gap-8">
             <button onClick={() => setMenuAberto(false)} className="self-end p-2 bg-[#F5F2ED] rounded-full"><X size={24} /></button>
-            <nav className="flex flex-col gap-5 text-sm md:text-base font-medium text-[#394158]">
-              <Link to="/vendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={16} /> Início</Link>
-              <Link to="/receitasvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={16} /> Receitas</Link>
-              <Link to="/blog" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={16} /> Notícias</Link>
-              <Link to="/painelvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={16} /> Painel Vendedor</Link>
-              <button onClick={() => { setMenuAberto(false); setTutorialAberto(true); }} className="flex items-center gap-4 hover:text-[#55833d] text-left"><HelpCircle size={16} /> Guia Rápido</button>
+            <nav className="flex flex-col gap-5 text-sm font-black uppercase tracking-widest text-[#394158]">
+              <Link to={homePath} onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Início</Link>
+              <Link to={receitasPath} onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Receitas</Link>
+              <Link to="/blog" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Notícias</Link>
+              {isVendedor && (
+                <Link to="/painelvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Painel Vendedor</Link>
+              )}
+              <button onClick={() => { setMenuAberto(false); setTutorialAberto(true); }} className="flex items-center gap-4 hover:text-[#55833d] text-left"><HelpCircle size={14} /> Guia Rápido</button>
               <hr className="border-gray-100" />
               <Link to="/notificacoes" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]">
                 <div className="relative">
@@ -267,52 +307,42 @@ export default function HomeComprador() {
                 </div>
                 Carrinho
               </Link>
-              <Link to="/perfilvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><User size={20} /> Meu Perfil</Link>
+              <Link to={perfilPath} onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><User size={20} /> Meu Perfil</Link>
             </nav>
           </div>
         </div>
       )}
 
-      {/* MODAL DO TUTORIAL */}
+      {/* ── Modal Tutorial ──────────────────────────────────────────── */}
       {tutorialAberto && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setTutorialAberto(false)} />
           <div className="relative bg-white w-full max-w-lg rounded-[2rem] p-6 md:p-8 shadow-2xl flex flex-col gap-6 animate-in zoom-in-95">
             <button onClick={() => setTutorialAberto(false)} className="absolute top-6 right-6 p-2 bg-[#F5F2ED] rounded-full hover:bg-gray-200"><X size={20} /></button>
-
             <div className="text-center space-y-2 mt-4 md:mt-0">
               <h2 className="text-xl md:text-2xl font-black italic uppercase text-[#394158]">Guia Rápido</h2>
               <p className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest">Aprenda a usar a plataforma</p>
             </div>
-
             <div className="space-y-3 max-h-[50vh] md:max-h-[60vh] overflow-y-auto no-scrollbar pb-4 px-2">
               <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
                 <div className="p-3 bg-white text-[#f9943b] rounded-full shadow-sm shrink-0"><Search size={20} /></div>
                 <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Busca & Filtros</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Use a busca no topo ou clique nas categorias (Laticínios, Hortifruti) para achar exatamente o que precisa.</p></div>
               </div>
-
               <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
                 <div className="p-3 bg-white text-[#55833d] rounded-full shadow-sm shrink-0"><ShoppingCart size={20} /></div>
                 <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Carrinho</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Clique no botão laranja com "+" nos produtos para adicionar ao carrinho, depois vá no ícone superior para fechar a compra.</p></div>
               </div>
-
               <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
                 <div className="p-3 bg-white text-red-500 rounded-full shadow-sm shrink-0"><Heart size={20} /></div>
                 <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Favoritar</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Gostou de algo mas não quer comprar agora? Clique no coração no canto dos produtos para salvá-lo na sua lista.</p></div>
               </div>
-
-              <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
-                <div className="flex flex-col gap-2 shrink-0">
-                  <div className="flex gap-2">
-                    <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm"><Bell size={14} /></div>
-                    <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm"><MessageCircle size={14} /></div>
-                  </div>
-                  <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm w-fit mx-auto"><User size={14} /></div>
+              {isVendedor && (
+                <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
+                  <div className="p-3 bg-white text-[#394158] rounded-full shadow-sm shrink-0"><LayoutDashboard size={20} /></div>
+                  <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Painel Vendedor</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Acesse o Painel Vendedor para gerenciar seus produtos, pedidos e configurações da loja.</p></div>
                 </div>
-                <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Menu Superior (PC) / Lateral (Celular)</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Notificações, Chat direto com vendedores e Meu Perfil ficam sempre acessíveis nos ícones do cabeçalho ou menu.</p></div>
-              </div>
+              )}
             </div>
-
             <button onClick={() => setTutorialAberto(false)} className="w-full bg-[#55833d] text-white py-4 rounded-[1rem] font-black uppercase text-[10px] md:text-xs tracking-widest shadow-lg hover:bg-[#436b2f] transition-colors mt-2">
               Entendi, Vamos Lá!
             </button>
@@ -320,6 +350,7 @@ export default function HomeComprador() {
         </div>
       )}
 
+      {/* ── Modal Detalhe Empreendedora ─────────────────────────────── */}
       {mulherSelecionada && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setMulherSelecionada(null)} />
@@ -345,7 +376,9 @@ export default function HomeComprador() {
         </div>
       )}
 
+      {/* ── Main ─────────────────────────────────────────────────────── */}
       <main className="max-w-6xl mx-auto px-4 md:px-8 pt-6 md:pt-10">
+        {/* Search Mobile */}
         <div className="relative w-full mb-8 md:hidden">
           <input type="text" value={busca} onChange={e => setBusca(e.target.value)}
             onKeyDown={handleKeyDown} placeholder="O que procura?"
@@ -355,6 +388,7 @@ export default function HomeComprador() {
           </button>
         </div>
 
+        {/* Empreendedoras */}
         <section className="w-full max-w-6xl mb-12 bg-[#fededf] p-4 md:p-8 rounded-[2rem] border border-[#fededf] mx-auto shadow-xl">
           <div className="flex items-center justify-between mb-6 px-2 text-[#394158]">
             <div className="flex items-center gap-2 md:gap-3">
@@ -379,14 +413,11 @@ export default function HomeComprador() {
           </div>
         </section>
 
-        {/* PAINEL DE CATEGORIAS (separado) */}
+        {/* Categorias */}
         <section className="w-full max-w-6xl mx-auto mb-4">
           <div className="bg-white rounded-[1rem] border border-gray-200 shadow-sm p-4 md:p-8">
             <h2 className="text-xs md:text-base font-black uppercase tracking-widest italic mb-5 text-[#394158]">Categorias</h2>
-
-            {/* Wrapper com setas */}
             <div className="relative">
-              {/* Seta esquerda */}
               <button
                 onClick={() => scrollCat('prev')}
                 className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 w-7 h-7 md:w-8 md:h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center transition-all ${podePrev ? 'opacity-100 hover:bg-[#f9943b] hover:text-white hover:border-[#f9943b]' : 'opacity-0 pointer-events-none'}`}
@@ -394,11 +425,10 @@ export default function HomeComprador() {
               >
                 <ChevronLeft size={14} />
               </button>
-
-              {/* Container com scroll horizontal + 2 linhas */}
               <div
                 ref={catScrollRef}
                 onScroll={atualizarSetas}
+                onLoad={atualizarSetas}
                 className="overflow-x-auto no-scrollbar"
                 style={{ WebkitOverflowScrolling: 'touch' }}
               >
@@ -407,37 +437,32 @@ export default function HomeComprador() {
                   style={{
                     gridTemplateRows: 'repeat(2, 1fr)',
                     gridAutoFlow: 'column',
-                    gridAutoColumns: 'calc((100% - (4 * 20px)) / 5)', // 5 columns visible on desktop
+                    gridAutoColumns: 'calc((100% - (4 * 20px)) / 5)',
                     paddingTop: '8px',
                     paddingBottom: '8px',
                   }}
                 >
-                  {categorias.map(nome => {
-                    const Icone = CATEGORIAS_ICONES[nome] || LayoutGrid;
-                    const ativo = catAtiva === nome;
+                  {categorias.map(cat => {
+                    const Icone = CATEGORIAS_ICONES[cat.nome] || LayoutGrid;
+                    const ativo = catAtiva === cat.nome;
                     return (
                       <button
-                        key={nome}
-                        onClick={() => handleCategoriaClick(nome)}
+                        key={cat.id ?? cat.nome}
+                        onClick={() => handleCategoriaClick(cat)}
                         className="flex flex-col items-center gap-1.5 w-full group"
                       >
-                        <div className={`w-[48px] h-[48px] md:w-[72px] md:h-[72px] rounded-[16px] md:rounded-[24px] flex items-center justify-center border transition-all ${
-                          ativo
-                            ? 'bg-[#f9943b] border-[#f9943b] text-white shadow-md scale-105'
-                            : 'bg-[#F5F2ED] border-transparent text-[#394158] group-hover:border-[#f9943b] group-hover:text-[#f9943b]'
-                        }`}>
+                        <div className={`w-[48px] h-[48px] md:w-[72px] md:h-[72px] rounded-[16px] md:rounded-[24px] flex items-center justify-center border transition-all ${ativo
+                          ? 'bg-[#f9943b] border-[#f9943b] text-white shadow-md scale-105'
+                          : 'bg-[#F5F2ED] border-transparent text-[#394158] group-hover:border-[#f9943b] group-hover:text-[#f9943b]'
+                          }`}>
                           <Icone className="w-5 h-5 md:w-6 md:h-6" strokeWidth={1.5} />
                         </div>
-                        <span className={`text-[10px] md:text-[11px] leading-[1.2] text-center px-0.5 ${
-                          ativo ? 'font-bold text-[#f9943b]' : 'font-medium text-gray-600'
-                        }`}>{nome}</span>
+                        <span className={`text-[10px] md:text-[11px] leading-[1.2] text-center px-0.5 ${ativo ? 'font-bold text-[#f9943b]' : 'font-medium text-gray-600'}`}>{cat.nome}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
-
-              {/* Seta direita */}
               <button
                 onClick={() => scrollCat('next')}
                 className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10 w-7 h-7 md:w-8 md:h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center transition-all ${podeNext ? 'opacity-100 hover:bg-[#f9943b] hover:text-white hover:border-[#f9943b]' : 'opacity-0 pointer-events-none'}`}
@@ -449,7 +474,7 @@ export default function HomeComprador() {
           </div>
         </section>
 
-        {/* PAINEL DE PRODUTOS */}
+        {/* Produtos */}
         <section className="w-full max-w-6xl mx-auto bg-gray-100/50 p-4 md:p-10 rounded-[1rem] border border-gray-200 shadow-inner mb-12">
           <div className="w-full">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
@@ -467,15 +492,26 @@ export default function HomeComprador() {
 
             {carregando ? (
               <div className="text-center py-20 text-sm font-black uppercase text-gray-300">Carregando...</div>
+            ) : erroCarregamento ? (
+              <div className="text-center py-20 flex flex-col items-center gap-4">
+                <p className="text-sm font-black uppercase text-red-400">Erro ao carregar produtos</p>
+                <p className="text-xs font-medium text-gray-400 max-w-md">{erroCarregamento}</p>
+                <button
+                  onClick={() => setTentativa(t => t + 1)}
+                  className="bg-[#55833d] text-white px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform"
+                >
+                  Tentar novamente
+                </button>
+              </div>
             ) : produtosExibidos.length === 0 ? (
               <div className="text-center py-20 text-sm font-black uppercase text-gray-300">Nenhum produto encontrado</div>
             ) : (
-              <div className="grid grid-cols-3 md:grid-cols-4 gap-3 md:gap-8">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-8">
                 {produtosExibidos.map(prod => (
                   <div key={prod.id} className="relative bg-white p-2 md:p-5 rounded-[1rem] shadow-xl flex flex-col group border border-transparent hover:border-[#55833d]/20 transition-all">
                     <button onClick={e => toggleFavorito(e, prod.id)}
                       className="absolute top-3 left-3 z-20 p-1.5 bg-white/80 backdrop-blur-md rounded-full shadow-sm hover:scale-110 transition-transform">
-                      <Heart size={14} className={favoritos.includes(prod.id) ? "fill-[#802D44] text-[#802D44]" : "text-gray-400"} />
+                      <Heart size={14} className={favoritos.includes(prod.id) ? 'fill-[#802D44] text-[#802D44]' : 'text-gray-400'} />
                     </button>
                     <div className="relative overflow-hidden rounded-[1rem] mb-3 md:mb-4 aspect-square">
                       <Link to={`/produto/${prod.id}`}>
@@ -487,19 +523,18 @@ export default function HomeComprador() {
                         <Plus size={14} />
                       </button>
                     </div>
-                    <span className="text-[6px] md:text-[9px] font-black uppercase text-[#55833d] mb-1">{prod.nomeCategoria}</span>
+                    <span className="text-[8px] md:text-[9px] font-black uppercase text-[#55833d] mb-1">{prod.nomeCategoria}</span>
                     <Link to={`/produto/${prod.id}`}>
-                      <h3 className="font-bold text-[#394158] text-[8px] md:text-sm leading-tight mb-1 line-clamp-1 hover:text-[#55833d] transition-colors">{prod.nome}</h3>
+                      <h3 className="font-bold text-[#394158] text-[11px] md:text-sm leading-tight mb-1 line-clamp-1 hover:text-[#55833d] transition-colors">{prod.nome}</h3>
                     </Link>
-                    <div className="flex items-center gap-1 text-[#394158]/50 mb-2 uppercase font-bold text-[6px] md:text-[9px]">
+                    <div className="flex items-center gap-1 text-[#394158]/50 mb-2 uppercase font-bold text-[8px] md:text-[9px]">
                       <MapPin size={8} /> {prod.nomeLoja}
                     </div>
                     <div className="mt-auto pt-2 border-t border-gray-50 flex justify-between items-center">
-                      <span className="text-[10px] md:text-lg font-black text-[#394158]">
+                      <span className="text-xs md:text-lg font-black text-[#394158]">
                         R$ {Number(prod.precoAtual).toFixed(2)}
-                        <span className="text-[7px] md:text-[10px] opacity-40 ml-1">/{prod.unidadeMedida}</span>
+                        {prod.unidadeMedida && <span className="text-[7px] md:text-[10px] opacity-40 ml-1">/{prod.unidadeMedida}</span>}
                       </span>
-                      <Link to={`/produto/${prod.id}`} className="hidden md:block text-[9px] font-black uppercase bg-[#394158] text-white px-4 py-1.5 rounded-xl hover:bg-[#55833d]">Detalhes</Link>
                     </div>
                   </div>
                 ))}
@@ -532,15 +567,7 @@ export default function HomeComprador() {
         <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#394158]/60">© 2026 Rede Nordeste - Todos os direitos reservados.</span>
       </footer>
 
-      <BottomTabBar
-        tabs={[
-          { to: '/vendedor', label: 'Vitrine', Icon: HomeIcon },
-          { to: '/painelvendedor', label: 'Painel', Icon: LayoutDashboard },
-          { to: '/receitasvendedor', label: 'Receitas', Icon: BookOpen },
-          { to: '/chat', label: 'Chat', Icon: MessageCircle, badge: naoLidas },
-          { to: '/perfilvendedor', label: 'Perfil', Icon: User },
-        ]}
-      />
+      <BottomTabBar tabs={bottomTabs} />
     </div>
   );
 }

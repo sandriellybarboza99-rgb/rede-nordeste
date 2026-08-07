@@ -4,7 +4,7 @@ import {
   Plus, Package, DollarSign, ShoppingBag, Store,
   Edit2, Trash2, Image as ImageIcon, CheckCircle,
   AlertTriangle, Home as HomeIcon, LayoutDashboard,
-  MessageCircle, User, BookOpen, ShieldOff,
+  MessageCircle, User, BookOpen, ShieldOff, MapPin
 } from 'lucide-react';
 import {
   getMinhaLoja, criarLoja, atualizarLoja,
@@ -271,7 +271,7 @@ export default function PainelVendedor() {
         <PageHeader
           titulo="Bem-vindo, vendedor"
           subtitulo="Primeiro passo: criar sua loja"
-          voltarPara="/vendedor"
+          voltarPara="/home2"
           labelVoltar="Vitrine"
           acoesDireita={<UserMenu perfilPath="/perfilvendedor" />}
         />
@@ -307,7 +307,7 @@ export default function PainelVendedor() {
         <PageHeader
           titulo={loja.nomeLoja}
           subtitulo={`${loja.cidade ?? ''}${loja.estado ? ' · ' + loja.estado : ''}`}
-          voltarPara="/vendedor"
+          voltarPara="/home2"
           labelVoltar="Vitrine"
           acoesDireita={<UserMenu perfilPath="/perfilvendedor" />}
         />
@@ -335,8 +335,8 @@ export default function PainelVendedor() {
               key={t.id}
               onClick={() => setAbaAtiva(t.id as Aba)}
               className={`px-6 py-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest border-b-2 transition-colors ${abaAtiva === t.id
-                  ? 'border-[#55833d] text-[#55833d]'
-                  : 'border-transparent text-[#394158]/50 hover:text-[#394158]'
+                ? 'border-[#55833d] text-[#55833d]'
+                : 'border-transparent text-[#394158]/50 hover:text-[#394158]'
                 }`}
             >
               <t.Icon size={16} /> {t.label}
@@ -483,73 +483,73 @@ export default function PainelVendedor() {
               ) : (
                 <div className="space-y-3">
                   {pedidos.map(p => (
-                  <Card key={p.id} padding="md" className="flex flex-col gap-4">
-                    {/* HEADER DO PEDIDO */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-black uppercase text-[#394158]">Pedido #{p.id}</h3>
-                        <div className="flex flex-wrap items-center gap-2 mt-1">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase bg-gray-50 px-2 py-0.5 rounded-md">
-                            {p.statusPagamento || '—'}
-                          </span>
-                          <span className="text-[10px] font-bold text-[#55833d] uppercase bg-[#55833d]/10 px-2 py-0.5 rounded-md">
-                            {p.itens?.length || 0} itens
-                          </span>
+                    <Card key={p.id} padding="md" className="flex flex-col gap-4">
+                      {/* HEADER DO PEDIDO */}
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-black uppercase text-[#394158]">Pedido #{p.id}</h3>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase bg-gray-50 px-2 py-0.5 rounded-md">
+                              {p.statusPagamento || '—'}
+                            </span>
+                            <span className="text-[10px] font-bold text-[#55833d] uppercase bg-[#55833d]/10 px-2 py-0.5 rounded-md">
+                              {p.itens?.length || 0} itens
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
+                          <span className="text-base font-black text-[#55833d] md:mr-3">R$ {Number(p.valorTotal).toFixed(2)}</span>
+                          <select
+                            value={p.statusEntrega || 'PEDIDO_RECEBIDO'}
+                            onChange={(e) => avancarStatusPedido(p.id, e.target.value)}
+                            className="bg-[#55833d] text-white text-[10px] font-black uppercase px-3 py-2 rounded-lg outline-none cursor-pointer hover:bg-[#436830] transition-colors appearance-none text-center shadow-sm"
+                            style={{ textAlignLast: 'center' }}
+                          >
+                            <option value="PEDIDO_RECEBIDO">Pedido Recebido</option>
+                            <option value="AGUARDANDO_ENTREGADOR">Aguardando Entregador</option>
+                            <option value="ENTREGADOR_ACEITOU">Entregador Aceitou</option>
+                            <option value="PEDIDO_EM_COLETA">Em Coleta / Embalando</option>
+                            <option value="SAIU_PARA_ENTREGA">Saiu para Entrega</option>
+                            <option value="RETIRADA_DISPONIVEL">Pronto para Retirada</option>
+                            <option value="ENTREGUE">Entregue</option>
+                            <option value="CANCELADO">Cancelado</option>
+                          </select>
                         </div>
                       </div>
-                      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
-                        <span className="text-base font-black text-[#55833d] md:mr-3">R$ {Number(p.valorTotal).toFixed(2)}</span>
-                        <select
-                          value={p.statusEntrega || 'PEDIDO_RECEBIDO'}
-                          onChange={(e) => avancarStatusPedido(p.id, e.target.value)}
-                          className="bg-[#55833d] text-white text-[10px] font-black uppercase px-3 py-2 rounded-lg outline-none cursor-pointer hover:bg-[#436830] transition-colors appearance-none text-center shadow-sm"
-                          style={{ textAlignLast: 'center' }}
-                        >
-                          <option value="PEDIDO_RECEBIDO">Pedido Recebido</option>
-                          <option value="AGUARDANDO_ENTREGADOR">Aguardando Entregador</option>
-                          <option value="ENTREGADOR_ACEITOU">Entregador Aceitou</option>
-                          <option value="PEDIDO_EM_COLETA">Em Coleta / Embalando</option>
-                          <option value="SAIU_PARA_ENTREGA">Saiu para Entrega</option>
-                          <option value="RETIRADA_DISPONIVEL">Pronto para Retirada</option>
-                          <option value="ENTREGUE">Entregue</option>
-                          <option value="CANCELADO">Cancelado</option>
-                        </select>
-                      </div>
-                    </div>
 
-                    {/* INFORMAÇÕES DO CLIENTE */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                      <div className="flex items-start gap-2 text-gray-600">
-                        <User size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
-                        <div>
-                          <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Comprador</p>
-                          <p className="font-black text-[#394158] uppercase">{p.nomeComprador || 'Cliente não identificado'}</p>
+                      {/* INFORMAÇÕES DO CLIENTE */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div className="flex items-start gap-2 text-gray-600">
+                          <User size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
+                          <div>
+                            <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Comprador</p>
+                            <p className="font-black text-[#394158] uppercase">{p.nomeComprador || 'Cliente não identificado'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2 text-gray-600">
+                          <MapPin size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
+                          <div>
+                            <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Entrega / Retirada</p>
+                            <p className="font-black text-[#394158]">{p.enderecoEntrega || 'RETIRADA NA LOJA'}</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-start gap-2 text-gray-600">
-                        <MapPin size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
-                        <div>
-                          <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Entrega / Retirada</p>
-                          <p className="font-black text-[#394158]">{p.enderecoEntrega || 'RETIRADA NA LOJA'}</p>
-                        </div>
-                      </div>
-                    </div>
 
-                    {/* LISTA DE PRODUTOS */}
-                    <div className="bg-[#F5F2ED] rounded-xl p-3 space-y-2">
-                      <p className="font-black uppercase text-[10px] text-[#394158] tracking-widest mb-2">Produtos do Pedido</p>
-                      {p.itens?.map((item: any, i: number) => (
-                        <div key={i} className="flex justify-between items-center text-xs border-b border-gray-200/50 last:border-0 pb-2 last:pb-0">
-                          <span className="font-bold text-gray-600">
-                            <span className="text-[#55833d] mr-1">{item.quantidade}x</span> 
-                            {item.nomeProduto}
-                          </span>
-                          <span className="font-black text-[#394158]">R$ {Number(item.subtotal).toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                ))}
+                      {/* LISTA DE PRODUTOS */}
+                      <div className="bg-[#F5F2ED] rounded-xl p-3 space-y-2">
+                        <p className="font-black uppercase text-[10px] text-[#394158] tracking-widest mb-2">Produtos do Pedido</p>
+                        {p.itens?.map((item: any, i: number) => (
+                          <div key={i} className="flex justify-between items-center text-xs border-b border-gray-200/50 last:border-0 pb-2 last:pb-0">
+                            <span className="font-bold text-gray-600">
+                              <span className="text-[#55833d] mr-1">{item.quantidade}x</span>
+                              {item.nomeProduto}
+                            </span>
+                            <span className="font-black text-[#394158]">R$ {Number(item.subtotal).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  ))}
                 </div>
               )}
             </>
@@ -641,9 +641,9 @@ export default function PainelVendedor() {
 
       <BottomTabBar
         tabs={[
-          { to: '/vendedor', label: 'Vitrine', Icon: HomeIcon },
+          { to: '/home2', label: 'Vitrine', Icon: HomeIcon },
           { to: '/painelvendedor', label: 'Painel', Icon: LayoutDashboard },
-          { to: '/receitasvendedor', label: 'Receitas', Icon: BookOpen },
+          { to: '/receitas', label: 'Receitas', Icon: BookOpen },
           { to: '/chat', label: 'Chat', Icon: MessageCircle },
           { to: '/perfilvendedor', label: 'Perfil', Icon: User },
         ]}

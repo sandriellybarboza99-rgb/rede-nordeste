@@ -352,7 +352,7 @@ Todos sob o prefixo `/api`. Coluna **Auth**: `público` = sem token, `auth` = qu
 6. Atualiza `usuarios.data_ultimo_login`.
 7. Retorna `{accessToken, refreshToken, nome, email, perfil}`.
 8. Front salva via `AuthContext.login(...)` → localStorage + re-render global.
-9. Redireciona conforme `perfil`: ADMIN→`/admin`, PRODUTOR→`/vendedor`, COMPRADOR→`/home2`.
+9. Redireciona conforme `perfil`: ADMIN→`/admin`, PRODUTOR→`/home2`, COMPRADOR→`/home2`.
 
 ### 9.3. Request autenticado
 1. Axios interceptor anexa `Authorization: Bearer <accessToken>`.
@@ -378,7 +378,7 @@ Todos sob o prefixo `/api`. Coluna **Auth**: `público` = sem token, `auth` = qu
 
 ### 9.6. Onboarding de vendedor
 1. Vendedor se cadastra como PRODUTOR.
-2. Loga e vai para `/vendedor` (vitrine) ou `/painelvendedor`.
+2. Loga e vai para `/home2` (vitrine) ou `/painelvendedor`.
 3. `/painelvendedor` detecta que ele não tem loja → wizard de criação obrigatório.
 4. Vendedor preenche dados da loja (incluindo lat/long via "Usar minha localização").
 5. Loja nasce com `verificada=false` → produtos não aparecem na vitrine pública.
@@ -454,7 +454,7 @@ Redirect pós-login depende do `perfil` retornado pelo backend:
 | Perfil | Vai para |
 |---|---|
 | ADMIN | `/admin` |
-| PRODUTOR | `/vendedor` |
+| PRODUTOR | `/home2` |
 | COMPRADOR | `/home2` |
 
 Não há `/login-admin` ou `/login-vendedor`. Mesma rota, mesmo formulário, mesmos endpoints — a separação acontece **no token** (claim `perfil`) e **nos guards** do front (`<RotaProtegida permitidos={['COMPRADOR']}>`).
@@ -621,7 +621,7 @@ Histórico técnico completo em [`.dev/raMemory.md`](.dev/raMemory.md).
 | **DTO** | Data Transfer Object — record Java que representa request/response, separado da entidade. |
 | **Seeder** | Classe Java que popula o banco no startup (`AdminSeeder`, `DemoSeeder`). |
 | **Privilege escalation** | Atacante consegue subir o próprio perfil (ex: virar ADMIN). Bloqueado em `UsuarioService.registrar`. |
-| **Impersonate (na nossa convenção)** | ADMIN pode acessar qualquer rota (inclusive `/home2` e `/vendedor`). Para diagnosticar problemas dos outros perfis. |
+| **Impersonate (na nossa convenção)** | ADMIN pode acessar qualquer rota (inclusive `/home2` e `/home2`). Para diagnosticar problemas dos outros perfis. |
 
 ---
 

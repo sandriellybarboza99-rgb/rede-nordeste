@@ -38,7 +38,7 @@ export default function Empreendedoras() {
         <PageHeader
           titulo="Empreendedoras de Sergipe"
           subtitulo="Mulheres que transformam o Nordeste"
-          voltarPara={perfil === 'PRODUTOR' ? '/vendedor' : '/home2'}
+          voltarPara={perfil === 'PRODUTOR' ? '/home2' : '/home2'}
           labelVoltar="Início"
         />
 

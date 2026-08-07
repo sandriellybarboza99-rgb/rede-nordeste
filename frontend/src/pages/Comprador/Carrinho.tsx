@@ -623,7 +623,7 @@ export default function Carrinho() {
               Ver Meus Pedidos
             </button>
             <button
-              onClick={() => navigate('/Vendedor')}
+              onClick={() => navigate('/home2')}
               className="w-full bg-gray-100 text-[#394158] py-4 rounded-full font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-colors"
             >
               Voltar à Vitrine

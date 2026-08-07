@@ -6,7 +6,7 @@ import {
   ChevronRight, Settings,
   MapPin, Clock, ArrowRight, Home, LayoutList, Store, X, 
   Trash2, Menu, User, Map, CreditCard, CreditCard as CardIcon, ChevronLeft, Pencil,
-  Eye, Filter, HeartOff, Lock, ShoppingBag, Calendar
+  Eye, Filter, HeartOff, Lock, ShoppingBag, Calendar, QrCode, Copy
 } from 'lucide-react';
 import {
   getMeusPedidos, atualizarMeuPerfil, getMeuPerfil,
@@ -18,6 +18,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { BackButton } from '../../components/ui/BackButton';
+import { gerarPayloadPix } from '../../utils/pixPayload';
 
 interface Endereco {
   id: number;
@@ -52,6 +53,7 @@ export default function Perfil() {
   const [abaAtiva, setAbaAtiva] = useState<'pagar' | 'preparando' | 'caminho' | 'finalizados'>('finalizados');
   const [secaoConfig, setSecaoConfig] = useState<'menu' | 'conta' | 'enderecos' | 'cartoes'>('menu');
   const [pedidoSelecionado, setPedidoSelecionado] = useState<any>(null);
+  const [copiado, setCopiado] = useState<string | false>(false);
 
   // ── Dados do usuário (CONTROLADO PELO BACKEND via /usuarios/me) ──
   const [dadosUsuario, setDadosUsuario] = useState({
@@ -568,6 +570,7 @@ export default function Perfil() {
 
     const status = pedidoSelecionado.statusEntrega || 'PEDIDO_RECEBIDO';
     const isCancelado = status === 'CANCELADO';
+    const isAguardandoPagamento = pedidoSelecionado.statusPagamento === 'AGUARDANDO';
     
     // Calcula o progresso (0 a 3)
     let progresso = 0;
@@ -584,12 +587,70 @@ export default function Perfil() {
           </div>
           <div className="p-8 space-y-8">
             
-            {/* WIZARD TRACKING */}
+            {/* WIZARD TRACKING OR PAYMENT */}
             {isCancelado ? (
               <div className="bg-red-50 p-6 rounded-2xl border border-red-100 flex flex-col items-center justify-center text-center">
                 <X size={32} className="text-red-500 mb-2" />
                 <h4 className="text-red-600 font-black uppercase text-sm">Pedido Cancelado</h4>
                 <p className="text-[10px] font-bold text-red-400 mt-1 uppercase tracking-widest">Este pedido não será entregue.</p>
+              </div>
+            ) : isAguardandoPagamento ? (
+              <div className="bg-[#f9943b]/5 p-6 rounded-2xl border border-[#f9943b]/20 flex flex-col text-left">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-full bg-[#f9943b] text-white flex items-center justify-center shrink-0">
+                    <QrCode size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-[#f9943b] font-black uppercase tracking-widest text-sm">Aguardando Pagamento</h4>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">Realize o pagamento PIX para liberar o pedido</p>
+                  </div>
+                </div>
+                
+                {pedidoSelecionado.detalhesPixLojas && pedidoSelecionado.detalhesPixLojas.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-4">
+                    {pedidoSelecionado.detalhesPixLojas.map((lojaPix: any) => {
+                      const payload = gerarPayloadPix({
+                        chavePix: lojaPix.chavePix || '',
+                        tipoChavePix: lojaPix.tipoChavePix || 'CPF',
+                        nomeRecebedor: lojaPix.nomeLoja || 'Loja',
+                        cidadeRecebedor: 'Sergipe',
+                        valor: lojaPix.valorTotal,
+                        txId: '***'
+                      });
+                      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(payload)}`;
+                      return (
+                        <div key={lojaPix.lojaId} className="bg-white p-4 rounded-xl border border-gray-100 flex flex-col md:flex-row items-center gap-6">
+                           <div className="shrink-0 p-2 bg-[#F5F2ED] rounded-lg">
+                             <img src={qrUrl} alt={`QR Code ${lojaPix.nomeLoja}`} className="w-24 h-24 object-contain mix-blend-multiply" />
+                           </div>
+                           <div className="flex-1 w-full space-y-3">
+                             <div>
+                               <p className="text-[10px] font-black uppercase text-gray-400">Loja Recebedora</p>
+                               <p className="text-sm font-bold text-[#394158]">{lojaPix.nomeLoja}</p>
+                               <p className="text-sm font-black text-[#55833d] mt-1">R$ {lojaPix.valorTotal.toFixed(2)}</p>
+                             </div>
+                             <div className="flex items-center gap-2">
+                               <input type="text" readOnly value={payload} className="bg-[#F5F2ED] text-[10px] font-mono p-2.5 rounded-lg w-full outline-none text-gray-500 truncate" />
+                               <button 
+                                 onClick={() => {
+                                   navigator.clipboard.writeText(payload);
+                                   setCopiado(`loja-${lojaPix.lojaId}`);
+                                   setTimeout(() => setCopiado(false), 2000);
+                                 }}
+                                 className="shrink-0 bg-[#394158] hover:bg-[#2a3042] text-white p-2.5 rounded-lg flex items-center gap-2 text-[10px] font-black uppercase transition-colors"
+                               >
+                                 <Copy size={14} />
+                                 {copiado === `loja-${lojaPix.lojaId}` ? 'Copiado!' : 'Copiar'}
+                               </button>
+                             </div>
+                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                   <p className="text-xs text-gray-400 font-bold mt-4">Dados de pagamento indisponíveis.</p>
+                )}
               </div>
             ) : (
               <div className="relative pt-4 pb-8">
@@ -638,7 +699,7 @@ export default function Perfil() {
             
             <div className="pt-6 border-t border-dashed flex flex-col gap-4">
               <div className="flex justify-between items-baseline px-2">
-                <span className="font-black uppercase text-[10px] opacity-30">Total Pago</span>
+                <span className="font-black uppercase text-[10px] opacity-30">{isAguardandoPagamento ? 'Total a Pagar' : 'Total Pago'}</span>
                 <span className="text-2xl font-black text-[#55833d]">R$ {Number(pedidoSelecionado.valorTotal || pedidoSelecionado.total).toFixed(2)}</span>
               </div>
             </div>

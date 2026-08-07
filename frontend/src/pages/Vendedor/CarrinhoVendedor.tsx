@@ -91,13 +91,13 @@ export default function CarrinhoVendedor() {
   useEffect(() => {
     if (metodoEntrega !== 'entrega') { setValorFrete(0); return; }
     const end = meusEnderecos[enderecoSelecionado];
-    if (!end?.latitudeDestino || carrinho.itens.length === 0) return;
+    if (!end?.latitudeDestino || !end?.longitudeDestino || carrinho.itens.length === 0) return;
 
     const itemSel = carrinho.itens.find((i: any) => itensSelecionados.includes(i.produtoId));
     if (!itemSel) return;
 
     setCalculandoFrete(true);
-    simularFrete(itemSel.lojaId, end.latitudeDestino, end.longitudeDestino)
+    simularFrete(itemSel.lojaId, end.latitudeDestino!, end.longitudeDestino!)
       .then((data: any) => setValorFrete(Number(data.valorFrete)))
       .catch(() => setValorFrete(0))
       .finally(() => setCalculandoFrete(false));

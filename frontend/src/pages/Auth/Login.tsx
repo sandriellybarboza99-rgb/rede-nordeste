@@ -9,7 +9,7 @@ import { FormField } from '../../components/ui/Input';
 
 const HOME_POR_PERFIL: Record<string, string> = {
   ADMIN: '/admin',
-  PRODUTOR: '/vendedor',
+  PRODUTOR: '/home2',
   COMPRADOR: '/home2',
 };
 

@@ -234,7 +234,7 @@ export default function PerfilVendedor() {
         <PageHeader
           titulo="Perfil do Vendedor"
           subtitulo="Gerencie sua loja, dados para recebimento (PIX) e conta"
-          voltarPara={() => navigate('/vendedor')}
+          voltarPara={() => navigate('/home2')}
         />
         {/* CABEÇALHO DO PRODUTOR */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-6">
@@ -689,9 +689,9 @@ export default function PerfilVendedor() {
 
       <BottomTabBar
         tabs={[
-          { to: '/vendedor', label: 'Vitrine', Icon: HomeIcon },
+          { to: '/home2', label: 'Vitrine', Icon: HomeIcon },
           { to: '/painelvendedor', label: 'Painel', Icon: LayoutDashboard },
-          { to: '/receitasvendedor', label: 'Receitas', Icon: BookOpen },
+          { to: '/receitas', label: 'Receitas', Icon: BookOpen },
           { to: '/chat', label: 'Chat', Icon: MessageCircle },
           { to: '/perfilvendedor', label: 'Perfil', Icon: User },
         ]}
