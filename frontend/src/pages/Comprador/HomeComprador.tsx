@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, ShoppingCart, User, Plus, Filter, MapPin,
   Star, LayoutGrid, Palette, Beef, Sprout, Wheat, Carrot, Milk, Bed, Utensils, Shirt,
-  MessageCircle, Heart, ChevronRight, Menu, X, BookOpen, Store, Bell, HelpCircle, Home as HomeIcon
+  MessageCircle, Heart, ChevronRight, ChevronLeft, Menu, X, BookOpen, Store, Bell, HelpCircle, Home as HomeIcon
 } from 'lucide-react';
 import {
   buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho
@@ -51,6 +51,25 @@ export default function HomeComprador() {
   const [naoLidas, setNaoLidas] = useState(0);
   const [tutorialAberto, setTutorialAberto] = useState(false);
 
+  // ── Scroll horizontal das categorias ─────────────────────────────
+  const catScrollRef = useRef<HTMLDivElement>(null);
+  const [podePrev, setPodePrev] = useState(false);
+  const [podeNext, setPodeNext] = useState(false);
+
+  const atualizarSetas = () => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    setPodePrev(el.scrollLeft > 4);
+    setPodeNext(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
+
+  const scrollCat = (dir: 'prev' | 'next') => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === 'next' ? 220 : -220, behavior: 'smooth' });
+    setTimeout(atualizarSetas, 350);
+  };
+
   // ── Carrega categorias ────────────────────────────────────────────
   useEffect(() => {
     sessionStorage.setItem('origemBlog', 'painel');
@@ -62,10 +81,13 @@ export default function HomeComprador() {
     }
 
     getCategorias()
-      .then((data: any[]) => setCategorias([
-        { id: 0, nome: 'Todos' },
-        ...data.map((c: any) => ({ id: c.id, nome: c.nome })),
-      ]))
+      .then((data: any[]) => {
+        setCategorias([
+          { id: 0, nome: 'Todos' },
+          ...data.map((c: any) => ({ id: c.id, nome: c.nome })),
+        ]);
+        setTimeout(atualizarSetas, 100);
+      })
       .catch(() => setCategorias([{ id: 0, nome: 'Todos' }]));
 
     const raw = localStorage.getItem('usuarioLogado');
@@ -357,27 +379,78 @@ export default function HomeComprador() {
           </div>
         </section>
 
-        {/* SEÇÃO DE PRODUTOS E CATEGORIAS */}
-        <section className="w-full max-w-6xl mx-auto bg-gray-100/50 p-4 md:p-10 rounded-[1rem] border border-gray-200 shadow-inner mb-12">
-          <div className="mb-12">
-            <h2 className="text-xs md:text-xl font-black uppercase tracking-widest italic mb-10 text-[#394158]">Categorias</h2>
-            <div className="flex flex-wrap justify-center gap-y-5 gap-x-2 md:grid md:grid-cols-5 md:gap-8 justify-items-center max-w-4xl mx-auto px-1">
-              {categorias.map(cat => {
-                const Icone = CATEGORIAS_ICONES[cat.nome] || LayoutGrid;
-                const ativo = catAtiva === cat.nome;
-                return (
-                  <button key={cat.id || cat.nome} onClick={() => handleCategoriaClick(cat)}
-                    className="flex flex-col items-center gap-1.5 md:gap-3 w-[78px] md:w-[120px] group">
-                    <div className={`w-[52px] h-[52px] md:w-[72px] md:h-[72px] rounded-[18px] md:rounded-[24px] flex items-center justify-center border transition-all ${ativo ? 'bg-[#f9943b] border-[#f9943b] text-white shadow-md scale-105' : 'bg-white border-gray-100 text-[#394158] shadow-sm group-hover:border-[#f9943b] group-hover:text-[#f9943b]'}`}>
-                      <Icone className="w-[22px] h-[22px] md:w-8 md:h-8" strokeWidth={1.5} />
-                    </div>
-                    <span className={`text-[11px] md:text-[13px] leading-[1.1] text-center px-0.5 ${ativo ? 'font-bold text-[#f9943b]' : 'font-medium text-gray-700'}`}>{cat.nome}</span>
-                  </button>
-                );
-              })}
+        {/* PAINEL DE CATEGORIAS (separado) */}
+        <section className="w-full max-w-6xl mx-auto mb-4">
+          <div className="bg-white rounded-[1rem] border border-gray-200 shadow-sm p-4 md:p-8">
+            <h2 className="text-xs md:text-base font-black uppercase tracking-widest italic mb-5 text-[#394158]">Categorias</h2>
+
+            {/* Wrapper com setas */}
+            <div className="relative">
+              {/* Seta esquerda */}
+              <button
+                onClick={() => scrollCat('prev')}
+                className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 w-7 h-7 md:w-8 md:h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center transition-all ${podePrev ? 'opacity-100 hover:bg-[#f9943b] hover:text-white hover:border-[#f9943b]' : 'opacity-0 pointer-events-none'}`}
+                aria-label="Anterior"
+              >
+                <ChevronLeft size={14} />
+              </button>
+
+              {/* Container com scroll horizontal + 2 linhas */}
+              <div
+                ref={catScrollRef}
+                onScroll={atualizarSetas}
+                onLoad={atualizarSetas}
+                className="overflow-x-auto no-scrollbar"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
+                {/* Grid de 2 linhas × N colunas; cada coluna é a largura de um botão */}
+                <div
+                  className="grid gap-y-4 gap-x-3 md:gap-x-5"
+                  style={{
+                    gridTemplateRows: 'repeat(2, 1fr)',
+                    gridAutoFlow: 'column',
+                    gridAutoColumns: 'calc((100% - (4 * 20px)) / 5)', // 5 columns visible on desktop
+                    paddingTop: '8px',
+                    paddingBottom: '8px',
+                  }}
+                >
+                  {categorias.map(cat => {
+                    const Icone = CATEGORIAS_ICONES[cat.nome] || LayoutGrid;
+                    const ativo = catAtiva === cat.nome;
+                    return (
+                      <button
+                        key={cat.id || cat.nome}
+                        onClick={() => handleCategoriaClick(cat)}
+                        className="flex flex-col items-center gap-1.5 w-full group"
+                      >
+                        <div className={`w-[48px] h-[48px] md:w-[72px] md:h-[72px] rounded-[16px] md:rounded-[24px] flex items-center justify-center border transition-all ${ativo
+                          ? 'bg-[#f9943b] border-[#f9943b] text-white shadow-md scale-105'
+                          : 'bg-[#F5F2ED] border-transparent text-[#394158] group-hover:border-[#f9943b] group-hover:text-[#f9943b]'
+                          }`}>
+                          <Icone className="w-5 h-5 md:w-6 md:h-6" strokeWidth={1.5} />
+                        </div>
+                        <span className={`text-[10px] md:text-[11px] leading-[1.2] text-center px-0.5 ${ativo ? 'font-bold text-[#f9943b]' : 'font-medium text-gray-600'
+                          }`}>{cat.nome}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Seta direita */}
+              <button
+                onClick={() => scrollCat('next')}
+                className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10 w-7 h-7 md:w-8 md:h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center transition-all ${podeNext ? 'opacity-100 hover:bg-[#f9943b] hover:text-white hover:border-[#f9943b]' : 'opacity-0 pointer-events-none'}`}
+                aria-label="Próximo"
+              >
+                <ChevronRight size={14} />
+              </button>
             </div>
           </div>
+        </section>
 
+        {/* PAINEL DE PRODUTOS */}
+        <section className="w-full max-w-6xl mx-auto bg-gray-100/50 p-4 md:p-10 rounded-[1rem] border border-gray-200 shadow-inner mb-12">
           <div className="w-full">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
               <h2 className="text-xl font-black italic uppercase text-[#394158]">{catAtiva !== 'Todos' ? catAtiva : 'Nossos Produtos'}</h2>
@@ -447,11 +520,11 @@ export default function HomeComprador() {
 
       <BottomTabBar
         tabs={[
-          { to: '/home2',        label: 'Início',     Icon: HomeIcon },
-          { to: '/receitas',     label: 'Receitas',   Icon: BookOpen },
-          { to: '/carrinho',     label: 'Carrinho',   Icon: ShoppingCart, badge: carrinhoCount },
-          { to: '/chat',         label: 'Chat',       Icon: MessageCircle, badge: naoLidas },
-          { to: '/perfil',       label: 'Perfil',     Icon: User },
+          { to: '/home2', label: 'Início', Icon: HomeIcon },
+          { to: '/receitas', label: 'Receitas', Icon: BookOpen },
+          { to: '/carrinho', label: 'Carrinho', Icon: ShoppingCart, badge: carrinhoCount },
+          { to: '/chat', label: 'Chat', Icon: MessageCircle, badge: naoLidas },
+          { to: '/perfil', label: 'Perfil', Icon: User },
         ]}
       />
     </div>

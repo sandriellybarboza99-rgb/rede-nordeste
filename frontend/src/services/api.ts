@@ -53,6 +53,11 @@ const isAuthPublic = (url?: string) =>
 // ============================================================
 // INTERCEPTOR — trata erros e faz refresh automático
 // ============================================================
+// Estado compartilhado para serializar refreshes concorrentes.
+// Se múltiplas requests retornam 401 ao mesmo tempo, todas esperam
+// o mesmo promise de refresh em vez de cada uma tentar por conta própria.
+let refreshingPromise: Promise<string> | null = null;
+
 apiService.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -65,20 +70,30 @@ apiService.interceptors.response.use(
     ) {
       original._retry = true;
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) throw new Error("Sem sessão");
+        // Se já há um refresh em andamento, aguarda o mesmo promise
+        if (!refreshingPromise) {
+          refreshingPromise = (async () => {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) throw new Error("Sem sessão");
 
-        const dados = JSON.parse(raw);
-        const baseURL =
-          import.meta.env.VITE_API_URL || "http://localhost:8090/api";
-        const res = await axios.post(`${baseURL}/usuarios/refresh`, {
-          refreshToken: dados.refreshToken,
-        });
+            const dados = JSON.parse(raw);
+            const baseURL =
+              import.meta.env.VITE_API_URL || "http://localhost:8090/api";
+            const res = await axios.post(`${baseURL}/usuarios/refresh`, {
+              refreshToken: dados.refreshToken,
+            });
 
-        const novos = { ...dados, ...res.data };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(novos));
-        window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
-        original.headers.Authorization = `Bearer ${res.data.accessToken}`;
+            const novos = { ...dados, ...res.data };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(novos));
+            window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
+            return res.data.accessToken as string;
+          })().finally(() => {
+            refreshingPromise = null;
+          });
+        }
+
+        const newToken = await refreshingPromise;
+        original.headers.Authorization = `Bearer ${newToken}`;
         return apiService(original);
       } catch {
         limparSessaoLocal();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, ShoppingCart, User, Plus, Filter, MapPin,
@@ -47,10 +47,29 @@ export default function HomeComprador() {
   const [naoLidas, setNaoLidas] = useState(0);
   const [tutorialAberto, setTutorialAberto] = useState(false);
 
+  // ── Scroll horizontal das categorias ─────────────────────────────
+  const catScrollRef = useRef<HTMLDivElement>(null);
+  const [podePrev, setPodePrev] = useState(false);
+  const [podeNext, setPodeNext] = useState(false);
+
+  const atualizarSetas = () => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    setPodePrev(el.scrollLeft > 4);
+    setPodeNext(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
+
+  const scrollCat = (dir: 'prev' | 'next') => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === 'next' ? 220 : -220, behavior: 'smooth' });
+    setTimeout(atualizarSetas, 350);
+  };
+
   // ── Carrega categorias ────────────────────────────────────────────
   useEffect(() => {
     sessionStorage.setItem('origemBlog', 'painel');
-    
+
     // Tutorial
     if (!localStorage.getItem('tutorial_visto_vendedor')) {
       setTutorialAberto(true);
@@ -58,12 +77,15 @@ export default function HomeComprador() {
     }
 
     getCategorias()
-      .then((data: any[]) => setCategorias(['Todos', ...data.map((c: any) => c.nome)]))
+      .then((data: any[]) => {
+        setCategorias(['Todos', ...data.map((c: any) => c.nome)]);
+        setTimeout(atualizarSetas, 100);
+      })
       .catch(() => setCategorias(['Todos']));
 
     const raw = localStorage.getItem('usuarioLogado');
     if (raw) {
-      getNaoLidas().then((d: any) => setNaoLidas(d.total)).catch(() => {});
+      getNaoLidas().then((d: any) => setNaoLidas(d.total)).catch(() => { });
     }
 
     const salvos = localStorage.getItem('favoritos_itens');
@@ -251,7 +273,7 @@ export default function HomeComprador() {
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setTutorialAberto(false)} />
           <div className="relative bg-white w-full max-w-lg rounded-[2rem] p-6 md:p-8 shadow-2xl flex flex-col gap-6 animate-in zoom-in-95">
             <button onClick={() => setTutorialAberto(false)} className="absolute top-6 right-6 p-2 bg-[#F5F2ED] rounded-full hover:bg-gray-200"><X size={20} /></button>
-            
+
             <div className="text-center space-y-2 mt-4 md:mt-0">
               <h2 className="text-xl md:text-2xl font-black italic uppercase text-[#394158]">Guia Rápido</h2>
               <p className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest">Aprenda a usar a plataforma</p>
@@ -259,32 +281,32 @@ export default function HomeComprador() {
 
             <div className="space-y-3 max-h-[50vh] md:max-h-[60vh] overflow-y-auto no-scrollbar pb-4 px-2">
               <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
-                <div className="p-3 bg-white text-[#f9943b] rounded-full shadow-sm shrink-0"><Search size={20}/></div>
+                <div className="p-3 bg-white text-[#f9943b] rounded-full shadow-sm shrink-0"><Search size={20} /></div>
                 <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Busca & Filtros</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Use a busca no topo ou clique nas categorias (Laticínios, Hortifruti) para achar exatamente o que precisa.</p></div>
               </div>
-              
+
               <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
-                <div className="p-3 bg-white text-[#55833d] rounded-full shadow-sm shrink-0"><ShoppingCart size={20}/></div>
+                <div className="p-3 bg-white text-[#55833d] rounded-full shadow-sm shrink-0"><ShoppingCart size={20} /></div>
                 <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Carrinho</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Clique no botão laranja com "+" nos produtos para adicionar ao carrinho, depois vá no ícone superior para fechar a compra.</p></div>
               </div>
 
               <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
-                <div className="p-3 bg-white text-red-500 rounded-full shadow-sm shrink-0"><Heart size={20}/></div>
+                <div className="p-3 bg-white text-red-500 rounded-full shadow-sm shrink-0"><Heart size={20} /></div>
                 <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Favoritar</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Gostou de algo mas não quer comprar agora? Clique no coração no canto dos produtos para salvá-lo na sua lista.</p></div>
               </div>
 
               <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
                 <div className="flex flex-col gap-2 shrink-0">
                   <div className="flex gap-2">
-                    <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm"><Bell size={14}/></div>
-                    <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm"><MessageCircle size={14}/></div>
+                    <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm"><Bell size={14} /></div>
+                    <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm"><MessageCircle size={14} /></div>
                   </div>
-                  <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm w-fit mx-auto"><User size={14}/></div>
+                  <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm w-fit mx-auto"><User size={14} /></div>
                 </div>
                 <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Menu Superior (PC) / Lateral (Celular)</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Notificações, Chat direto com vendedores e Meu Perfil ficam sempre acessíveis nos ícones do cabeçalho ou menu.</p></div>
               </div>
             </div>
-            
+
             <button onClick={() => setTutorialAberto(false)} className="w-full bg-[#55833d] text-white py-4 rounded-[1rem] font-black uppercase text-[10px] md:text-xs tracking-widest shadow-lg hover:bg-[#436b2f] transition-colors mt-2">
               Entendi, Vamos Lá!
             </button>
@@ -351,25 +373,78 @@ export default function HomeComprador() {
           </div>
         </section>
 
-        <section className="w-full max-w-6xl mx-auto bg-gray-100/50 p-4 md:p-10 rounded-[1rem] border border-gray-200 shadow-inner mb-12">
-          <div className="mb-12">
-            <h2 className="text-xs md:text-xl font-black uppercase tracking-widest italic mb-10 text-[#394158]">Categorias</h2>
-            <div className="flex flex-wrap justify-center gap-y-5 gap-x-2 md:grid md:grid-cols-5 md:gap-8 justify-items-center max-w-4xl mx-auto px-1">
-              {categorias.map(nome => {
-                const Icone = CATEGORIAS_ICONES[nome] || LayoutGrid;
-                return (
-                  <button key={nome} onClick={() => handleCategoriaClick(nome)}
-                    className="flex flex-col items-center gap-1.5 md:gap-3 w-[78px] md:w-[120px] group">
-                    <div className={`w-[52px] h-[52px] md:w-[72px] md:h-[72px] rounded-[18px] md:rounded-[24px] flex items-center justify-center border transition-all ${catAtiva === nome ? 'bg-[#f9943b] border-[#f9943b] text-white shadow-md scale-105' : 'bg-white border-gray-100 text-[#394158] shadow-sm group-hover:border-[#f9943b] group-hover:text-[#f9943b]'}`}>
-                      <Icone className="w-[22px] h-[22px] md:w-8 md:h-8" strokeWidth={1.5} />
-                    </div>
-                    <span className={`text-[11px] md:text-[13px] leading-[1.1] text-center px-0.5 ${catAtiva === nome ? 'font-bold text-[#f9943b]' : 'font-medium text-gray-700'}`}>{nome}</span>
-                  </button>
-                );
-              })}
+        {/* PAINEL DE CATEGORIAS (separado) */}
+        <section className="w-full max-w-6xl mx-auto mb-4">
+          <div className="bg-white rounded-[1rem] border border-gray-200 shadow-sm p-4 md:p-8">
+            <h2 className="text-xs md:text-base font-black uppercase tracking-widest italic mb-5 text-[#394158]">Categorias</h2>
+
+            {/* Wrapper com setas */}
+            <div className="relative">
+              {/* Seta esquerda */}
+              <button
+                onClick={() => scrollCat('prev')}
+                className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 w-7 h-7 md:w-8 md:h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center transition-all ${podePrev ? 'opacity-100 hover:bg-[#f9943b] hover:text-white hover:border-[#f9943b]' : 'opacity-0 pointer-events-none'}`}
+                aria-label="Anterior"
+              >
+                <ChevronLeft size={14} />
+              </button>
+
+              {/* Container com scroll horizontal + 2 linhas */}
+              <div
+                ref={catScrollRef}
+                onScroll={atualizarSetas}
+                className="overflow-x-auto no-scrollbar"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
+                <div
+                  className="grid gap-y-4 gap-x-3 md:gap-x-5"
+                  style={{
+                    gridTemplateRows: 'repeat(2, 1fr)',
+                    gridAutoFlow: 'column',
+                    gridAutoColumns: 'calc((100% - (4 * 20px)) / 5)', // 5 columns visible on desktop
+                    paddingTop: '8px',
+                    paddingBottom: '8px',
+                  }}
+                >
+                  {categorias.map(nome => {
+                    const Icone = CATEGORIAS_ICONES[nome] || LayoutGrid;
+                    const ativo = catAtiva === nome;
+                    return (
+                      <button
+                        key={nome}
+                        onClick={() => handleCategoriaClick(nome)}
+                        className="flex flex-col items-center gap-1.5 w-full group"
+                      >
+                        <div className={`w-[48px] h-[48px] md:w-[72px] md:h-[72px] rounded-[16px] md:rounded-[24px] flex items-center justify-center border transition-all ${
+                          ativo
+                            ? 'bg-[#f9943b] border-[#f9943b] text-white shadow-md scale-105'
+                            : 'bg-[#F5F2ED] border-transparent text-[#394158] group-hover:border-[#f9943b] group-hover:text-[#f9943b]'
+                        }`}>
+                          <Icone className="w-5 h-5 md:w-6 md:h-6" strokeWidth={1.5} />
+                        </div>
+                        <span className={`text-[10px] md:text-[11px] leading-[1.2] text-center px-0.5 ${
+                          ativo ? 'font-bold text-[#f9943b]' : 'font-medium text-gray-600'
+                        }`}>{nome}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Seta direita */}
+              <button
+                onClick={() => scrollCat('next')}
+                className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10 w-7 h-7 md:w-8 md:h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center transition-all ${podeNext ? 'opacity-100 hover:bg-[#f9943b] hover:text-white hover:border-[#f9943b]' : 'opacity-0 pointer-events-none'}`}
+                aria-label="Próximo"
+              >
+                <ChevronRight size={14} />
+              </button>
             </div>
           </div>
+        </section>
 
+        {/* PAINEL DE PRODUTOS */}
+        <section className="w-full max-w-6xl mx-auto bg-gray-100/50 p-4 md:p-10 rounded-[1rem] border border-gray-200 shadow-inner mb-12">
           <div className="w-full">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
               <h2 className="text-xl font-black italic uppercase text-[#394158]">{catAtiva !== 'Todos' ? catAtiva : 'Nossos Produtos'}</h2>
@@ -453,11 +528,11 @@ export default function HomeComprador() {
 
       <BottomTabBar
         tabs={[
-          { to: '/vendedor',         label: 'Vitrine',  Icon: HomeIcon },
-          { to: '/painelvendedor',   label: 'Painel',   Icon: LayoutDashboard },
+          { to: '/vendedor', label: 'Vitrine', Icon: HomeIcon },
+          { to: '/painelvendedor', label: 'Painel', Icon: LayoutDashboard },
           { to: '/receitasvendedor', label: 'Receitas', Icon: BookOpen },
-          { to: '/chat',             label: 'Chat',     Icon: MessageCircle, badge: naoLidas },
-          { to: '/perfilvendedor',   label: 'Perfil',   Icon: User },
+          { to: '/chat', label: 'Chat', Icon: MessageCircle, badge: naoLidas },
+          { to: '/perfilvendedor', label: 'Perfil', Icon: User },
         ]}
       />
     </div>
