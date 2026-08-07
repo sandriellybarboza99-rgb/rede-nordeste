@@ -40,4 +40,7 @@ public class Pedido {
 
     @Column(columnDefinition = "TEXT")
     private String observacoes;
+
+    @Transient
+    private java.util.Map<Long, BigDecimal> fretePorLojaReal = new java.util.HashMap<>();
 }

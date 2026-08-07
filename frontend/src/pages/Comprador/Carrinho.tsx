@@ -105,8 +105,18 @@ export default function Carrinho() {
   });
 
   // Estado dos Dados do PIX (gerados após o checkout)
-  const [pixDados, setPixDados] = useState<{ qrCodeUrl?: string; copiaECola?: string } | null>(null);
-  const [copiado, setCopiado] = useState(false);
+  const [pixDados, setPixDados] = useState<{
+    qrCodeUrl?: string;
+    copiaECola?: string;
+    lojas?: {
+      lojaId: number;
+      nomeLoja: string;
+      valorTotal: number;
+      qrCodeUrl: string;
+      copiaECola: string;
+    }[]
+  } | null>(null);
+  const [copiado, setCopiado] = useState<string | boolean>(false);
 
   // Carregar carrinho, endereços e cartões
   useEffect(() => {
@@ -417,41 +427,46 @@ export default function Carrinho() {
 
       if (metodoPagamento === 'pix') {
         const payloadPix = resposta?.pix || resposta || {};
-        let chavePixCopia = payloadPix.pixCopiaECola || payloadPix.chavePix || payloadPix.copiaECola;
+        const detalhesLojas = resposta?.detalhesPixLojas || [];
 
-        // Se não veio do backend, tentamos gerar no frontend buscando a loja
-        if (!chavePixCopia) {
-          try {
-            const primeiraLojaId = itens[0]?.produto?.lojaId || itens[0]?.lojaId;
-            if (primeiraLojaId) {
-              const lojaInfo = await getLojaPorId(primeiraLojaId);
-              if (lojaInfo?.chavePix) {
-                chavePixCopia = gerarPayloadPix({
-                  chavePix: lojaInfo.chavePix,
-                  tipoChavePix: lojaInfo.tipoChavePix,
-                  nomeRecebedor: lojaInfo.nomeLoja || 'Loja',
-                  cidadeRecebedor: lojaInfo.cidade || 'Aracaju',
-                  valor: total,
-                  txId: '***' // Bancos rejeitam txId diferente de *** para PIX estático
-                });
-              }
-            }
-          } catch (e) {
-            console.error('Erro ao buscar dados do PIX da loja', e);
+        if (detalhesLojas && detalhesLojas.length > 0) {
+          // MULTI-STORE ou SINGLE-STORE com detalhes
+          const lojasPix = detalhesLojas.map((lojaPix: any) => {
+            const copia = gerarPayloadPix({
+              chavePix: lojaPix.chavePix || '00020126580014BR.GOV.BCB.PIX0114+5579999999999520400005303986540510.005802BR5925REDE NORDESTE COMERCIO6009ARACAJU62070503***6304E2CA',
+              tipoChavePix: lojaPix.tipoChavePix,
+              nomeRecebedor: lojaPix.nomeLoja || 'Loja',
+              cidadeRecebedor: 'Sergipe',
+              valor: lojaPix.valorTotal,
+              txId: '***'
+            });
+            return {
+              lojaId: lojaPix.lojaId,
+              nomeLoja: lojaPix.nomeLoja,
+              valorTotal: lojaPix.valorTotal,
+              copiaECola: copia,
+              qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(copia)
+            };
+          });
+
+          setPixDados({
+            lojas: lojasPix
+          });
+        } else {
+          // Fallback legado se o backend não retornar detalhesPixLojas
+          let chavePixCopia = payloadPix.pixCopiaECola || payloadPix.chavePix || payloadPix.copiaECola;
+
+          if (!chavePixCopia) {
+            chavePixCopia = '00020126580014BR.GOV.BCB.PIX0114+5579999999999520400005303986540510.005802BR5925REDE NORDESTE COMERCIO6009ARACAJU62070503***6304E2CA';
           }
+
+          const urlQrCode = payloadPix.qrCodeUrl || payloadPix.qrCodeBase64 || ('https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(chavePixCopia));
+
+          setPixDados({
+            qrCodeUrl: urlQrCode,
+            copiaECola: chavePixCopia,
+          });
         }
-
-        // Fallback final
-        if (!chavePixCopia) {
-          chavePixCopia = '00020126580014BR.GOV.BCB.PIX0114+5579999999999520400005303986540510.005802BR5925REDE NORDESTE COMERCIO6009ARACAJU62070503***6304E2CA';
-        }
-
-        const urlQrCode = payloadPix.qrCodeUrl || payloadPix.qrCodeBase64 || ('https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(chavePixCopia));
-
-        setPixDados({
-          qrCodeUrl: urlQrCode,
-          copiaECola: chavePixCopia,
-        });
       }
 
       setSucesso(true);
@@ -520,37 +535,81 @@ export default function Carrinho() {
 
           {pixDados ? (
             <div className="space-y-5 bg-white p-6 rounded-2xl border border-gray-100 text-left">
-              <div className="text-center">
-                <p className="text-xs font-bold text-[#394158]">Escaneie o QR Code para Pagar via PIX</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">O pagamento é identificado instantaneamente</p>
+              <div className="text-center mb-6">
+                <p className="text-sm font-black uppercase text-[#394158]">Pagamento via PIX</p>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {pixDados.lojas && pixDados.lojas.length > 1
+                    ? 'Seu pedido inclui itens de lojas diferentes. Pague cada loja individualmente abaixo:'
+                    : 'Escaneie o QR Code ou copie o código abaixo para pagar pelo app do seu banco.'}
+                </p>
               </div>
 
-              <div className="flex justify-center p-3 bg-white rounded-xl border border-gray-200 w-fit mx-auto">
-                <img src={pixDados.qrCodeUrl} alt="QR Code PIX" className="w-44 h-44 object-contain" />
-              </div>
+              {pixDados.lojas ? (
+                <div className="space-y-6">
+                  {pixDados.lojas.map((lojaPix, index) => (
+                    <div key={lojaPix.lojaId} className="border border-gray-200 rounded-xl p-4 bg-[#F5F2ED]">
+                      <h4 className="font-bold text-[#55833d] text-sm mb-1">{lojaPix.nomeLoja}</h4>
+                      <p className="text-xs font-black text-[#394158] mb-4">Valor: R$ {lojaPix.valorTotal.toFixed(2)}</p>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">PIX Copia e Cola</label>
-                <div className="flex items-center gap-2 bg-white p-2.5 rounded-xl border border-gray-200">
-                  <input
-                    type="text"
-                    readOnly
-                    value={pixDados.copiaECola}
-                    className="bg-transparent text-[11px] font-mono w-full outline-none text-gray-600 truncate"
-                  />
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(pixDados.copiaECola || '');
-                      setCopiado(true);
-                      setTimeout(() => setCopiado(false), 2000);
-                    }}
-                    className="p-2 bg-[#55833d] text-white rounded-lg hover:bg-[#446a31] transition-colors shrink-0 flex items-center gap-1 text-[10px] font-bold uppercase"
-                  >
-                    <Copy size={12} />
-                    {copiado ? 'Copiado!' : 'Copiar'}
-                  </button>
+                      <div className="flex justify-center p-3 bg-white rounded-xl border border-gray-200 w-fit mx-auto mb-4">
+                        <img src={lojaPix.qrCodeUrl} alt={`QR Code PIX - ${lojaPix.nomeLoja}`} className="w-32 h-32 md:w-44 md:h-44 object-contain" />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">PIX Copia e Cola ({lojaPix.nomeLoja})</label>
+                        <div className="flex items-center gap-2 bg-white p-2.5 rounded-xl border border-gray-200">
+                          <input
+                            type="text"
+                            readOnly
+                            value={lojaPix.copiaECola}
+                            className="bg-transparent text-[11px] font-mono w-full outline-none text-gray-600 truncate"
+                          />
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(lojaPix.copiaECola || '');
+                              setCopiado(`loja-${lojaPix.lojaId}`);
+                              setTimeout(() => setCopiado(false), 2000);
+                            }}
+                            className="p-2 bg-[#55833d] text-white rounded-lg hover:bg-[#446a31] transition-colors shrink-0 flex items-center gap-1 text-[10px] font-bold uppercase"
+                          >
+                            <Copy size={12} />
+                            {copiado === `loja-${lojaPix.lojaId}` ? 'Copiado!' : 'Copiar'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div className="flex justify-center p-3 bg-white rounded-xl border border-gray-200 w-fit mx-auto">
+                    <img src={pixDados.qrCodeUrl} alt="QR Code PIX" className="w-44 h-44 object-contain" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">PIX Copia e Cola</label>
+                    <div className="flex items-center gap-2 bg-white p-2.5 rounded-xl border border-gray-200">
+                      <input
+                        type="text"
+                        readOnly
+                        value={pixDados.copiaECola}
+                        className="bg-transparent text-[11px] font-mono w-full outline-none text-gray-600 truncate"
+                      />
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(pixDados.copiaECola || '');
+                          setCopiado('single');
+                          setTimeout(() => setCopiado(false), 2000);
+                        }}
+                        className="p-2 bg-[#55833d] text-white rounded-lg hover:bg-[#446a31] transition-colors shrink-0 flex items-center gap-1 text-[10px] font-bold uppercase"
+                      >
+                        <Copy size={12} />
+                        {copiado === 'single' ? 'Copiado!' : 'Copiar'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <p className="text-xs text-gray-500">Seu pedido foi enviado para o produtor e já está sendo processado.</p>
@@ -564,7 +623,7 @@ export default function Carrinho() {
               Ver Meus Pedidos
             </button>
             <button
-              onClick={() => navigate('/empreendedoras')}
+              onClick={() => navigate('/Vendedor')}
               className="w-full bg-gray-100 text-[#394158] py-4 rounded-full font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-colors"
             >
               Voltar à Vitrine
