@@ -20,8 +20,9 @@ import { Button } from '../../components/ui/Button';
 import { FormField } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { Card } from '../../components/ui/Card';
+import { ModalLoja } from '../../components/modals/ModalLoja';
 
-type Aba = 'dashboard' | 'produtos' | 'pedidos' | 'loja';
+type Aba = 'dashboard' | 'produtos' | 'pedidos';
 
 export default function PainelVendedor() {
   const { success, error: toastError } = useToast();
@@ -31,13 +32,6 @@ export default function PainelVendedor() {
   const [loja, setLoja] = useState<any>(null);
   const [carregandoLoja, setCarregandoLoja] = useState(true);
   const [modalLoja, setModalLoja] = useState(false);
-  const [formLoja, setFormLoja] = useState<any>({
-    nomeLoja: '', descricaoBio: '', historia: '', cidade: '', estado: 'SE', cep: '',
-    logradouro: '', bairro: '', logoUrl: '',
-    aceitaRetirada: true, fazEntrega: false,
-    valorMinimoPedido: 0, taxaEntregaFixa: 0,
-    latitudeLoja: null, longitudeLoja: null,
-  });
 
   // ── Produtos ──────────────────────────────────────────────────
   const [produtos, setProdutos] = useState<any[]>([]);
@@ -58,7 +52,6 @@ export default function PainelVendedor() {
       try {
         const minhaLoja = await getMinhaLoja();
         setLoja(minhaLoja);
-        setFormLoja({ ...formLoja, ...minhaLoja });
       } catch {
         setLoja(null); // sem loja
       } finally {
@@ -125,25 +118,6 @@ export default function PainelVendedor() {
     return num.toFixed(2).replace('.', ',');
   };
 
-  // ── Helpers ───────────────────────────────────────────────────
-  const usarMinhaLocalizacao = () => {
-    if (!navigator.geolocation) {
-      toastError('Geolocalização não disponível');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setFormLoja({
-          ...formLoja,
-          latitudeLoja: pos.coords.latitude,
-          longitudeLoja: pos.coords.longitude,
-        });
-        success('Localização capturada');
-      },
-      () => toastError('Não foi possível obter sua localização')
-    );
-  };
-
   const lerImagemBase64 = (
     e: React.ChangeEvent<HTMLInputElement>,
     setter: (url: string) => void
@@ -160,17 +134,13 @@ export default function PainelVendedor() {
   };
 
   // ── Salvar loja (cria ou atualiza) ────────────────────────────
-  const salvarLoja = async () => {
-    if (!formLoja.nomeLoja || !formLoja.cidade) {
-      toastError('Nome da loja e cidade são obrigatórios');
-      return;
-    }
+  const salvarLoja = async (dadosLoja: any) => {
     try {
       const dadosCorrigidos = {
-        ...formLoja,
-        cep: formLoja.cep ? formLoja.cep.replace(/\D/g, '') : null,
-        valorMinimoPedido: Number(formLoja.valorMinimoPedido || 0),
-        taxaEntregaFixa: Number(formLoja.taxaEntregaFixa || 0),
+        ...dadosLoja,
+        cep: dadosLoja.cep ? dadosLoja.cep.replace(/\D/g, '') : null,
+        valorMinimoPedido: Number(dadosLoja.valorMinimoPedido || 0),
+        taxaEntregaFixa: Number(dadosLoja.taxaEntregaFixa || 0),
       };
       const salva = loja
         ? await atualizarLoja(dadosCorrigidos)
@@ -180,6 +150,7 @@ export default function PainelVendedor() {
       success(loja ? 'Loja atualizada' : 'Loja criada! Aguarde a verificação do admin');
     } catch (err: any) {
       toastError(err?.message || 'Erro ao salvar loja');
+      throw err;
     }
   };
 
@@ -289,7 +260,7 @@ export default function PainelVendedor() {
             </Button>
           </Card>
         </main>
-        {renderModalLoja()}
+        <ModalLoja open={modalLoja} onClose={() => setModalLoja(false)} lojaAtual={loja} onSave={salvarLoja} />
       </div>
     );
   }
@@ -329,7 +300,6 @@ export default function PainelVendedor() {
             { id: 'dashboard', label: 'Visão geral', Icon: LayoutDashboard },
             { id: 'produtos', label: 'Produtos', Icon: Package },
             { id: 'pedidos', label: 'Pedidos', Icon: ShoppingBag },
-            { id: 'loja', label: 'Minha loja', Icon: Store },
           ] as const).map(t => (
             <button
               key={t.id}
@@ -350,7 +320,6 @@ export default function PainelVendedor() {
             { id: 'dashboard', label: 'Visão' },
             { id: 'produtos', label: 'Produtos' },
             { id: 'pedidos', label: 'Pedidos' },
-            { id: 'loja', label: 'Loja' },
           ] as const).map(t => (
             <button
               key={t.id}
@@ -555,33 +524,10 @@ export default function PainelVendedor() {
             </>
           )}
 
-          {/* LOJA */}
-          {abaAtiva === 'loja' && (
-            <Card padding="lg">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-base md:text-xl font-black uppercase italic text-[#394158]">Minha loja</h2>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                    {loja.verificada ? 'Verificada ✓' : 'Aguardando verificação'}
-                  </p>
-                </div>
-                <Button onClick={() => { setFormLoja({ ...formLoja, ...loja }); setModalLoja(true); }}
-                  variant="ghost" iconLeft={<Edit2 size={14} />}>Editar</Button>
-              </div>
-              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div><dt className="text-[10px] font-black uppercase text-gray-400">Nome</dt><dd className="font-bold mt-1">{loja.nomeLoja}</dd></div>
-                <div><dt className="text-[10px] font-black uppercase text-gray-400">Cidade</dt><dd className="font-bold mt-1">{loja.cidade}/{loja.estado}</dd></div>
-                <div><dt className="text-[10px] font-black uppercase text-gray-400">Aceita retirada</dt><dd className="font-bold mt-1">{loja.aceitaRetirada ? 'Sim' : 'Não'}</dd></div>
-                <div><dt className="text-[10px] font-black uppercase text-gray-400">Faz entrega</dt><dd className="font-bold mt-1">{loja.fazEntrega ? 'Sim' : 'Não'}</dd></div>
-                <div className="md:col-span-2"><dt className="text-[10px] font-black uppercase text-gray-400">Bio</dt><dd className="font-medium text-gray-600 mt-1">{loja.descricaoBio || '—'}</dd></div>
-                <div className="md:col-span-2"><dt className="text-[10px] font-black uppercase text-gray-400">Nossa História</dt><dd className="font-medium text-gray-600 mt-1 italic">{loja.historia ? `"${loja.historia}"` : '—'}</dd></div>
-              </dl>
-            </Card>
-          )}
         </div>
       </main>
 
-      {renderModalLoja()}
+      <ModalLoja open={modalLoja} onClose={() => setModalLoja(false)} lojaAtual={loja} onSave={salvarLoja} />
 
       <Modal open={modalProduto} onClose={() => setModalProduto(false)}
         title={formProduto.id ? 'Editar produto' : 'Novo produto'} size="lg">
@@ -650,82 +596,4 @@ export default function PainelVendedor() {
       />
     </div>
   );
-
-  // ── Modal de Loja (compartilhado entre onboarding e edição) ───
-  function renderModalLoja() {
-    return (
-      <Modal open={modalLoja} onClose={() => setModalLoja(false)}
-        title={loja ? 'Editar minha loja' : 'Criar minha loja'} size="lg">
-        <div className="space-y-4">
-          <FormField label="Nome da loja" value={formLoja.nomeLoja}
-            onChange={e => setFormLoja({ ...formLoja, nomeLoja: e.target.value })} />
-          <div>
-            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Bio</label>
-            <textarea rows={2} value={formLoja.descricaoBio || ''}
-              onChange={e => setFormLoja({ ...formLoja, descricaoBio: e.target.value })}
-              className="w-full p-3 bg-[#F5F2ED]/50 text-[#394158] font-medium rounded-2xl outline-none border-2 border-transparent focus:border-[#55833d] resize-none" />
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Nossa História</label>
-            <textarea rows={3} value={formLoja.historia || ''}
-              onChange={e => setFormLoja({ ...formLoja, historia: e.target.value })}
-              placeholder="Conte a história da sua loja, sua trajetória como empreendedora..."
-              className="w-full p-3 bg-[#F5F2ED]/50 text-[#394158] font-medium rounded-2xl outline-none border-2 border-transparent focus:border-[#55833d] resize-none" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Cidade" value={formLoja.cidade || ''}
-              onChange={e => setFormLoja({ ...formLoja, cidade: e.target.value })} />
-            <FormField label="Estado (UF)" value={formLoja.estado || 'SE'} maxLength={2}
-              onChange={e => setFormLoja({ ...formLoja, estado: e.target.value.toUpperCase() })} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="CEP" value={formLoja.cep || ''} maxLength={9}
-              onChange={e => setFormLoja({ ...formLoja, cep: e.target.value })} />
-            <FormField label="Bairro" value={formLoja.bairro || ''}
-              onChange={e => setFormLoja({ ...formLoja, bairro: e.target.value })} />
-          </div>
-          <FormField label="Endereço Completo (Rua, Número, Complemento)" value={formLoja.logradouro || ''}
-            onChange={e => setFormLoja({ ...formLoja, logradouro: e.target.value })} />
-
-          <div>
-            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Localização (opcional)</label>
-            <div className="flex gap-2 items-center">
-              <p className="text-xs text-gray-500 flex-1 truncate">
-                {formLoja.latitudeLoja
-                  ? `${formLoja.latitudeLoja.toFixed(4)}, ${formLoja.longitudeLoja.toFixed(4)}`
-                  : 'Não definida'}
-              </p>
-              <Button variant="ghost" size="sm" onClick={usarMinhaLocalizacao}>Usar minha localização</Button>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Logo</label>
-            <label className="w-full p-3 bg-[#F5F2ED]/50 text-gray-400 font-bold rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#f9943b] flex items-center justify-center gap-2 cursor-pointer">
-              <ImageIcon size={18} /> {formLoja.logoUrl ? 'Selecionada ✓' : 'Escolher logo'}
-              <input type="file" className="hidden" accept="image/*"
-                onChange={e => lerImagemBase64(e, url => setFormLoja({ ...formLoja, logoUrl: url }))} />
-            </label>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <label className="flex items-center gap-2 font-bold">
-              <input type="checkbox" checked={!!formLoja.aceitaRetirada}
-                onChange={e => setFormLoja({ ...formLoja, aceitaRetirada: e.target.checked })} />
-              Aceita retirada
-            </label>
-            <label className="flex items-center gap-2 font-bold">
-              <input type="checkbox" checked={!!formLoja.fazEntrega}
-                onChange={e => setFormLoja({ ...formLoja, fazEntrega: e.target.checked })} />
-              Faz entrega
-            </label>
-          </div>
-
-          <Button onClick={salvarLoja} fullWidth size="lg" iconLeft={<CheckCircle size={18} />}>
-            {loja ? 'Salvar alterações' : 'Criar loja'}
-          </Button>
-        </div>
-      </Modal>
-    );
-  }
 }

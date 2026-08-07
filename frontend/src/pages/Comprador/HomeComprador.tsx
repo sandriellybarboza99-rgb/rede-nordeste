@@ -106,8 +106,14 @@ export default function HomeComprador() {
 
     if (isVendedor) {
       getMinhaLoja().then((loja: any) => {
-        if (loja && loja.id) setMinhaLojaId(loja.id);
-      }).catch(() => { });
+        if (loja && loja.id) {
+          setMinhaLojaId(loja.id);
+        } else {
+          setMinhaLojaId(0);
+        }
+      }).catch(() => {
+        setMinhaLojaId(0);
+      });
     }
 
     const salvos = localStorage.getItem('favoritos_itens');
