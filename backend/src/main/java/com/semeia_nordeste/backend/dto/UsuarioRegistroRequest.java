@@ -19,5 +19,7 @@ public record UsuarioRegistroRequest(
 
         @NotBlank @Size(min = 8, message = "A senha deve ter no mínimo 8 caracteres") String senha,
 
+        String genero,
+
         @NotNull(message = "O tipo de perfil é obrigatório") TipoPerfil tipoPerfil) {
 }

@@ -74,4 +74,8 @@ public class LojaService {
 
         return lojaRepository.save(loja);
     }
+
+    public java.util.List<Loja> buscarEmpreendedoras() {
+        return lojaRepository.findByUsuarioGenero("FEMININO");
+    }
 }

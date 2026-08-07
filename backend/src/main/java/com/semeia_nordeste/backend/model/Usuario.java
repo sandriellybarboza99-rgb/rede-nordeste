@@ -48,6 +48,9 @@ public class Usuario {
     @Column(name = "foto_perfil_url", columnDefinition = "TEXT")
     private String fotoPerfilUrl;
 
+    @Column(name = "genero", length = 30)
+    private String genero;
+
     @Column(name = "conta_ativa", nullable = false)
     private Boolean contaAtiva = true; // está "true" apenas para facilitar os testes iniciais
 

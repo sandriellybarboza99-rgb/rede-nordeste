@@ -692,6 +692,14 @@ export const desconectarWebSocket = () => {
 };
 
 // ============================================================
+// EMPREENDEDORAS
+// ============================================================
+export const getEmpreendedoras = async () => {
+  const res = await apiService.get("/lojas/empreendedoras");
+  return res.data;
+};
+
+// ============================================================
 // BANNERS
 // ============================================================
 export const getBanners = async () => {

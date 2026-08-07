@@ -6,7 +6,7 @@ import {
   MessageCircle, Heart, ChevronRight, ChevronLeft, Menu, X, BookOpen, Store, Bell, HelpCircle, Home as HomeIcon
 } from 'lucide-react';
 import {
-  buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho
+  buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho, getEmpreendedoras
 } from '../../services/api';
 import { UserMenu } from '../../components/ui/UserMenu';
 import { BottomTabBar } from '../../components/ui/BottomTabBar';
@@ -17,11 +17,7 @@ const CATEGORIAS_ICONES: Record<string, any> = {
   'Laticínios': Milk, 'Cama Mesa e Banho': Bed, 'Gastronomia': Utensils, 'Têxtil': Shirt,
 };
 
-const EMPREENDEDORAS = [
-  { id: 1, lojaId: 1, nome: "Dona Maria", negocio: "Cerâmicas do Povo", territorio: "Baixo São Francisco", historia: "Mestra ceramista há 30 anos in Santana do São Francisco. Aprendeu a arte com sua avó e hoje lidera uma cooperativa de 12 mulheres.", img: "https://cdn.awsli.com.br/2500x2500/1616/1616697/produto/109903915/e2bbd94d12.jpg" },
-  { id: 2, lojaId: 2, nome: "Chef Ana Nunes", negocio: "Sabor de Mulher", territorio: "Grande Aracaju", historia: "Especialista em gastronomia afetiva, Ana utiliza apenas ingredientes de produtores locais para criar pratos que contam a história de Sergipe.", img: "https://www.brasildefato.com.br/wp-content/uploads/2024/09/image_processing20201106-23882-1kiy8l9.jpeg" },
-  { id: 3, lojaId: 3, nome: "Lúcia da Palha", negocio: "Arte Ilha do Ferro", territorio: "Sertão Ocidental", historia: "Lúcia transforma a palha de Ouricuri em peças de design moderno sem perder a essência do artesanato tradicional.", img: "https://agenciasebrae.com.br/wp-content/uploads/2026/02/artesanato-7.jpeg" },
-];
+// EMPREENDEDORAS será carregado da API
 
 export default function HomeComprador() {
   const location = useLocation();
@@ -45,7 +41,8 @@ export default function HomeComprador() {
   const [ordenacao, setOrdenacao] = useState('recomendados');
   const [favoritos, setFavoritos] = useState<number[]>([]);
   const [menuAberto, setMenuAberto] = useState(false);
-  const [mulherSelecionada, setMulherSelecionada] = useState<typeof EMPREENDEDORAS[0] | null>(null);
+  const [empreendedoras, setEmpreendedoras] = useState<any[]>([]);
+  const [mulherSelecionada, setMulherSelecionada] = useState<any | null>(null);
   const [paginaAtual, setPaginaAtual] = useState(0);
   const [carrinhoCount, setCarrinhoCount] = useState(0);
   const [naoLidas, setNaoLidas] = useState(0);
@@ -80,15 +77,21 @@ export default function HomeComprador() {
       localStorage.setItem('tutorial_visto_comprador', 'true');
     }
 
-    getCategorias()
-      .then((data: any[]) => {
-        setCategorias([
-          { id: 0, nome: 'Todos' },
-          ...data.map((c: any) => ({ id: c.id, nome: c.nome })),
+    // Carrega categorias e destaques
+    const carregaFiltros = async () => {
+      try {
+        const [cats, emp] = await Promise.all([
+          getCategorias(),
+          getEmpreendedoras().catch(() => []) // se falhar, retorna array vazio
         ]);
+        setCategorias([{ id: 0, nome: 'Todos' }, ...cats]);
+        setEmpreendedoras(emp);
         setTimeout(atualizarSetas, 100);
-      })
-      .catch(() => setCategorias([{ id: 0, nome: 'Todos' }]));
+      } catch (err) {
+        console.error('Erro ao carregar categorias ou empreendedoras:', err);
+      }
+    };
+    carregaFiltros();
 
     const raw = localStorage.getItem('usuarioLogado');
     if (raw) {
@@ -326,18 +329,18 @@ export default function HomeComprador() {
             <button onClick={() => setMulherSelecionada(null)} className="absolute top-6 right-6 z-10 bg-white/80 p-2 rounded-full"><X size={20} /></button>
             <div className="flex flex-col md:flex-row">
               <div className="w-full md:w-1/2 h-64 md:h-auto relative">
-                <img src={mulherSelecionada.img} className="w-full h-full object-cover" alt={mulherSelecionada.nome} />
+                <img src={mulherSelecionada.fotoPerfilUrl || mulherSelecionada.logoUrl || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" alt={mulherSelecionada.nomeProprietaria || mulherSelecionada.nomeLoja} />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#55833d]/60 to-transparent" />
               </div>
               <div className="w-full md:w-1/2 p-8 flex flex-col justify-center">
-                <div className="flex items-center gap-2 text-[#55833d] mb-2"><MapPin size={14} /><span className="text-[10px] font-black uppercase tracking-widest">{mulherSelecionada.territorio}</span></div>
-                <h2 className="text-2xl font-black text-[#394158] mb-1">{mulherSelecionada.nome}</h2>
-                <span className="text-[#f9943b] font-black italic uppercase text-xs mb-6">{mulherSelecionada.negocio}</span>
+                <div className="flex items-center gap-2 text-[#55833d] mb-2"><MapPin size={14} /><span className="text-[10px] font-black uppercase tracking-widest">{mulherSelecionada.cidade || 'Sergipe'}</span></div>
+                <h2 className="text-2xl font-black text-[#394158] mb-1">{mulherSelecionada.nomeProprietaria || 'Produtora'}</h2>
+                <span className="text-[#f9943b] font-black italic uppercase text-xs mb-6">{mulherSelecionada.nomeLoja}</span>
                 <div className="bg-[#F5F2ED] p-5 rounded-3xl mb-8">
                   <div className="flex items-center gap-2 mb-3 text-[#394158]/50 uppercase font-black text-[9px]"><BookOpen size={12} /> Nossa História</div>
-                  <p className="text-sm text-[#394158] leading-relaxed italic">"{mulherSelecionada.historia}"</p>
+                  <p className="text-sm text-[#394158] leading-relaxed italic">"{mulherSelecionada.descricaoBio || 'Sem descrição.'}"</p>
                 </div>
-                <button onClick={() => { setMulherSelecionada(null); navigate(`/loja/${mulherSelecionada.lojaId}`); }} className="w-full bg-[#55833d] text-white py-4 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-3"><Store size={16} /> Ver Loja</button>
+                <button onClick={() => { setMulherSelecionada(null); navigate(`/loja/${mulherSelecionada.id}`); }} className="w-full bg-[#55833d] text-white py-4 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-3"><Store size={16} /> Ver Loja</button>
               </div>
             </div>
           </div>
@@ -366,13 +369,13 @@ export default function HomeComprador() {
             </Link>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar px-2">
-            {EMPREENDEDORAS.map(mulher => (
+            {empreendedoras.map(mulher => (
               <div key={mulher.id} onClick={() => setMulherSelecionada(mulher)}
                 className="min-w-[240px] bg-white rounded-[1rem] p-3 shadow-lg flex items-center gap-3 group cursor-pointer hover:bg-[#aab2c1] transition-all duration-500 border border-white">
-                <img src={mulher.img} className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover border-2 border-[#394158]/20" alt={mulher.nome} />
+                <img src={mulher.fotoPerfilUrl || mulher.logoUrl || 'https://via.placeholder.com/150'} className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover border-2 border-[#394158]/20" alt={mulher.nomeProprietaria || mulher.nomeLoja} />
                 <div>
-                  <h3 className="text-xs font-black uppercase text-[#394158] group-hover:text-white transition-colors leading-tight">{mulher.nome}</h3>
-                  <span className="text-[10px] font-bold text-[#394158]/60 group-hover:text-white/80 transition-colors uppercase italic">{mulher.negocio}</span>
+                  <h3 className="text-xs font-black uppercase text-[#394158] group-hover:text-white transition-colors leading-tight">{mulher.nomeProprietaria || 'Produtora'}</h3>
+                  <span className="text-[10px] font-bold text-[#394158]/60 group-hover:text-white/80 transition-colors uppercase italic">{mulher.nomeLoja}</span>
                 </div>
               </div>
             ))}
