@@ -30,7 +30,11 @@ public record LojaResponse(
 
         // Novos campos para PIX
         String chavePix,
-        String tipoChavePix) {
+        String tipoChavePix,
+
+        // Perfil da empreendedora (separado dos dados da loja)
+        String fotoEmpreendedoraUrl,
+        String historiaEmpreendedora) {
 
     public static LojaResponse fromEntity(Loja l) {
         return new LojaResponse(
@@ -56,6 +60,8 @@ public record LojaResponse(
                 l.getVerificada(),
                 l.getSuspensa(),
                 l.getChavePix(),
-                l.getTipoChavePix());
+                l.getTipoChavePix(),
+                l.getFotoEmpreendedoraUrl(),
+                l.getHistoriaEmpreendedora());
     }
 }

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   LogOut, Camera, CheckCircle,
   Wallet, Package, Truck, Heart, History, RotateCcw, HelpCircle,
@@ -45,11 +45,33 @@ interface Cartao {
 
 export default function Perfil() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { usuario, logout, atualizarTokens } = useAuth();
   const { success, error: toastError } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [telaAtual, setTelaAtual] = useState<'perfil' | 'configuracoes' | 'compras' | 'detalhe-pedido' | 'rastreio-pedido' | 'favoritos' | 'recentes'>('perfil');
+  const abaParam = searchParams.get('aba') as any;
+  const validTabs = ['perfil', 'configuracoes', 'compras', 'detalhe-pedido', 'rastreio-pedido', 'favoritos', 'recentes'];
+
+  const [telaAtual, setTelaAtualState] = useState<'perfil' | 'configuracoes' | 'compras' | 'detalhe-pedido' | 'rastreio-pedido' | 'favoritos' | 'recentes'>(
+    validTabs.includes(abaParam) ? abaParam : 'perfil'
+  );
+
+  useEffect(() => {
+    if (validTabs.includes(abaParam) && abaParam !== telaAtual) {
+      setTelaAtualState(abaParam);
+    }
+  }, [abaParam]);
+
+  const setTelaAtual = (tela: 'perfil' | 'configuracoes' | 'compras' | 'detalhe-pedido' | 'rastreio-pedido' | 'favoritos' | 'recentes') => {
+    setTelaAtualState(tela);
+    if (tela === 'perfil') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ aba: tela });
+    }
+  };
+
   const [abaAtiva, setAbaAtiva] = useState<'pagar' | 'preparando' | 'caminho' | 'finalizados'>('finalizados');
   const [secaoConfig, setSecaoConfig] = useState<'menu' | 'conta' | 'enderecos' | 'cartoes'>('menu');
   const [pedidoSelecionado, setPedidoSelecionado] = useState<any>(null);
@@ -96,10 +118,7 @@ export default function Perfil() {
 
   const [filtroFavoritos, setFiltroFavoritos] = useState<'recentes' | 'barato' | 'caro'>('recentes');
   const [meusFavoritos, setMeusFavoritos] = useState<any[]>([]);
-  const [vistoRecently] = useState([
-    { id: 10, nome: 'Azeite de Oliva Extra Virgem', preco: 62.00, img: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400' },
-    { id: 11, nome: 'Feijão Corda Novo', preco: 9.50, img: 'https://images.unsplash.com/photo-1551462147-37885acc3c44?w=400' },
-  ]);
+  const [vistoRecently, setVistoRecently] = useState<any[]>([]);
 
   // foto preview (para upload de foto antes de persistir)
   const [fotoPerfil, setFotoPerfil] = useState<string>(
@@ -138,7 +157,25 @@ export default function Perfil() {
         console.error('Erro ao carregar favoritos', err);
       }
     };
+
+    // Carregar vistos recentemente
+    const carregarVistosRecentes = async () => {
+      try {
+        const salvos = localStorage.getItem('vistos_recentes');
+        if (salvos) {
+          const ids: number[] = JSON.parse(salvos);
+          const prods = await Promise.all(
+            ids.map(id => getProdutoPorId(id).catch(() => null))
+          );
+          setVistoRecently(prods.filter(p => p !== null));
+        }
+      } catch (err) {
+        console.error('Erro ao carregar vistos recentemente', err);
+      }
+    };
+
     carregarFavoritos();
+    carregarVistosRecentes();
   }, []);
 
   // Remover favorito
@@ -322,22 +359,29 @@ export default function Perfil() {
   const renderVistoRecentemente = () => (
     <div className="space-y-6 animate-in slide-in-from-right duration-300 max-w-5xl mx-auto">
       <h3 className="text-xl font-black uppercase italic text-[#394158] px-2 tracking-tighter">Visto Recentemente</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 pb-10 px-2">
-        {vistoRecently.map((prod) => (
-          <div key={prod.id} onClick={() => navigate(`/produto/${prod.id}`)} className="bg-white rounded-2xl p-3 shadow-md border border-white flex flex-col h-full cursor-pointer active:scale-95 transition-all group">
-            <div className="w-full aspect-square rounded-xl overflow-hidden bg-[#F5F2ED] mb-3">
-              <img src={prod.img} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={prod.nome} />
-            </div>
-            <div className="flex flex-col flex-1 px-1">
-              <p className="text-[11px] font-black text-[#394158] leading-tight mb-auto">{prod.nome}</p>
-              <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
-                <span className="text-xs font-black text-[#55833d]">R$ {prod.preco.toFixed(2).replace('.', ',')}</span>
-                <div className="p-2 bg-[#F5F2ED] text-gray-400 rounded-xl"><Eye size={14} /></div>
+      {vistoRecently.length === 0 ? (
+        <div className="bg-white rounded-2xl p-12 text-center border border-gray-100 shadow-sm">
+          <Eye size={48} className="mx-auto text-gray-300 mb-4" />
+          <p className="text-xs font-black uppercase text-gray-400">Nenhum produto visto recentemente</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 pb-10 px-2">
+          {vistoRecently.map((prod) => (
+            <div key={prod.id} onClick={() => navigate(`/produto/${prod.id}`)} className="bg-white rounded-2xl p-3 shadow-md border border-white flex flex-col h-full cursor-pointer active:scale-95 transition-all group">
+              <div className="w-full aspect-square rounded-xl overflow-hidden bg-[#F5F2ED] mb-3">
+                <img src={prod.imagemUrl || prod.img} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={prod.nome} />
+              </div>
+              <div className="flex flex-col flex-1 px-1">
+                <p className="text-[11px] font-black text-[#394158] leading-tight mb-auto">{prod.nome}</p>
+                <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
+                  <span className="text-xs font-black text-[#55833d]">R$ {Number(prod.preco || 0).toFixed(2).replace('.', ',')}</span>
+                  <div className="p-2 bg-[#F5F2ED] text-gray-400 rounded-xl"><Eye size={14} /></div>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 

@@ -3,6 +3,7 @@ package com.semeia_nordeste.backend.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.semeia_nordeste.backend.dto.EmpreendedoraRequest;
 import com.semeia_nordeste.backend.dto.LojaRequest;
 import com.semeia_nordeste.backend.exception.BusinessException;
 import com.semeia_nordeste.backend.exception.NotFoundException;
@@ -76,6 +77,31 @@ public class LojaService {
     }
 
     public java.util.List<Loja> buscarEmpreendedoras() {
-        return lojaRepository.findByUsuarioGenero("FEMININO");
+        return lojaRepository.findByUsuarioGeneroAndVerificadaTrueAndSuspensaFalse("FEMININO");
+    }
+
+    @Transactional
+    public Loja atualizarPerfilEmpreendedora(Usuario usuario, EmpreendedoraRequest request) {
+        Loja loja = lojaRepository.findByUsuarioId(usuario.getId())
+                .orElseThrow(() -> new NotFoundException("Loja não encontrada."));
+
+        if (request.fotoEmpreendedoraUrl() != null)
+            loja.setFotoEmpreendedoraUrl(
+                    request.fotoEmpreendedoraUrl().isBlank() ? null : request.fotoEmpreendedoraUrl());
+
+        if (request.historiaEmpreendedora() != null)
+            loja.setHistoriaEmpreendedora(
+                    request.historiaEmpreendedora().isBlank() ? null : request.historiaEmpreendedora());
+
+        return lojaRepository.save(loja);
+    }
+
+    @Transactional
+    public Loja deletarPerfilEmpreendedora(Usuario usuario) {
+        Loja loja = lojaRepository.findByUsuarioId(usuario.getId())
+                .orElseThrow(() -> new NotFoundException("Loja não encontrada."));
+        loja.setFotoEmpreendedoraUrl(null);
+        loja.setHistoriaEmpreendedora(null);
+        return lojaRepository.save(loja);
     }
 }

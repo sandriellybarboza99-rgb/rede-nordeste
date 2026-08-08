@@ -51,11 +51,15 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
               AND p.loja.suspensa = false
               AND (:nome = '' OR LOWER(p.nome) LIKE LOWER(CONCAT('%', :nome, '%')))
               AND (:categoriaId IS NULL OR p.categoria.id = :categoriaId)
+              AND (:estado IS NULL OR :estado = '' OR LOWER(p.loja.estado) = LOWER(:estado))
+              AND (:cidade IS NULL OR :cidade = '' OR LOWER(p.loja.cidade) LIKE LOWER(CONCAT('%', :cidade, '%')))
             """)
     Page<Produto> buscarMarketplace(
             @Param("status") StatusProduto status,
             @Param("nome") String nome,
             @Param("categoriaId") Long categoriaId,
+            @Param("estado") String estado,
+            @Param("cidade") String cidade,
             Pageable pageable);
 
     /**
@@ -71,4 +75,38 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
             ORDER BY p.loja_id, p.data_cadastro DESC
             """, nativeQuery = true)
     List<Produto> findUmPorLoja();
+
+    @Query("""
+            SELECT new com.semeia_nordeste.backend.dto.FacetResponse(p.loja.estado, COUNT(p))
+            FROM Produto p
+            WHERE p.status = :status
+              AND p.loja.verificada = true
+              AND p.loja.suspensa = false
+              AND (:nome = '' OR LOWER(p.nome) LIKE LOWER(CONCAT('%', :nome, '%')))
+              AND (:categoriaId IS NULL OR p.categoria.id = :categoriaId)
+            GROUP BY p.loja.estado
+            ORDER BY p.loja.estado ASC
+            """)
+    List<com.semeia_nordeste.backend.dto.FacetResponse> countFacetEstados(
+            @Param("status") StatusProduto status,
+            @Param("nome") String nome,
+            @Param("categoriaId") Long categoriaId);
+
+    @Query("""
+            SELECT new com.semeia_nordeste.backend.dto.FacetResponse(p.loja.cidade, COUNT(p))
+            FROM Produto p
+            WHERE p.status = :status
+              AND p.loja.verificada = true
+              AND p.loja.suspensa = false
+              AND (:nome = '' OR LOWER(p.nome) LIKE LOWER(CONCAT('%', :nome, '%')))
+              AND (:categoriaId IS NULL OR p.categoria.id = :categoriaId)
+              AND (:estado IS NULL OR :estado = '' OR LOWER(p.loja.estado) = LOWER(:estado))
+            GROUP BY p.loja.cidade
+            ORDER BY p.loja.cidade ASC
+            """)
+    List<com.semeia_nordeste.backend.dto.FacetResponse> countFacetCidades(
+            @Param("status") StatusProduto status,
+            @Param("nome") String nome,
+            @Param("categoriaId") Long categoriaId,
+            @Param("estado") String estado);
 }

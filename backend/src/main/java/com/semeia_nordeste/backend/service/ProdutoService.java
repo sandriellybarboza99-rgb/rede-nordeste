@@ -92,9 +92,24 @@ public class ProdutoService {
         // Marketplace — combina nome + categoriaId. Sempre filtra por status APROVADO.
         // termo é "" (nunca null) quando não há busca — evita o erro lower(bytea) no
         // PostgreSQL. Ver javadoc de ProdutoRepository.buscarMarketplace.
-        public Page<Produto> buscar(String nome, Long categoriaId, Pageable pageable) {
+        public com.semeia_nordeste.backend.dto.ProdutoSearchResponse buscar(String nome, Long categoriaId, String estado, String cidade, Pageable pageable) {
                 String termo = (nome != null && !nome.isBlank()) ? nome.trim() : "";
-                return produtoRepository.buscarMarketplace(StatusProduto.APROVADO, termo, categoriaId, pageable);
+                String uf = (estado != null && !estado.isBlank()) ? estado.trim() : null;
+                String cid = (cidade != null && !cidade.isBlank()) ? cidade.trim() : null;
+                
+                Page<Produto> produtos = produtoRepository.buscarMarketplace(StatusProduto.APROVADO, termo, categoriaId, uf, cid, pageable);
+                
+                java.util.List<com.semeia_nordeste.backend.dto.FacetResponse> facetEstados = produtoRepository.countFacetEstados(StatusProduto.APROVADO, termo, categoriaId);
+                java.util.List<com.semeia_nordeste.backend.dto.FacetResponse> facetCidades = produtoRepository.countFacetCidades(StatusProduto.APROVADO, termo, categoriaId, uf);
+                
+                java.util.Map<String, java.util.List<com.semeia_nordeste.backend.dto.FacetResponse>> facetas = new java.util.HashMap<>();
+                facetas.put("estados", facetEstados);
+                facetas.put("cidades", facetCidades);
+                
+                return new com.semeia_nordeste.backend.dto.ProdutoSearchResponse(
+                        produtos.map(com.semeia_nordeste.backend.dto.ProdutoResponse::fromEntity),
+                        facetas
+                );
         }
 
         public Page<Produto> listarPorLoja(Long lojaId, Pageable pageable) {

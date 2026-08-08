@@ -79,7 +79,7 @@ export default function Empreendedoras() {
               >
                 <div className="relative h-48 overflow-hidden">
                   <img
-                    src={mulher.fotoPerfilUrl || mulher.logoUrl || 'https://via.placeholder.com/400'}
+                    src={mulher.fotoEmpreendedoraUrl || mulher.fotoPerfilUrl || mulher.logoUrl || 'https://via.placeholder.com/400'}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     alt={mulher.nomeProprietaria || mulher.nomeLoja}
                   />
@@ -95,7 +95,7 @@ export default function Empreendedoras() {
                   <h3 className="text-base font-black uppercase text-[#394158] mb-1">{mulher.nomeProprietaria || 'Produtora'}</h3>
                   <span className="text-[#f9943b] font-black italic uppercase text-[10px] tracking-wider">{mulher.nomeLoja}</span>
                   <p className="text-xs text-gray-500 mt-3 leading-relaxed line-clamp-2 italic">
-                    "{mulher.descricaoBio || 'Sem descrição.'}"
+                    "{mulher.historiaEmpreendedora || mulher.descricaoBio || 'Sem descricao.'}"
                   </p>
                   <button
                     onClick={(e) => { e.stopPropagation(); navigate(`/loja/${mulher.id}`); }}
@@ -118,7 +118,7 @@ export default function Empreendedoras() {
             <button onClick={() => setSelecionada(null)} className="absolute top-6 right-6 z-10 bg-white/80 p-2 rounded-full"><X size={20} /></button>
             <div className="flex flex-col md:flex-row">
               <div className="w-full md:w-1/2 h-64 md:h-auto relative">
-                <img src={selecionada.fotoPerfilUrl || selecionada.logoUrl || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" alt={selecionada.nomeProprietaria || selecionada.nomeLoja} />
+                <img src={selecionada.fotoEmpreendedoraUrl || selecionada.fotoPerfilUrl || selecionada.logoUrl || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" alt={selecionada.nomeProprietaria || selecionada.nomeLoja} />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#55833d]/60 to-transparent" />
               </div>
               <div className="w-full md:w-1/2 p-8 flex flex-col justify-center">
@@ -127,7 +127,7 @@ export default function Empreendedoras() {
                 <span className="text-[#f9943b] font-black italic uppercase text-xs mb-6">{selecionada.nomeLoja}</span>
                 <div className="bg-[#F5F2ED] p-5 rounded-3xl mb-8">
                   <div className="flex items-center gap-2 mb-3 text-[#394158]/50 uppercase font-black text-[9px]"><BookOpen size={12} /> Nossa História</div>
-                  <p className="text-sm text-[#394158] leading-relaxed italic">"{selecionada.descricaoBio || 'Sem descrição.'}"</p>
+                  <p className="text-sm text-[#394158] leading-relaxed italic">"{selecionada.historiaEmpreendedora || selecionada.descricaoBio || 'Sem descricao.'}"</p>
                 </div>
                 <button onClick={() => { setSelecionada(null); navigate(`/loja/${selecionada.id}`); }} className="w-full bg-[#55833d] text-white py-4 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-3"><Store size={16} /> Ver Loja</button>
               </div>

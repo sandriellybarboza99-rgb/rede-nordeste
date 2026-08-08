@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, ShoppingCart, User, Plus, Filter, MapPin,
   Star, LayoutGrid, Palette, Beef, Sprout, Wheat, Carrot, Milk, Bed, Utensils, Shirt,
-  MessageCircle, Heart, ChevronRight, ChevronLeft, Menu, X, BookOpen, Store, Bell, HelpCircle, Home as HomeIcon, LayoutDashboard
+  MessageCircle, Heart, ChevronRight, ChevronLeft, Menu, X, BookOpen, Store, Bell, HelpCircle, Home as HomeIcon, LayoutDashboard, Sparkles
 } from 'lucide-react';
 import {
   buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho, getEmpreendedoras, getMinhaLoja
@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { UserMenu } from '../../components/ui/UserMenu';
 import { BottomTabBar } from '../../components/ui/BottomTabBar';
+import { ModalEmpreendedora } from '../../components/modals/ModalEmpreendedora';
 
 const CATEGORIAS_ICONES: Record<string, any> = {
   'Todos': LayoutGrid, 'Artesanato': Palette, 'Carnes': Beef,
@@ -18,13 +19,25 @@ const CATEGORIAS_ICONES: Record<string, any> = {
   'Laticínios': Milk, 'Cama Mesa e Banho': Bed, 'Gastronomia': Utensils, 'Têxtil': Shirt,
 };
 
-// EMPREENDEDORAS será carregado da API
+const ESTADOS_NORDESTE = [
+  { uf: '', nome: 'Todos os Estados' },
+  { uf: 'AL', nome: 'Alagoas (AL)' },
+  { uf: 'BA', nome: 'Bahia (BA)' },
+  { uf: 'CE', nome: 'Ceará (CE)' },
+  { uf: 'MA', nome: 'Maranhão (MA)' },
+  { uf: 'PB', nome: 'Paraíba (PB)' },
+  { uf: 'PE', nome: 'Pernambuco (PE)' },
+  { uf: 'PI', nome: 'Piauí (PI)' },
+  { uf: 'RN', nome: 'Rio Grande do Norte (RN)' },
+  { uf: 'SE', nome: 'Sergipe (SE)' },
+];
 
 export default function HomeComprador() {
   const location = useLocation();
   const navigate = useNavigate();
   const { usuario } = useAuth();
   const isVendedor = usuario?.perfil === 'PRODUTOR';
+  const isMulherProdutora = usuario?.perfil === 'PRODUTOR' && usuario?.genero === 'FEMININO';
 
   // ── Dados da API ─────────────────────────────────────────────────
   type CategoriaAPI = { id: number; nome: string };
@@ -52,6 +65,12 @@ export default function HomeComprador() {
   const [carrinhoCount, setCarrinhoCount] = useState(0);
   const [naoLidas, setNaoLidas] = useState(0);
   const [tutorialAberto, setTutorialAberto] = useState(false);
+  const [modalEmpreendedoraAberto, setModalEmpreendedoraAberto] = useState(false);
+  const [minhaLojaParaModal, setMinhaLojaParaModal] = useState<any>(null);
+  const [estadoFiltro, setEstadoFiltro] = useState('');
+  const [cidadeFiltro, setCidadeFiltro] = useState('');
+  const [facetasEstados, setFacetasEstados] = useState<any[]>([]);
+  const [facetasCidades, setFacetasCidades] = useState<any[]>([]);
 
   // ── Scroll horizontal das categorias ─────────────────────────────
   const catScrollRef = useRef<HTMLDivElement>(null);
@@ -108,6 +127,8 @@ export default function HomeComprador() {
       getMinhaLoja().then((loja: any) => {
         if (loja && loja.id) {
           setMinhaLojaId(loja.id);
+          // Guarda dados da loja para uso no modal de empreendedora
+          setMinhaLojaParaModal(loja);
         } else {
           setMinhaLojaId(0);
         }
@@ -129,16 +150,23 @@ export default function HomeComprador() {
         const data = await buscarProdutos(
           termoPesquisado || undefined,
           catAtivaId, // ID real da categoria (undefined quando "Todos")
-          paginaAtual
+          paginaAtual,
+          estadoFiltro || undefined,
+          cidadeFiltro || undefined
         );
 
-        let prods = data.content || [];
+        let prods = data.produtos?.content || data.content || [];
         if (isVendedor && minhaLojaId) {
           prods = prods.filter((p: any) => p.lojaId !== minhaLojaId);
         }
 
         setProdutos(prods);
-        setTotalPaginas(data.totalPages || 1);
+        setTotalPaginas(data.produtos?.totalPages || data.totalPages || 1);
+        
+        if (data.facetas) {
+          setFacetasEstados(data.facetas.estados || []);
+          setFacetasCidades(data.facetas.cidades || []);
+        }
       } catch (err: any) {
         // Não esconder o erro: distinguir "falha de carregamento" de "vitrine vazia".
         setProdutos([]);
@@ -154,7 +182,7 @@ export default function HomeComprador() {
     }
 
     carregar();
-  }, [termoPesquisado, catAtivaId, paginaAtual, tentativa, isVendedor, minhaLojaId]);
+  }, [termoPesquisado, catAtivaId, paginaAtual, tentativa, isVendedor, minhaLojaId, estadoFiltro, cidadeFiltro]);
 
   // ── Redirect de receitas ──────────────────────────────────────────
   useEffect(() => {
@@ -363,7 +391,7 @@ export default function HomeComprador() {
             <button onClick={() => setMulherSelecionada(null)} className="absolute top-6 right-6 z-10 bg-white/80 p-2 rounded-full"><X size={20} /></button>
             <div className="flex flex-col md:flex-row">
               <div className="w-full md:w-1/2 h-64 md:h-auto relative">
-                <img src={mulherSelecionada.fotoPerfilUrl || mulherSelecionada.logoUrl || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" alt={mulherSelecionada.nomeProprietaria || mulherSelecionada.nomeLoja} />
+                <img src={mulherSelecionada.fotoEmpreendedoraUrl || mulherSelecionada.fotoPerfilUrl || mulherSelecionada.logoUrl || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" alt={mulherSelecionada.nomeProprietaria || mulherSelecionada.nomeLoja} />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#55833d]/60 to-transparent" />
               </div>
               <div className="w-full md:w-1/2 p-8 flex flex-col justify-center">
@@ -371,8 +399,8 @@ export default function HomeComprador() {
                 <h2 className="text-2xl font-black text-[#394158] mb-1">{mulherSelecionada.nomeProprietaria || 'Produtora'}</h2>
                 <span className="text-[#f9943b] font-black italic uppercase text-xs mb-6">{mulherSelecionada.nomeLoja}</span>
                 <div className="bg-[#F5F2ED] p-5 rounded-3xl mb-8">
-                  <div className="flex items-center gap-2 mb-3 text-[#394158]/50 uppercase font-black text-[9px]"><BookOpen size={12} /> Nossa História</div>
-                  <p className="text-sm text-[#394158] leading-relaxed italic">"{mulherSelecionada.descricaoBio || 'Sem descrição.'}"</p>
+                  <div className="flex items-center gap-2 mb-3 text-[#394158]/50 uppercase font-black text-[9px]"><BookOpen size={12} /> Nossa Historia</div>
+                  <p className="text-sm text-[#394158] leading-relaxed italic">"{mulherSelecionada.historiaEmpreendedora || mulherSelecionada.descricaoBio || 'Sem descricao.'}"</p>
                 </div>
                 <button onClick={() => { setMulherSelecionada(null); navigate(`/loja/${mulherSelecionada.id}`); }} className="w-full bg-[#55833d] text-white py-4 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-3"><Store size={16} /> Ver Loja</button>
               </div>
@@ -380,6 +408,20 @@ export default function HomeComprador() {
           </div>
         </div>
       )}
+
+      {/* MODAL EMPREENDEDORA (CTA) */}
+      <ModalEmpreendedora
+        open={modalEmpreendedoraAberto}
+        onClose={() => setModalEmpreendedoraAberto(false)}
+        dadosAtuais={{
+          fotoEmpreendedoraUrl: minhaLojaParaModal?.fotoEmpreendedoraUrl,
+          historiaEmpreendedora: minhaLojaParaModal?.historiaEmpreendedora,
+        }}
+        onSalvo={() => {
+          // Recarrega lista de empreendedoras para refletir a nova foto/historia
+          getEmpreendedoras().then(setEmpreendedoras).catch(() => {});
+        }}
+      />
 
       <main className="max-w-6xl mx-auto px-4 md:px-8 pt-6 md:pt-10">
         <div className="relative w-full mb-8 md:hidden">
@@ -391,7 +433,7 @@ export default function HomeComprador() {
           </button>
         </div>
 
-        {/* 🛠️ CORREÇÃO DO LINK DE REDIRECIONAMENTO DESTA SEÇÃO 🛠️ */}
+        {/* QUADRO EMPREENDEDORAS */}
         <section className="w-full max-w-6xl mb-12 bg-[#fededf] p-4 md:p-8 rounded-[2rem] border border-[#fededf] mx-auto shadow-xl">
           <div className="flex items-center justify-between mb-6 px-2 text-[#394158]">
             <div className="flex items-center gap-2 md:gap-3">
@@ -402,11 +444,33 @@ export default function HomeComprador() {
               Ver mais <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
+
+          {/* Botao CTA — visivel apenas para mulheres produtoras */}
+          {isMulherProdutora && (() => {
+            const jaNoMural = !!(minhaLojaParaModal?.fotoEmpreendedoraUrl || minhaLojaParaModal?.historiaEmpreendedora);
+            return (
+              <div className="px-2 mb-5">
+                <button
+                  onClick={() => setModalEmpreendedoraAberto(true)}
+                  className={`w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest shadow-lg hover:shadow-xl hover:scale-[1.01] active:scale-95 transition-all ${
+                    jaNoMural
+                      ? 'bg-white border-2 border-[#f9943b] text-[#f9943b] hover:bg-[#fff5ef]'
+                      : 'bg-gradient-to-r from-[#f9943b] to-[#e07a28] text-white'
+                  }`}
+                >
+                  <Sparkles size={16} className={jaNoMural ? 'text-[#f9943b]' : 'fill-white'} />
+                  {jaNoMural ? 'Editar minha historia no mural' : 'Exiba seu negocio aqui!'}
+                </button>
+              </div>
+            );
+          })()}
+
+
           <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar px-2">
             {empreendedoras.map(mulher => (
               <div key={mulher.id} onClick={() => setMulherSelecionada(mulher)}
                 className="min-w-[240px] bg-white rounded-[1rem] p-3 shadow-lg flex items-center gap-3 group cursor-pointer hover:bg-[#aab2c1] transition-all duration-500 border border-white">
-                <img src={mulher.fotoPerfilUrl || mulher.logoUrl || 'https://via.placeholder.com/150'} className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover border-2 border-[#394158]/20" alt={mulher.nomeProprietaria || mulher.nomeLoja} />
+                <img src={mulher.fotoEmpreendedoraUrl || mulher.fotoPerfilUrl || mulher.logoUrl || 'https://via.placeholder.com/150'} className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover border-2 border-[#394158]/20" alt={mulher.nomeProprietaria || mulher.nomeLoja} />
                 <div>
                   <h3 className="text-xs font-black uppercase text-[#394158] group-hover:text-white transition-colors leading-tight">{mulher.nomeProprietaria || 'Produtora'}</h3>
                   <span className="text-[10px] font-bold text-[#394158]/60 group-hover:text-white/80 transition-colors uppercase italic">{mulher.nomeLoja}</span>
@@ -491,14 +555,61 @@ export default function HomeComprador() {
           <div className="w-full">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
               <h2 className="text-xl font-black italic uppercase text-[#394158]">{catAtiva !== 'Todos' ? catAtiva : 'Nossos Produtos'}</h2>
-              <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm self-start">
-                <Filter size={14} className="text-[#55833d]" />
-                <select value={ordenacao} onChange={e => setOrdenacao(e.target.value)}
-                  className="bg-transparent text-[10px] font-black uppercase outline-none cursor-pointer">
-                  <option value="recomendados">Recomendados</option>
-                  <option value="menor_preco">Menor Preço</option>
-                  <option value="maior_preco">Maior Preço</option>
-                </select>
+              
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Filtro por Estado */}
+                <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-100 shadow-sm">
+                  <MapPin size={14} className="text-[#55833d]" />
+                  <select 
+                    value={estadoFiltro} 
+                    onChange={e => {
+                      setEstadoFiltro(e.target.value);
+                      setCidadeFiltro('');
+                      setPaginaAtual(0);
+                    }}
+                    className="bg-transparent text-[10px] font-black uppercase outline-none cursor-pointer text-[#394158]"
+                  >
+                    <option value="">Todos os Estados</option>
+                    {facetasEstados.map(f => {
+                      const est = ESTADOS_NORDESTE.find(e => e.uf === f.chave);
+                      return (
+                        <option key={f.chave} value={f.chave}>
+                          {est ? est.nome : f.chave} ({f.quantidade})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {/* Filtro por Cidade */}
+                <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-100 shadow-sm">
+                  <select 
+                    value={cidadeFiltro} 
+                    onChange={e => {
+                      setCidadeFiltro(e.target.value);
+                      setPaginaAtual(0);
+                    }}
+                    className="bg-transparent text-[10px] font-bold outline-none w-24 md:w-32 text-[#394158] uppercase cursor-pointer"
+                  >
+                    <option value="">Todas as Cidades</option>
+                    {facetasCidades.map(f => (
+                      <option key={f.chave} value={f.chave}>
+                        {f.chave} ({f.quantidade})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Ordenação */}
+                <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-100 shadow-sm">
+                  <Filter size={14} className="text-[#55833d]" />
+                  <select value={ordenacao} onChange={e => setOrdenacao(e.target.value)}
+                    className="bg-transparent text-[10px] font-black uppercase outline-none cursor-pointer text-[#394158]">
+                    <option value="recomendados">Recomendados</option>
+                    <option value="menor_preco">Menor Preço</option>
+                    <option value="maior_preco">Maior Preço</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -540,7 +651,7 @@ export default function HomeComprador() {
                       <h3 className="font-bold text-[#394158] text-[11px] md:text-sm leading-tight mb-1 line-clamp-1 hover:text-[#55833d] transition-colors">{prod.nome}</h3>
                     </Link>
                     <div className="flex items-center gap-1 text-[#394158]/50 mb-2 uppercase font-bold text-[8px] md:text-[9px]">
-                      <MapPin size={8} /> {prod.nomeLoja}
+                      <MapPin size={8} /> {prod.nomeLoja}{prod.cidade ? ` • ${prod.cidade}${prod.estado ? `/${prod.estado}` : ''}` : ''}
                     </div>
                     <div className="mt-auto pt-2 border-t border-gray-50 flex justify-between items-center">
                       <span className="text-xs md:text-lg font-black text-[#394158]">

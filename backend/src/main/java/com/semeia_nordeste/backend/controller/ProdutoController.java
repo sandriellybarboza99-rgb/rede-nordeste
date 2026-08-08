@@ -84,13 +84,13 @@ public class ProdutoController {
         }
 
         @GetMapping("/produtos")
-        public ResponseEntity<Page<ProdutoResponse>> buscar(
+        public ResponseEntity<com.semeia_nordeste.backend.dto.ProdutoSearchResponse> buscar(
                         @RequestParam(required = false) String nome,
                         @RequestParam(required = false) Long categoriaId,
+                        @RequestParam(required = false) String estado,
+                        @RequestParam(required = false) String cidade,
                         @PageableDefault(size = 20, sort = "dataCadastro") Pageable pageable) {
-                return ResponseEntity.ok(
-                                produtoService.buscar(nome, categoriaId, pageable)
-                                                .map(ProdutoResponse::fromEntity));
+                return ResponseEntity.ok(produtoService.buscar(nome, categoriaId, estado, cidade, pageable));
         }
 
         @GetMapping("/produtos/{id}")
