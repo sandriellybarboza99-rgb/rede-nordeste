@@ -53,6 +53,11 @@ const isAuthPublic = (url?: string) =>
 // ============================================================
 // INTERCEPTOR — trata erros e faz refresh automático
 // ============================================================
+// Estado compartilhado para serializar refreshes concorrentes.
+// Se múltiplas requests retornam 401 ao mesmo tempo, todas esperam
+// o mesmo promise de refresh em vez de cada uma tentar por conta própria.
+let refreshingPromise: Promise<string> | null = null;
+
 apiService.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -65,20 +70,30 @@ apiService.interceptors.response.use(
     ) {
       original._retry = true;
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) throw new Error("Sem sessão");
+        // Se já há um refresh em andamento, aguarda o mesmo promise
+        if (!refreshingPromise) {
+          refreshingPromise = (async () => {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) throw new Error("Sem sessão");
 
-        const dados = JSON.parse(raw);
-        const baseURL =
-          import.meta.env.VITE_API_URL || "http://localhost:8090/api";
-        const res = await axios.post(`${baseURL}/usuarios/refresh`, {
-          refreshToken: dados.refreshToken,
-        });
+            const dados = JSON.parse(raw);
+            const baseURL =
+              import.meta.env.VITE_API_URL || "http://localhost:8090/api";
+            const res = await axios.post(`${baseURL}/usuarios/refresh`, {
+              refreshToken: dados.refreshToken,
+            });
 
-        const novos = { ...dados, ...res.data };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(novos));
-        window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
-        original.headers.Authorization = `Bearer ${res.data.accessToken}`;
+            const novos = { ...dados, ...res.data };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(novos));
+            window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
+            return res.data.accessToken as string;
+          })().finally(() => {
+            refreshingPromise = null;
+          });
+        }
+
+        const newToken = await refreshingPromise;
+        original.headers.Authorization = `Bearer ${newToken}`;
         return apiService(original);
       } catch {
         limparSessaoLocal();
@@ -193,6 +208,100 @@ export const atualizarEndereco = async (id: number, dados: any) => {
 
 export const deletarEndereco = async (id: number) => {
   await apiService.delete(`/usuarios/enderecos/${id}`);
+};
+
+// ============================================================
+// CEP — Consulta e Geocodificação
+// ============================================================
+
+export interface DadosCep {
+  cep: string;
+  logradouro: string;
+  bairro: string;
+  localidade: string; // cidade
+  uf: string;
+  estadoCidade?: string; // formatted
+}
+
+/**
+ * Busca dados de endereço por CEP usando o endpoint proxy do backend
+ * (que por sua vez consulta a ViaCEP). Fallback direto para ViaCEP caso
+ * o backend não esteja disponível.
+ */
+export const consultarCep = async (cep: string): Promise<DadosCep | null> => {
+  const cepLimpo = cep.replace(/\D/g, '');
+  if (cepLimpo.length !== 8) return null;
+
+  try {
+    // Tenta pelo backend proxy (evita CORS em produção)
+    const res = await apiService.get(`/cep/${cepLimpo}`);
+    const d = res.data;
+    if (d.erro) return null;
+    return { ...d, estadoCidade: `${d.uf} - ${d.localidade}` };
+  } catch {
+    // Fallback direto para ViaCEP
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+      const d = await res.json();
+      if (d.erro) return null;
+      return { ...d, estadoCidade: `${d.uf} - ${d.localidade}` };
+    } catch {
+      return null;
+    }
+  }
+};
+
+/**
+ * Geocodifica um endereço usando Nominatim (OpenStreetMap).
+ * Tenta progressive fallback: endereço completo → rua+cidade → cidade+estado.
+ * Retorna lat/lon ou null se não encontrar.
+ */
+export const geocodificarEndereco = async (
+  logradouro: string,
+  numero: string,
+  bairro: string,
+  cidade: string,
+  uf: string,
+): Promise<{ lat: number; lon: number } | null> => {
+  const BASE = 'https://nominatim.openstreetmap.org/search';
+  const HEADERS = { 'Accept-Language': 'pt-BR', 'User-Agent': 'RedeNordeste/1.0' };
+
+  const trySearch = async (params: Record<string, string>) => {
+    const qs = new URLSearchParams({ ...params, format: 'json', limit: '1', countrycodes: 'br' });
+    try {
+      const res = await fetch(`${BASE}?${qs}`, { headers: HEADERS });
+      const data = await res.json();
+      if (data.length > 0) return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+    } catch { /* continua */ }
+    return null;
+  };
+
+  // 1. Endereço completo com structured search
+  if (logradouro && cidade) {
+    const street = [logradouro.trim(), numero?.trim()].filter(Boolean).join(' ');
+    const result = await trySearch({ street, city: cidade, state: uf });
+    if (result) return result;
+  }
+
+  // 2. Só rua + cidade (sem número)
+  if (logradouro && cidade) {
+    const result = await trySearch({ street: logradouro.trim(), city: cidade, state: uf });
+    if (result) return result;
+  }
+
+  // 3. Bairro + cidade
+  if (bairro && cidade) {
+    const result = await trySearch({ q: `${bairro}, ${cidade}, ${uf}, Brazil` });
+    if (result) return result;
+  }
+
+  // 4. Só cidade/estado (fallback final)
+  if (cidade) {
+    const result = await trySearch({ city: cidade, state: uf, country: 'Brazil' });
+    if (result) return result;
+  }
+
+  return null;
 };
 
 // ============================================================
@@ -427,6 +536,32 @@ export const simularFrete = async (
   return res.data;
 };
 
+export const simularFreteMultiLoja = async (
+  lojaIds: number[],
+  latitudeDestino: number,
+  longitudeDestino: number,
+) => {
+  const promises = lojaIds.map(async (lojaId) => {
+    try {
+      const res = await simularFrete(lojaId, latitudeDestino, longitudeDestino);
+      // Pega dados básicos da loja se possível para ter o nome
+      let nomeLoja = `Loja ${lojaId}`;
+      try {
+        const lojaData = await getLojaPorId(lojaId);
+        if (lojaData && lojaData.nomeLoja) nomeLoja = lojaData.nomeLoja;
+      } catch (e) {
+        // Ignora
+      }
+      return { lojaId, nomeLoja, ...res };
+    } catch (error) {
+      console.error(`Erro simulando frete para loja ${lojaId}:`, error);
+      return { lojaId, nomeLoja: `Loja ${lojaId}`, valorFrete: 0, erro: true };
+    }
+  });
+
+  return Promise.all(promises);
+};
+
 // ============================================================
 // ENTREGADORES
 // ============================================================
@@ -554,6 +689,14 @@ export const enviarMensagemWS = (chatId: number, conteudo: string) => {
 export const desconectarWebSocket = () => {
   stompClient?.deactivate();
   stompClient = null;
+};
+
+// ============================================================
+// EMPREENDEDORAS
+// ============================================================
+export const getEmpreendedoras = async () => {
+  const res = await apiService.get("/lojas/empreendedoras");
+  return res.data;
 };
 
 // ============================================================

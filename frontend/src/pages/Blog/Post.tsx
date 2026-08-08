@@ -17,7 +17,7 @@ export default function Post() {
 
   const irParaPainel = () => {
     if (usuarioLogado?.perfil === 'PRODUTOR') {
-      navigate('/vendedor');
+      navigate('/home2');
     } else if (usuarioLogado?.perfil === 'COMPRADOR') {
       navigate('/home2');
     } else {
@@ -45,7 +45,7 @@ export default function Post() {
   useEffect(() => {
     const carregarPost = async () => {
       const postId = Number(id);
-      
+
       try {
         const adminPost = await getNoticiaPorId(postId);
         if (adminPost) {
@@ -66,7 +66,7 @@ export default function Post() {
         console.error("Erro ao carregar noticia por ID", error);
       }
     };
-    
+
     carregarPost();
 
     return () => {
@@ -80,13 +80,13 @@ export default function Post() {
 
   return (
     <div className="min-h-screen bg-[#F9F7F2] font-sans text-[#394158]">
-      
+
       <nav className="w-full bg-white border-b border-gray-100 sticky top-0 z-50 py-3 md:py-4 px-4 md:px-8 shadow-sm">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2 md:gap-4 cursor-pointer" onClick={() => navigate('/')}>
             <img src="/assets/logo-home.png" alt="Logo" className="h-8 md:h-12 w-auto object-contain" />
           </div>
-          
+
           <div className="flex gap-6 md:gap-8 items-center">
             <button onClick={() => navigate('/blog')} className="text-[#f9943b] font-black uppercase text-[10px] md:text-xs tracking-widest border-b-2 border-[#f9943b]">Blog</button>
             {!mostrarPainel ? (
@@ -99,9 +99,9 @@ export default function Post() {
       </nav>
 
       <main className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-12">
-        
+
         <div className="flex justify-between items-center mb-6 md:mb-10 gap-2">
-          <button 
+          <button
             className="flex items-center gap-1 md:gap-2 px-3 py-1.5 md:px-6 md:py-3 bg-white border border-gray-100 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest shadow-sm hover:shadow-md hover:-translate-x-1 transition-all cursor-pointer"
             onClick={() => navigate("/blog")}
           >
@@ -109,7 +109,7 @@ export default function Post() {
           </button>
 
           {/* BOTÃO PARA INICIAR/PARAR O ÁUDIO */}
-          <button 
+          <button
             onClick={toggleSpeech}
             className={`flex items-center gap-1 md:gap-2 px-3 py-1.5 md:px-6 md:py-3 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest transition-all shadow-sm ${isReading ? 'bg-[#f9943b] text-white' : 'bg-white text-[#f9943b] border border-[#f9943b]'}`}
           >
@@ -124,7 +124,7 @@ export default function Post() {
           <h1 className="text-[1.25rem] md:text-5xl font-black text-[#394158] uppercase italic leading-tight tracking-tighter mb-3 md:mb-6">
             {post.titulo}
           </h1>
-          
+
           <div className="flex flex-wrap gap-4 md:gap-6 text-[7px] md:text-[10px] font-black uppercase tracking-widest text-[#394158]/50">
             <span className="flex items-center gap-1 md:gap-2">
               <Calendar className="text-[#f9943b] w-3 h-3 md:w-4 md:h-4" /> {post.data}
@@ -143,25 +143,25 @@ export default function Post() {
           <h2 className="text-sm md:text-2xl font-black text-[#55833d] uppercase italic leading-snug md:leading-tight">
             {post.subtitulo}
           </h2>
-          
+
           <div className="text-[13px] md:text-lg font-medium leading-relaxed text-[#394158]/80 space-y-3 md:space-y-6">
             {post.conteudo.split('\n').map((line: string, index: number) => (
               <p key={index}>{line}</p>
             ))}
           </div>
-          
+
           <div className="bg-[#f9943b]/10 border-l-2 md:border-l-4 border-[#f9943b] p-4 md:p-8 italic text-[13px] md:text-xl font-medium rounded-r-lg md:rounded-r-2xl">
             "{post.citacao || "A tecnologia não substitui o produtor, mas potencializa seu conhecimento e sua produção."}"
           </div>
         </article>
 
         <div className="mt-20 pt-10 border-t border-gray-100 text-center">
-             <button 
-                onClick={() => navigate('/blog')}
-                className="text-[#55833d] font-black uppercase text-xs border-b-2 border-[#55833d] pb-1 hover:text-[#f9943b] hover:border-[#f9943b] transition-all cursor-pointer"
-             >
-                Explorar mais notícias
-             </button>
+          <button
+            onClick={() => navigate('/blog')}
+            className="text-[#55833d] font-black uppercase text-xs border-b-2 border-[#55833d] pb-1 hover:text-[#f9943b] hover:border-[#f9943b] transition-all cursor-pointer"
+          >
+            Explorar mais notícias
+          </button>
         </div>
       </main>
       <footer className="w-full text-center p-20 bg-gray-50 border-t border-gray-100">

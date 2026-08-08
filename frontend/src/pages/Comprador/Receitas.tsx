@@ -5,6 +5,8 @@ import {
   ChevronLeft, X, Flame, ChefHat, ScrollText, ShoppingBag, MessageCircle, Search, ChevronRight, Menu, Bell,
   Trash2, Truck, Tag, Info, Package
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { UserMenu } from '../../components/ui/UserMenu';
 
 const NOTIFICACOES_DATA = [
   { id: 1, titulo: 'Pedido a caminho!', mensagem: 'Seu pedido #4582 saiu para entrega.', tempo: 'Há 2 horas', lida: false, icone: Truck, cor: 'text-[#f9943b]', bg: 'bg-[#f9943b]/10' },
@@ -84,6 +86,8 @@ export default function Receitas() {
   const [notifAberta, setNotifAberta] = useState(false); 
   const [notificacoes, setNotificacoes] = useState(NOTIFICACOES_DATA); 
   const navigate = useNavigate();
+  const { perfil } = useAuth();
+  const isVendedor = perfil === 'PRODUTOR';
 
   const [carrinhoCount, setCarrinhoCount] = useState(() => {
     const salvo = localStorage.getItem('carrinho_count');
@@ -149,6 +153,7 @@ export default function Receitas() {
               <Link to="/home2" className="hover:text-[#f9943b] transition-colors">Início</Link>
               <Link to="/receitas" className="text-[#f9943b] border-b-2 border-[#f9943b] pb-1">Receitas</Link>
               <Link to="/blog" className="hover:text-[#f9943b]">Notícias</Link>
+              {isVendedor && <Link to="/painelvendedor" className="hover:text-[#f9943b]">Painel Vendedor</Link>}
             </nav>
           </div>
 
@@ -206,14 +211,14 @@ export default function Receitas() {
                   </span>
                 )}
               </Link>
-              <Link to="/perfil" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158] group">
-                <User className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
-              </Link>
+              <UserMenu perfilPath={isVendedor ? "/perfilvendedor" : "/perfil"} />
             </div>
 
-            <button onClick={() => setMenuAberto(true)} className="md:hidden p-1 text-[#394158] hover:text-[#f9943b] transition-colors">
-              <Menu size={24} />
-            </button>
+            {/* Mobile */}
+            <div className="flex lg:hidden items-center gap-3">
+              <UserMenu perfilPath={isVendedor ? "/perfilvendedor" : "/perfil"} />
+              <button onClick={() => setMenuAberto(true)} className="md:hidden p-1 text-[#394158] hover:text-[#f9943b] transition-colors"><Menu size={24} /></button>
+            </div>
           </div>
         </div>
 
@@ -228,6 +233,7 @@ export default function Receitas() {
                 <Link to="/home2" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14}/> Início</Link>
                 <Link to="/receitas" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 text-[#55833d]"><ChevronRight size={14}/> Receitas</Link>
                 <Link to="/blog" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#f9943b]"><ChevronRight size={14}/> Notícias</Link>
+                {isVendedor && <Link to="/painelvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#f9943b]"><ChevronRight size={14}/> Painel Vendedor</Link>}
                 <hr className="border-gray-50 my-2" />
                 <button onClick={() => { setMenuAberto(false); setNotifAberta(true); }} className="flex items-center gap-4 hover:text-[#55833d] uppercase font-black text-sm tracking-widest">
                   <div className="relative">

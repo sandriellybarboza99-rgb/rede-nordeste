@@ -4,18 +4,21 @@ import {
   LogOut, Camera, CheckCircle,
   Wallet, Package, Truck, Heart, History, RotateCcw, HelpCircle,
   ChevronRight, Settings,
-  MapPin, CreditCard, Lock, ShoppingBag, Calendar,
-  CreditCard as CardIcon, ShoppingCart, Filter, HeartOff, Eye, Trash2, X,
+  MapPin, Clock, ArrowRight, Home, LayoutList, Store, X, 
+  Trash2, Menu, User, Map, CreditCard, CreditCard as CardIcon, ChevronLeft, Pencil,
+  Eye, Filter, HeartOff, Lock, ShoppingBag, Calendar, QrCode, Copy
 } from 'lucide-react';
 import {
   getMeusPedidos, atualizarMeuPerfil, getMeuPerfil,
-  getMeusEnderecos, criarEndereco, deletarEndereco,
+  getMeusEnderecos, criarEndereco, atualizarEndereco, deletarEndereco,
   getMeusCartoes, criarCartao, deletarCartao, getProdutoPorId,
+  consultarCep, geocodificarEndereco,
 } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { BackButton } from '../../components/ui/BackButton';
+import { gerarPayloadPix } from '../../utils/pixPayload';
 
 interface Endereco {
   id: number;
@@ -28,6 +31,8 @@ interface Endereco {
   numero: string;
   complemento?: string;
   principal: boolean;
+  latitudeDestino?: number;
+  longitudeDestino?: number;
 }
 
 interface Cartao {
@@ -48,6 +53,7 @@ export default function Perfil() {
   const [abaAtiva, setAbaAtiva] = useState<'pagar' | 'preparando' | 'caminho' | 'finalizados'>('finalizados');
   const [secaoConfig, setSecaoConfig] = useState<'menu' | 'conta' | 'enderecos' | 'cartoes'>('menu');
   const [pedidoSelecionado, setPedidoSelecionado] = useState<any>(null);
+  const [copiado, setCopiado] = useState<string | false>(false);
 
   // ── Dados do usuário (CONTROLADO PELO BACKEND via /usuarios/me) ──
   const [dadosUsuario, setDadosUsuario] = useState({
@@ -61,11 +67,16 @@ export default function Perfil() {
 
   // ── Endereços do backend ────────────────────────────────────────
   const [exibirFormEndereco, setExibirFormEndereco] = useState(false);
+  const [enderecoEditando, setEnderecoEditando] = useState<Endereco | null>(null);
   const [meusEnderecos, setMeusEnderecos] = useState<Endereco[]>([]);
   const [novoEndereco, setNovoEndereco] = useState({
     destinatario: '', telefone: '', cep: '', estadoCidade: '',
     bairro: '', rua: '', numero: '', complemento: '',
+    latitudeDestino: undefined as number | undefined,
+    longitudeDestino: undefined as number | undefined,
   });
+  const [geocodificandoCep, setGeocodificandoCep] = useState(false);
+  const [feedbackCepPerfil, setFeedbackCepPerfil] = useState<'ok' | 'erro' | null>(null);
 
   // ── Cartões do backend ──────────────────────────────────────────
   const [exibirFormCartao, setExibirFormCartao] = useState(false);
@@ -189,21 +200,60 @@ export default function Perfil() {
     }
   };
 
-  // ── Salvar novo endereço no backend ─────────────────────────────
+  const handleCepBlurPerfil = async () => {
+    if (novoEndereco.cep.replace(/\D/g, '').length !== 8) return;
+    setGeocodificandoCep(true);
+    setFeedbackCepPerfil(null);
+    try {
+      const dados = await consultarCep(novoEndereco.cep);
+      if (!dados) { setFeedbackCepPerfil('erro'); return; }
+      const estadoCidade = `${dados.uf} - ${dados.localidade}`;
+      setNovoEndereco((prev) => ({
+        ...prev,
+        rua: dados.logradouro || prev.rua,
+        bairro: dados.bairro || prev.bairro,
+        estadoCidade,
+      }));
+      const coords = await geocodificarEndereco(
+        dados.logradouro, novoEndereco.numero, dados.bairro, dados.localidade, dados.uf
+      );
+      if (coords) {
+        setNovoEndereco((prev) => ({ ...prev, latitudeDestino: coords.lat, longitudeDestino: coords.lon }));
+        setFeedbackCepPerfil('ok');
+      } else {
+        setFeedbackCepPerfil('erro');
+      }
+    } finally {
+      setGeocodificandoCep(false);
+    }
+  };
+
+  // ── Salvar ou Editar endereço no backend ─────────────────────────────
   const salvarNovoEndereco = async () => {
     if (!novoEndereco.destinatario || !novoEndereco.cep || !novoEndereco.rua) {
       toastError('Preencha os campos obrigatórios.');
       return;
     }
     try {
-      const criado = await criarEndereco({
-        ...novoEndereco,
-        principal: meusEnderecos.length === 0,
-      });
-      setMeusEnderecos([...meusEnderecos, criado]);
+      if (enderecoEditando) {
+        const atualizado = await atualizarEndereco(enderecoEditando.id, {
+          ...novoEndereco,
+          principal: enderecoEditando.principal,
+        });
+        setMeusEnderecos(meusEnderecos.map((e) => e.id === enderecoEditando.id ? atualizado : e));
+        success('Endereço atualizado!');
+      } else {
+        const criado = await criarEndereco({
+          ...novoEndereco,
+          principal: meusEnderecos.length === 0,
+        });
+        setMeusEnderecos([...meusEnderecos, criado]);
+        success('Endereço salvo!');
+      }
+      setEnderecoEditando(null);
       setExibirFormEndereco(false);
-      setNovoEndereco({ destinatario: '', telefone: '', cep: '', estadoCidade: '', bairro: '', rua: '', numero: '', complemento: '' });
-      success('Endereço salvo!');
+      setNovoEndereco({ destinatario: '', telefone: '', cep: '', estadoCidade: '', bairro: '', rua: '', numero: '', complemento: '', latitudeDestino: undefined, longitudeDestino: undefined });
+      setFeedbackCepPerfil(null);
     } catch (err: any) {
       toastError(err.message || 'Erro ao salvar endereço.');
     }
@@ -375,7 +425,7 @@ export default function Perfil() {
               )}
             </div>
             <div className="px-2">
-              <h3 className="text-xl font-black uppercase italic text-[#394158]">{exibirFormEndereco ? 'Novo Endereço' : 'Meus Endereços'}</h3>
+              <h3 className="text-xl font-black uppercase italic text-[#394158]">{exibirFormEndereco ? (enderecoEditando ? 'Editar Endereço' : 'Novo Endereço') : 'Meus Endereços'}</h3>
             </div>
             {exibirFormEndereco ? (
               <form className="bg-white rounded-2xl p-8 shadow-xl border border-white space-y-4" onSubmit={(e) => { e.preventDefault(); salvarNovoEndereco(); }}>
@@ -385,7 +435,7 @@ export default function Perfil() {
                     <input type="text" value={novoEndereco.destinatario} onChange={(e) => setNovoEndereco({ ...novoEndereco, destinatario: e.target.value })} className="w-full bg-[#F5F2ED]/50 border-2 border-transparent focus:border-[#55833d]/20 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158]" placeholder="Ex: Maria Silva" />
                   </div>
                   <div className="space-y-1.5"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">Telefone</label><input type="text" value={novoEndereco.telefone} onChange={(e) => setNovoEndereco({ ...novoEndereco, telefone: e.target.value })} className="w-full bg-[#F5F2ED]/50 border-2 border-transparent focus:border-[#55833d]/20 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158]" placeholder="(00) 00000-0000" /></div>
-                  <div className="space-y-1.5"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">CEP</label><input type="text" value={novoEndereco.cep} onChange={(e) => setNovoEndereco({ ...novoEndereco, cep: e.target.value })} className="w-full bg-[#F5F2ED]/50 border-2 border-transparent focus:border-[#55833d]/20 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158]" placeholder="00000-000" /></div>
+                  <div className="space-y-1.5 relative"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">CEP</label><input type="text" value={novoEndereco.cep} onChange={(e) => { setNovoEndereco({ ...novoEndereco, cep: e.target.value }); setFeedbackCepPerfil(null); }} onBlur={handleCepBlurPerfil} className={`w-full bg-[#F5F2ED]/50 border-2 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158] pr-14 ${feedbackCepPerfil === 'ok' ? 'border-green-400' : feedbackCepPerfil === 'erro' ? 'border-red-300' : 'border-transparent focus:border-[#55833d]/20'}`} placeholder="00000-000" />{geocodificandoCep && <span className="absolute right-4 bottom-4 text-[10px] text-[#f9943b] animate-pulse font-bold">GPS...</span>}{!geocodificandoCep && feedbackCepPerfil === 'ok' && <span className="absolute right-4 bottom-4 text-green-500">✔</span>}{!geocodificandoCep && feedbackCepPerfil === 'erro' && <span className="absolute right-4 bottom-4 text-red-400">⚠</span>}</div>
                   <div className="space-y-1.5 md:col-span-2"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">Estado - Cidade</label><input type="text" value={novoEndereco.estadoCidade} onChange={(e) => setNovoEndereco({ ...novoEndereco, estadoCidade: e.target.value })} className="w-full bg-[#F5F2ED]/50 border-2 border-transparent focus:border-[#55833d]/20 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158]" placeholder="Sergipe - Aracaju" /></div>
                   <div className="space-y-1.5"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">Bairro</label><input type="text" value={novoEndereco.bairro} onChange={(e) => setNovoEndereco({ ...novoEndereco, bairro: e.target.value })} className="w-full bg-[#F5F2ED]/50 border-2 border-transparent focus:border-[#55833d]/20 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158]" placeholder="Centro" /></div>
                   <div className="space-y-1.5"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">Rua</label><input type="text" value={novoEndereco.rua} onChange={(e) => setNovoEndereco({ ...novoEndereco, rua: e.target.value })} className="w-full bg-[#F5F2ED]/50 border-2 border-transparent focus:border-[#55833d]/20 focus:bg-white p-4 rounded-2xl outline-none text-sm font-bold text-[#394158]" placeholder="Rua das Flores" /></div>
@@ -407,7 +457,33 @@ export default function Perfil() {
                         <p className="text-[10px] text-gray-400 font-bold">{end.bairro} • {end.estadoCidade}</p>
                         <p className="text-[10px] text-gray-400 font-bold">CEP: {end.cep}</p>
                       </div>
-                      <button onClick={() => removerEndereco(end.id)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEnderecoEditando(end);
+                            setNovoEndereco({
+                              destinatario: end.destinatario || '',
+                              telefone: end.telefone || '',
+                              cep: end.cep || '',
+                              estadoCidade: end.estadoCidade || '',
+                              bairro: end.bairro || '',
+                              rua: end.rua || '',
+                              numero: end.numero || '',
+                              complemento: end.complemento || '',
+                              latitudeDestino: end.latitudeDestino,
+                              longitudeDestino: end.longitudeDestino,
+                            });
+                            setFeedbackCepPerfil(end.latitudeDestino && end.longitudeDestino ? 'ok' : null);
+                            setExibirFormEndereco(true);
+                          }}
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button onClick={() => removerEndereco(end.id)} className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -494,6 +570,7 @@ export default function Perfil() {
 
     const status = pedidoSelecionado.statusEntrega || 'PEDIDO_RECEBIDO';
     const isCancelado = status === 'CANCELADO';
+    const isAguardandoPagamento = pedidoSelecionado.statusPagamento === 'AGUARDANDO';
     
     // Calcula o progresso (0 a 3)
     let progresso = 0;
@@ -510,12 +587,70 @@ export default function Perfil() {
           </div>
           <div className="p-8 space-y-8">
             
-            {/* WIZARD TRACKING */}
+            {/* WIZARD TRACKING OR PAYMENT */}
             {isCancelado ? (
               <div className="bg-red-50 p-6 rounded-2xl border border-red-100 flex flex-col items-center justify-center text-center">
                 <X size={32} className="text-red-500 mb-2" />
                 <h4 className="text-red-600 font-black uppercase text-sm">Pedido Cancelado</h4>
                 <p className="text-[10px] font-bold text-red-400 mt-1 uppercase tracking-widest">Este pedido não será entregue.</p>
+              </div>
+            ) : isAguardandoPagamento ? (
+              <div className="bg-[#f9943b]/5 p-6 rounded-2xl border border-[#f9943b]/20 flex flex-col text-left">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-full bg-[#f9943b] text-white flex items-center justify-center shrink-0">
+                    <QrCode size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-[#f9943b] font-black uppercase tracking-widest text-sm">Aguardando Pagamento</h4>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">Realize o pagamento PIX para liberar o pedido</p>
+                  </div>
+                </div>
+                
+                {pedidoSelecionado.detalhesPixLojas && pedidoSelecionado.detalhesPixLojas.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-4">
+                    {pedidoSelecionado.detalhesPixLojas.map((lojaPix: any) => {
+                      const payload = gerarPayloadPix({
+                        chavePix: lojaPix.chavePix || '',
+                        tipoChavePix: lojaPix.tipoChavePix || 'CPF',
+                        nomeRecebedor: lojaPix.nomeLoja || 'Loja',
+                        cidadeRecebedor: 'Sergipe',
+                        valor: lojaPix.valorTotal,
+                        txId: '***'
+                      });
+                      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(payload)}`;
+                      return (
+                        <div key={lojaPix.lojaId} className="bg-white p-4 rounded-xl border border-gray-100 flex flex-col md:flex-row items-center gap-6">
+                           <div className="shrink-0 p-2 bg-[#F5F2ED] rounded-lg">
+                             <img src={qrUrl} alt={`QR Code ${lojaPix.nomeLoja}`} className="w-24 h-24 object-contain mix-blend-multiply" />
+                           </div>
+                           <div className="flex-1 w-full space-y-3">
+                             <div>
+                               <p className="text-[10px] font-black uppercase text-gray-400">Loja Recebedora</p>
+                               <p className="text-sm font-bold text-[#394158]">{lojaPix.nomeLoja}</p>
+                               <p className="text-sm font-black text-[#55833d] mt-1">R$ {lojaPix.valorTotal.toFixed(2)}</p>
+                             </div>
+                             <div className="flex items-center gap-2">
+                               <input type="text" readOnly value={payload} className="bg-[#F5F2ED] text-[10px] font-mono p-2.5 rounded-lg w-full outline-none text-gray-500 truncate" />
+                               <button 
+                                 onClick={() => {
+                                   navigator.clipboard.writeText(payload);
+                                   setCopiado(`loja-${lojaPix.lojaId}`);
+                                   setTimeout(() => setCopiado(false), 2000);
+                                 }}
+                                 className="shrink-0 bg-[#394158] hover:bg-[#2a3042] text-white p-2.5 rounded-lg flex items-center gap-2 text-[10px] font-black uppercase transition-colors"
+                               >
+                                 <Copy size={14} />
+                                 {copiado === `loja-${lojaPix.lojaId}` ? 'Copiado!' : 'Copiar'}
+                               </button>
+                             </div>
+                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                   <p className="text-xs text-gray-400 font-bold mt-4">Dados de pagamento indisponíveis.</p>
+                )}
               </div>
             ) : (
               <div className="relative pt-4 pb-8">
@@ -564,7 +699,7 @@ export default function Perfil() {
             
             <div className="pt-6 border-t border-dashed flex flex-col gap-4">
               <div className="flex justify-between items-baseline px-2">
-                <span className="font-black uppercase text-[10px] opacity-30">Total Pago</span>
+                <span className="font-black uppercase text-[10px] opacity-30">{isAguardandoPagamento ? 'Total a Pagar' : 'Total Pago'}</span>
                 <span className="text-2xl font-black text-[#55833d]">R$ {Number(pedidoSelecionado.valorTotal || pedidoSelecionado.total).toFixed(2)}</span>
               </div>
             </div>

@@ -69,6 +69,7 @@ public class PedidoService {
 
         // ── Monta entrega ─────────────────────────────────────────────────
         Entrega entrega = new Entrega();
+        java.util.Map<Long, BigDecimal> mapaFreteLocal = new java.util.HashMap<>();
 
         if (request.retiradaNaLoja()) {
             entrega.setRetiradaNaLoja(true);
@@ -85,26 +86,62 @@ public class PedidoService {
                 throw new RuntimeException(
                         "Entregas disponíveis apenas dentro do estado de Sergipe.");
 
-            // Pega coordenadas da loja (origem — usa a loja do primeiro produto)
-            Loja loja = itensCarrinho.get(0).getProduto().getLoja();
-            double latOrigem = loja.getLatitudeLoja() != null ? loja.getLatitudeLoja() : -10.9167;
-            double lonOrigem = loja.getLongitudeLoja() != null ? loja.getLongitudeLoja() : -37.0500;
+            BigDecimal freteTotal = BigDecimal.ZERO;
+            BigDecimal maiorDistancia = BigDecimal.ZERO;
+            TipoVeiculo maiorVeiculo = TipoVeiculo.MOTO;
+            CategoriaCarga maiorCategoria = CategoriaCarga.LEVE;
+            BigDecimal pesoTotalGeral = BigDecimal.ZERO;
+            
+            // Variáveis para a loja base do entregador
+            double latOrigemBase = -10.9167;
+            double lonOrigemBase = -37.0500;
+            boolean isFirst = true;
 
-            BigDecimal distancia = freteService.calcularDistanciaKm(
-                    latOrigem, lonOrigem,
-                    request.latitudeDestino(), request.longitudeDestino());
+            java.util.Map<Loja, java.util.List<ItemPedido>> itensPorLoja = itensPedido.stream()
+                    .collect(java.util.stream.Collectors.groupingBy(i -> i.getProduto().getLoja()));
 
-            BigDecimal pesoTotal = freteService.calcularPesoTotal(itensPedido);
-            CategoriaCarga categoria = freteService.classificarCarga(pesoTotal);
-            TipoVeiculo veiculo = freteService.definirVeiculo(categoria, distancia);
-            boolean areaRemota = distancia.doubleValue() > 80;
-            BigDecimal frete = freteService.calcularFrete(veiculo, distancia, areaRemota);
+            for (java.util.Map.Entry<Loja, java.util.List<ItemPedido>> entry : itensPorLoja.entrySet()) {
+                Loja loja = entry.getKey();
+                double latOrigem = loja.getLatitudeLoja() != null ? loja.getLatitudeLoja() : -10.9167;
+                double lonOrigem = loja.getLongitudeLoja() != null ? loja.getLongitudeLoja() : -37.0500;
+                
+                if (isFirst) {
+                    latOrigemBase = latOrigem;
+                    lonOrigemBase = lonOrigem;
+                    isFirst = false;
+                }
+
+                BigDecimal distanciaLoja = freteService.calcularDistanciaKm(
+                        latOrigem, lonOrigem, request.latitudeDestino(), request.longitudeDestino());
+
+                if (distanciaLoja.compareTo(maiorDistancia) > 0) maiorDistancia = distanciaLoja;
+
+                BigDecimal pesoLoja = freteService.calcularPesoTotal(entry.getValue());
+                pesoTotalGeral = pesoTotalGeral.add(pesoLoja);
+
+                CategoriaCarga categoriaLoja = freteService.classificarCarga(pesoLoja);
+                if (categoriaLoja.ordinal() > maiorCategoria.ordinal()) maiorCategoria = categoriaLoja;
+
+                TipoVeiculo veiculoLoja = freteService.definirVeiculo(categoriaLoja, distanciaLoja);
+                if (veiculoLoja.ordinal() > maiorVeiculo.ordinal()) maiorVeiculo = veiculoLoja;
+
+                boolean areaRemota = distanciaLoja.doubleValue() > 80;
+                BigDecimal freteLoja = freteService.calcularFrete(veiculoLoja, distanciaLoja, areaRemota);
+                freteTotal = freteTotal.add(freteLoja);
+                mapaFreteLocal.put(loja.getId(), freteLoja);
+            }
+
+            BigDecimal frete = freteTotal;
+            BigDecimal distancia = maiorDistancia;
+            TipoVeiculo veiculo = maiorVeiculo;
+            CategoriaCarga categoria = maiorCategoria;
+            BigDecimal pesoTotal = pesoTotalGeral;
 
             // Associa entregador automaticamente
             Entregador entregador = null;
             try {
                 entregador = entregadorService.encontrarMaisAdequado(
-                        veiculo, latOrigem, lonOrigem);
+                        veiculo, latOrigemBase, lonOrigemBase);
                 entregador.setDisponivel(false); // marca como ocupado
             } catch (RuntimeException ex) {
                 // Se não há entregador, cria entrega pendente sem associação
@@ -144,6 +181,12 @@ public class PedidoService {
         pedido.setObservacoes(request.observacoes());
         itensPedido.forEach(i -> i.setPedido(pedido));
         pedido.setItens(itensPedido);
+        
+        if (request.retiradaNaLoja()) {
+            // Se for retirada na loja, todos fretes são 0
+            itensCarrinho.forEach(i -> mapaFreteLocal.put(i.getProduto().getLoja().getId(), BigDecimal.ZERO));
+        }
+        pedido.setFretePorLojaReal(mapaFreteLocal);
 
         Pedido salvo = pedidoRepository.save(pedido);
         carrinhoService.limpar(usuario);

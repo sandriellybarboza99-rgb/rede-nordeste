@@ -18,7 +18,7 @@ export default function Blog() {
 
   const irParaPainel = () => {
     if (usuarioLogado?.perfil === 'PRODUTOR') {
-      navigate('/vendedor');
+      navigate('/home2');
     } else if (usuarioLogado?.perfil === 'COMPRADOR') {
       navigate('/home2');
     } else {

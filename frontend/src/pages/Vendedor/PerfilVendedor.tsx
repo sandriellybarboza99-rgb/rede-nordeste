@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  User, LogOut, MapPin, CreditCard,
+  User, LogOut, MapPin, CreditCard, Camera,
   Home as HomeIcon, MessageCircle, Trash2, Store, PlusCircle, QrCode, Save,
   LayoutDashboard, BookOpen,
 } from 'lucide-react';
@@ -47,6 +47,7 @@ export default function PerfilVendedor() {
 
   // Dados da Loja / PIX
   const [loja, setLoja] = useState<any>(null);
+  const [logoUrl, setLogoUrl] = useState('');
   const [nomeLoja, setNomeLoja] = useState('');
   const [descricaoBio, setDescricaoBio] = useState('');
   const [cidade, setCidade] = useState('');
@@ -97,6 +98,7 @@ export default function PerfilVendedor() {
 
         if (lojaRes) {
           setLoja(lojaRes);
+          setLogoUrl(lojaRes.logoUrl || '');
           setNomeLoja(lojaRes.nomeLoja || '');
           setDescricaoBio(lojaRes.descricaoBio || '');
           setCidade(lojaRes.cidade || '');
@@ -129,6 +131,7 @@ export default function PerfilVendedor() {
     try {
       setSalvando(true);
       const atualizado = await atualizarLoja({
+        logoUrl,
         nomeLoja,
         descricaoBio,
         cidade,
@@ -228,19 +231,48 @@ export default function PerfilVendedor() {
     }
   };
 
+  const lerImagemBase64 = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toastError('Imagem muito grande (máx 2MB)');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => setLogoUrl(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="min-h-screen bg-bg-sand text-primary-earth pb-24">
       <main className="max-w-4xl mx-auto px-4 pt-6 space-y-6">
         <PageHeader
           titulo="Perfil do Vendedor"
           subtitulo="Gerencie sua loja, dados para recebimento (PIX) e conta"
-          voltarPara={() => navigate('/vendedor')}
+          voltarPara={() => navigate('/home2')}
         />
         {/* CABEÇALHO DO PRODUTOR */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-6">
-          <div className="w-20 h-20 bg-accent-red/10 text-accent-red rounded-2xl flex items-center justify-center font-black text-2xl border border-accent-red/20 shrink-0">
-            {loja?.nomeLoja ? loja.nomeLoja.charAt(0).toUpperCase() : <Store size={36} />}
-          </div>
+          <label className="relative w-20 h-20 bg-accent-red/10 text-accent-red rounded-2xl flex items-center justify-center font-black text-2xl border border-accent-red/20 shrink-0 overflow-hidden cursor-pointer group">
+            {logoUrl ? (
+              <>
+                <img src={logoUrl} alt="Logo da loja" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Camera className="text-white w-6 h-6" />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="group-hover:hidden">
+                  {loja?.nomeLoja ? loja.nomeLoja.charAt(0).toUpperCase() : <Store size={36} />}
+                </div>
+                <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center transition-opacity">
+                  <Camera className="text-white w-6 h-6" />
+                </div>
+              </>
+            )}
+            <input type="file" className="hidden" accept="image/*" onChange={lerImagemBase64} />
+          </label>
           <div className="flex-1 text-center md:text-left space-y-1">
             <h2 className="text-xl font-black text-primary-earth">{loja?.nomeLoja || 'Sua Loja'}</h2>
             <p className="text-xs text-gray-500 font-bold">{usuario?.nome || 'Produtor(a)'}</p>
@@ -689,9 +721,9 @@ export default function PerfilVendedor() {
 
       <BottomTabBar
         tabs={[
-          { to: '/vendedor', label: 'Vitrine', Icon: HomeIcon },
+          { to: '/home2', label: 'Vitrine', Icon: HomeIcon },
           { to: '/painelvendedor', label: 'Painel', Icon: LayoutDashboard },
-          { to: '/receitasvendedor', label: 'Receitas', Icon: BookOpen },
+          { to: '/receitas', label: 'Receitas', Icon: BookOpen },
           { to: '/chat', label: 'Chat', Icon: MessageCircle },
           { to: '/perfilvendedor', label: 'Perfil', Icon: User },
         ]}

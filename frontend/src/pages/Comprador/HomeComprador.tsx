@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, ShoppingCart, User, Plus, Filter, MapPin,
   Star, LayoutGrid, Palette, Beef, Sprout, Wheat, Carrot, Milk, Bed, Utensils, Shirt,
-  MessageCircle, Heart, ChevronRight, Menu, X, BookOpen, Store, Bell, HelpCircle, Home as HomeIcon
+  MessageCircle, Heart, ChevronRight, ChevronLeft, Menu, X, BookOpen, Store, Bell, HelpCircle, Home as HomeIcon, LayoutDashboard
 } from 'lucide-react';
 import {
-  buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas
+  buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho, getEmpreendedoras, getMinhaLoja
 } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { UserMenu } from '../../components/ui/UserMenu';
 import { BottomTabBar } from '../../components/ui/BottomTabBar';
 
@@ -17,15 +18,13 @@ const CATEGORIAS_ICONES: Record<string, any> = {
   'Laticínios': Milk, 'Cama Mesa e Banho': Bed, 'Gastronomia': Utensils, 'Têxtil': Shirt,
 };
 
-const EMPREENDEDORAS = [
-  { id: 1, lojaId: 1, nome: "Dona Maria", negocio: "Cerâmicas do Povo", territorio: "Baixo São Francisco", historia: "Mestra ceramista há 30 anos in Santana do São Francisco. Aprendeu a arte com sua avó e hoje lidera uma cooperativa de 12 mulheres.", img: "https://cdn.awsli.com.br/2500x2500/1616/1616697/produto/109903915/e2bbd94d12.jpg" },
-  { id: 2, lojaId: 2, nome: "Chef Ana Nunes", negocio: "Sabor de Mulher", territorio: "Grande Aracaju", historia: "Especialista em gastronomia afetiva, Ana utiliza apenas ingredientes de produtores locais para criar pratos que contam a história de Sergipe.", img: "https://www.brasildefato.com.br/wp-content/uploads/2024/09/image_processing20201106-23882-1kiy8l9.jpeg" },
-  { id: 3, lojaId: 3, nome: "Lúcia da Palha", negocio: "Arte Ilha do Ferro", territorio: "Sertão Ocidental", historia: "Lúcia transforma a palha de Ouricuri em peças de design moderno sem perder a essência do artesanato tradicional.", img: "https://agenciasebrae.com.br/wp-content/uploads/2026/02/artesanato-7.jpeg" },
-];
+// EMPREENDEDORAS será carregado da API
 
 export default function HomeComprador() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { usuario } = useAuth();
+  const isVendedor = usuario?.perfil === 'PRODUTOR';
 
   // ── Dados da API ─────────────────────────────────────────────────
   type CategoriaAPI = { id: number; nome: string };
@@ -35,42 +34,86 @@ export default function HomeComprador() {
   const [carregando, setCarregando] = useState(false);
   const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
   const [tentativa, setTentativa] = useState(0); // incrementar força re-fetch
+  const [minhaLojaId, setMinhaLojaId] = useState<number | null>(null);
 
   // ── Filtros e UI ─────────────────────────────────────────────────
   // catAtiva guarda o NOME para destacar o chip; catAtivaId guarda o ID para filtrar
   const [catAtiva, setCatAtiva] = useState('Todos');
   const [catAtivaId, setCatAtivaId] = useState<number | undefined>(undefined);
+  const [notificacoesNaoLidas] = useState(2); // Mock para contagem visual de notificações
   const [busca, setBusca] = useState('');
   const [termoPesquisado, setTermoPesquisado] = useState('');
   const [ordenacao, setOrdenacao] = useState('recomendados');
   const [favoritos, setFavoritos] = useState<number[]>([]);
   const [menuAberto, setMenuAberto] = useState(false);
-  const [mulherSelecionada, setMulherSelecionada] = useState<typeof EMPREENDEDORAS[0] | null>(null);
+  const [empreendedoras, setEmpreendedoras] = useState<any[]>([]);
+  const [mulherSelecionada, setMulherSelecionada] = useState<any | null>(null);
   const [paginaAtual, setPaginaAtual] = useState(0);
   const [carrinhoCount, setCarrinhoCount] = useState(0);
   const [naoLidas, setNaoLidas] = useState(0);
   const [tutorialAberto, setTutorialAberto] = useState(false);
+
+  // ── Scroll horizontal das categorias ─────────────────────────────
+  const catScrollRef = useRef<HTMLDivElement>(null);
+  const [podePrev, setPodePrev] = useState(false);
+  const [podeNext, setPodeNext] = useState(false);
+
+  const atualizarSetas = () => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    setPodePrev(el.scrollLeft > 4);
+    setPodeNext(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
+
+  const scrollCat = (dir: 'prev' | 'next') => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === 'next' ? 220 : -220, behavior: 'smooth' });
+    setTimeout(atualizarSetas, 350);
+  };
 
   // ── Carrega categorias ────────────────────────────────────────────
   useEffect(() => {
     sessionStorage.setItem('origemBlog', 'painel');
 
     // Tutorial
-    if (!localStorage.getItem('tutorial_visto_comprador')) {
+    const tutorialKey = isVendedor ? 'tutorial_visto_vendedor' : 'tutorial_visto_comprador';
+    if (!localStorage.getItem(tutorialKey)) {
       setTutorialAberto(true);
-      localStorage.setItem('tutorial_visto_comprador', 'true');
+      localStorage.setItem(tutorialKey, 'true');
     }
 
-    getCategorias()
-      .then((data: any[]) => setCategorias([
-        { id: 0, nome: 'Todos' },
-        ...data.map((c: any) => ({ id: c.id, nome: c.nome })),
-      ]))
-      .catch(() => setCategorias([{ id: 0, nome: 'Todos' }]));
+    // Carrega categorias e destaques
+    const carregaFiltros = async () => {
+      try {
+        const [cats, emp] = await Promise.all([
+          getCategorias(),
+          getEmpreendedoras().catch(() => []) // se falhar, retorna array vazio
+        ]);
+        setCategorias([{ id: 0, nome: 'Todos' }, ...cats]);
+        setEmpreendedoras(emp);
+        setTimeout(atualizarSetas, 100);
+      } catch (err) {
+        console.error('Erro ao carregar categorias ou empreendedoras:', err);
+      }
+    };
+    carregaFiltros();
 
     const raw = localStorage.getItem('usuarioLogado');
     if (raw) {
       getNaoLidas().then((d: any) => setNaoLidas(d.total)).catch(() => { });
+    }
+
+    if (isVendedor) {
+      getMinhaLoja().then((loja: any) => {
+        if (loja && loja.id) {
+          setMinhaLojaId(loja.id);
+        } else {
+          setMinhaLojaId(0);
+        }
+      }).catch(() => {
+        setMinhaLojaId(0);
+      });
     }
 
     const salvos = localStorage.getItem('favoritos_itens');
@@ -88,7 +131,13 @@ export default function HomeComprador() {
           catAtivaId, // ID real da categoria (undefined quando "Todos")
           paginaAtual
         );
-        setProdutos(data.content || []);
+
+        let prods = data.content || [];
+        if (isVendedor && minhaLojaId) {
+          prods = prods.filter((p: any) => p.lojaId !== minhaLojaId);
+        }
+
+        setProdutos(prods);
         setTotalPaginas(data.totalPages || 1);
       } catch (err: any) {
         // Não esconder o erro: distinguir "falha de carregamento" de "vitrine vazia".
@@ -98,8 +147,14 @@ export default function HomeComprador() {
         setCarregando(false);
       }
     };
+
+    // Se for vendedor, aguarda descobrir o lojaId antes de buscar os produtos
+    if (isVendedor && minhaLojaId === null) {
+      return;
+    }
+
     carregar();
-  }, [termoPesquisado, catAtivaId, paginaAtual, tentativa]);
+  }, [termoPesquisado, catAtivaId, paginaAtual, tentativa, isVendedor, minhaLojaId]);
 
   // ── Redirect de receitas ──────────────────────────────────────────
   useEffect(() => {
@@ -125,8 +180,13 @@ export default function HomeComprador() {
   const adicionarRapido = async (e: React.MouseEvent, produtoId: number) => {
     e.preventDefault(); e.stopPropagation();
     try {
-      await adicionarAoCarrinho(produtoId, 1);
-      setCarrinhoCount(c => c + 1);
+      const cartReq = await getCarrinho();
+      const listaItens = cartReq.itens || cartReq.content || cartReq || [];
+      const existing = listaItens.find((i: any) => String(i.produtoId || i.produto?.id) === String(produtoId));
+      const novaQtd = existing ? existing.quantidade + 1 : 1;
+
+      await adicionarAoCarrinho(produtoId, novaQtd);
+      setCarrinhoCount(c => existing ? c : c + 1);
     } catch (err: any) {
       alert(err.message);
     }
@@ -164,9 +224,10 @@ export default function HomeComprador() {
           <div className="flex items-center gap-4 md:gap-10 flex-shrink-0">
             <Link to="/home2"><img src="/assets/logo-home.png" alt="Logo" className="h-10 md:h-12 w-auto object-contain" /></Link>
             <nav className="hidden lg:flex gap-6 text-xs md:text-sm font-medium text-[#394158]">
-              <Link to="/home2" className="text-[#f9943b] border-b-2 border-[#f9943b] pb-1">Início</Link>
+              <Link to="/home2" className={isVendedor ? "text-[#55833d] font-bold border-b-2 border-[#55833d] pb-1" : "text-[#f9943b] border-b-2 border-[#f9943b] pb-1"}>Início</Link>
               <Link to="/receitas" className="hover:text-[#f9943b] transition-colors">Receitas</Link>
-              <Link to="/blog" className="hover:text-[#f9943b]">Notícias</Link>
+              <Link to="/blog" className="hover:text-[#f9943b] transition-colors">Notícias</Link>
+              {isVendedor && <Link to="/painelvendedor" className="hover:text-[#f9943b] transition-colors">Painel Vendedor</Link>}
             </nav>
           </div>
 
@@ -182,14 +243,11 @@ export default function HomeComprador() {
 
           <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
             <div className="hidden md:flex items-center gap-2">
-              <button title="Ajuda" onClick={() => setTutorialAberto(true)} className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158]">
-                <HelpCircle className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
-              </button>
               <Link title="Notificações" to="/notificacoes" className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158] group">
                 <Bell className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
-                {naoLidas > 0 && (
+                {notificacoesNaoLidas > 0 && (
                   <span className="absolute top-0 right-0 md:top-1 md:right-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white group-hover:border-[#f9943b]">
-                    {naoLidas}
+                    {notificacoesNaoLidas}
                   </span>
                 )}
               </Link>
@@ -204,9 +262,14 @@ export default function HomeComprador() {
                   </span>
                 )}
               </Link>
-              <UserMenu perfilPath="/perfil" />
+              <UserMenu perfilPath={isVendedor ? "/perfilvendedor" : "/perfil"} />
             </div>
-            <button onClick={() => setMenuAberto(true)} className="md:hidden p-1 text-[#394158] hover:text-[#f9943b]"><Menu size={24} /></button>
+
+            {/* Mobile: menu hambúrguer + UserMenu compacto (se for Vendedor) */}
+            <div className="flex lg:hidden items-center gap-3">
+              {isVendedor && <UserMenu perfilPath="/perfilvendedor" />}
+              <button onClick={() => setMenuAberto(true)} className={`${isVendedor ? 'p-1' : 'md:hidden p-1'} text-[#394158] hover:text-[#f9943b]`}><Menu size={24} /></button>
+            </div>
           </div>
         </div>
       </header>
@@ -217,16 +280,17 @@ export default function HomeComprador() {
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMenuAberto(false)} />
           <div className="absolute right-0 top-0 h-full w-72 bg-white shadow-2xl p-8 flex flex-col gap-8">
             <button onClick={() => setMenuAberto(false)} className="self-end p-2 bg-[#F5F2ED] rounded-full"><X size={24} /></button>
-            <nav className="flex flex-col gap-5 text-sm font-black uppercase tracking-widest text-[#394158]">
+            <nav className={`flex flex-col gap-5 ${isVendedor ? 'text-sm md:text-base font-medium' : 'text-sm font-black uppercase tracking-widest'} text-[#394158]`}>
               <Link to="/home2" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Início</Link>
               <Link to="/receitas" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Receitas</Link>
               <Link to="/blog" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Notícias</Link>
+              {isVendedor && <Link to="/painelvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Painel Vendedor</Link>}
               <button onClick={() => { setMenuAberto(false); setTutorialAberto(true); }} className="flex items-center gap-4 hover:text-[#55833d] text-left"><HelpCircle size={14} /> Guia Rápido</button>
               <hr className="border-gray-100" />
               <Link to="/notificacoes" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]">
                 <div className="relative">
                   <Bell size={20} />
-                  {naoLidas > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">{naoLidas}</span>}
+                  {notificacoesNaoLidas > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">{notificacoesNaoLidas}</span>}
                 </div>
                 Notificações
               </Link>
@@ -299,18 +363,18 @@ export default function HomeComprador() {
             <button onClick={() => setMulherSelecionada(null)} className="absolute top-6 right-6 z-10 bg-white/80 p-2 rounded-full"><X size={20} /></button>
             <div className="flex flex-col md:flex-row">
               <div className="w-full md:w-1/2 h-64 md:h-auto relative">
-                <img src={mulherSelecionada.img} className="w-full h-full object-cover" alt={mulherSelecionada.nome} />
+                <img src={mulherSelecionada.fotoPerfilUrl || mulherSelecionada.logoUrl || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" alt={mulherSelecionada.nomeProprietaria || mulherSelecionada.nomeLoja} />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#55833d]/60 to-transparent" />
               </div>
               <div className="w-full md:w-1/2 p-8 flex flex-col justify-center">
-                <div className="flex items-center gap-2 text-[#55833d] mb-2"><MapPin size={14} /><span className="text-[10px] font-black uppercase tracking-widest">{mulherSelecionada.territorio}</span></div>
-                <h2 className="text-2xl font-black text-[#394158] mb-1">{mulherSelecionada.nome}</h2>
-                <span className="text-[#f9943b] font-black italic uppercase text-xs mb-6">{mulherSelecionada.negocio}</span>
+                <div className="flex items-center gap-2 text-[#55833d] mb-2"><MapPin size={14} /><span className="text-[10px] font-black uppercase tracking-widest">{mulherSelecionada.cidade || 'Sergipe'}</span></div>
+                <h2 className="text-2xl font-black text-[#394158] mb-1">{mulherSelecionada.nomeProprietaria || 'Produtora'}</h2>
+                <span className="text-[#f9943b] font-black italic uppercase text-xs mb-6">{mulherSelecionada.nomeLoja}</span>
                 <div className="bg-[#F5F2ED] p-5 rounded-3xl mb-8">
                   <div className="flex items-center gap-2 mb-3 text-[#394158]/50 uppercase font-black text-[9px]"><BookOpen size={12} /> Nossa História</div>
-                  <p className="text-sm text-[#394158] leading-relaxed italic">"{mulherSelecionada.historia}"</p>
+                  <p className="text-sm text-[#394158] leading-relaxed italic">"{mulherSelecionada.descricaoBio || 'Sem descrição.'}"</p>
                 </div>
-                <button onClick={() => { setMulherSelecionada(null); navigate(`/loja/${mulherSelecionada.lojaId}`); }} className="w-full bg-[#55833d] text-white py-4 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-3"><Store size={16} /> Ver Loja</button>
+                <button onClick={() => { setMulherSelecionada(null); navigate(`/loja/${mulherSelecionada.id}`); }} className="w-full bg-[#55833d] text-white py-4 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-3"><Store size={16} /> Ver Loja</button>
               </div>
             </div>
           </div>
@@ -339,40 +403,91 @@ export default function HomeComprador() {
             </Link>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar px-2">
-            {EMPREENDEDORAS.map(mulher => (
+            {empreendedoras.map(mulher => (
               <div key={mulher.id} onClick={() => setMulherSelecionada(mulher)}
                 className="min-w-[240px] bg-white rounded-[1rem] p-3 shadow-lg flex items-center gap-3 group cursor-pointer hover:bg-[#aab2c1] transition-all duration-500 border border-white">
-                <img src={mulher.img} className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover border-2 border-[#394158]/20" alt={mulher.nome} />
+                <img src={mulher.fotoPerfilUrl || mulher.logoUrl || 'https://via.placeholder.com/150'} className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover border-2 border-[#394158]/20" alt={mulher.nomeProprietaria || mulher.nomeLoja} />
                 <div>
-                  <h3 className="text-xs font-black uppercase text-[#394158] group-hover:text-white transition-colors leading-tight">{mulher.nome}</h3>
-                  <span className="text-[10px] font-bold text-[#394158]/60 group-hover:text-white/80 transition-colors uppercase italic">{mulher.negocio}</span>
+                  <h3 className="text-xs font-black uppercase text-[#394158] group-hover:text-white transition-colors leading-tight">{mulher.nomeProprietaria || 'Produtora'}</h3>
+                  <span className="text-[10px] font-bold text-[#394158]/60 group-hover:text-white/80 transition-colors uppercase italic">{mulher.nomeLoja}</span>
                 </div>
               </div>
             ))}
           </div>
         </section>
 
-        {/* SEÇÃO DE PRODUTOS E CATEGORIAS */}
-        <section className="w-full max-w-6xl mx-auto bg-gray-100/50 p-4 md:p-10 rounded-[1rem] border border-gray-200 shadow-inner mb-12">
-          <div className="mb-12">
-            <h2 className="text-xs md:text-xl font-black uppercase tracking-widest italic mb-10 text-[#394158]">Categorias</h2>
-            <div className="flex flex-wrap justify-center gap-y-5 gap-x-2 md:grid md:grid-cols-5 md:gap-8 justify-items-center max-w-4xl mx-auto px-1">
-              {categorias.map(cat => {
-                const Icone = CATEGORIAS_ICONES[cat.nome] || LayoutGrid;
-                const ativo = catAtiva === cat.nome;
-                return (
-                  <button key={cat.id || cat.nome} onClick={() => handleCategoriaClick(cat)}
-                    className="flex flex-col items-center gap-1.5 md:gap-3 w-[78px] md:w-[120px] group">
-                    <div className={`w-[52px] h-[52px] md:w-[72px] md:h-[72px] rounded-[18px] md:rounded-[24px] flex items-center justify-center border transition-all ${ativo ? 'bg-[#f9943b] border-[#f9943b] text-white shadow-md scale-105' : 'bg-white border-gray-100 text-[#394158] shadow-sm group-hover:border-[#f9943b] group-hover:text-[#f9943b]'}`}>
-                      <Icone className="w-[22px] h-[22px] md:w-8 md:h-8" strokeWidth={1.5} />
-                    </div>
-                    <span className={`text-[11px] md:text-[13px] leading-[1.1] text-center px-0.5 ${ativo ? 'font-bold text-[#f9943b]' : 'font-medium text-gray-700'}`}>{cat.nome}</span>
-                  </button>
-                );
-              })}
+        {/* PAINEL DE CATEGORIAS (separado) */}
+        <section className="w-full max-w-6xl mx-auto mb-4">
+          <div className="bg-white rounded-[1rem] border border-gray-200 shadow-sm p-4 md:p-8">
+            <h2 className="text-xs md:text-base font-black uppercase tracking-widest italic mb-5 text-[#394158]">Categorias</h2>
+
+            {/* Wrapper com setas */}
+            <div className="relative">
+              {/* Seta esquerda */}
+              <button
+                onClick={() => scrollCat('prev')}
+                className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 w-7 h-7 md:w-8 md:h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center transition-all ${podePrev ? 'opacity-100 hover:bg-[#f9943b] hover:text-white hover:border-[#f9943b]' : 'opacity-0 pointer-events-none'}`}
+                aria-label="Anterior"
+              >
+                <ChevronLeft size={14} />
+              </button>
+
+              {/* Container com scroll horizontal + 2 linhas */}
+              <div
+                ref={catScrollRef}
+                onScroll={atualizarSetas}
+                onLoad={atualizarSetas}
+                className="overflow-x-auto no-scrollbar"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
+                {/* Grid de 2 linhas × N colunas; cada coluna é a largura de um botão */}
+                <div
+                  className="grid gap-y-4 gap-x-3 md:gap-x-5"
+                  style={{
+                    gridTemplateRows: 'repeat(2, 1fr)',
+                    gridAutoFlow: 'column',
+                    gridAutoColumns: 'calc((100% - (4 * 20px)) / 5)', // 5 columns visible on desktop
+                    paddingTop: '8px',
+                    paddingBottom: '8px',
+                  }}
+                >
+                  {categorias.map(cat => {
+                    const Icone = CATEGORIAS_ICONES[cat.nome] || LayoutGrid;
+                    const ativo = catAtiva === cat.nome;
+                    return (
+                      <button
+                        key={cat.id || cat.nome}
+                        onClick={() => handleCategoriaClick(cat)}
+                        className="flex flex-col items-center gap-1.5 w-full group"
+                      >
+                        <div className={`w-[48px] h-[48px] md:w-[72px] md:h-[72px] rounded-[16px] md:rounded-[24px] flex items-center justify-center border transition-all ${ativo
+                          ? 'bg-[#f9943b] border-[#f9943b] text-white shadow-md scale-105'
+                          : 'bg-[#F5F2ED] border-transparent text-[#394158] group-hover:border-[#f9943b] group-hover:text-[#f9943b]'
+                          }`}>
+                          <Icone className="w-5 h-5 md:w-6 md:h-6" strokeWidth={1.5} />
+                        </div>
+                        <span className={`text-[10px] md:text-[11px] leading-[1.2] text-center px-0.5 ${ativo ? 'font-bold text-[#f9943b]' : 'font-medium text-gray-600'
+                          }`}>{cat.nome}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Seta direita */}
+              <button
+                onClick={() => scrollCat('next')}
+                className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10 w-7 h-7 md:w-8 md:h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center transition-all ${podeNext ? 'opacity-100 hover:bg-[#f9943b] hover:text-white hover:border-[#f9943b]' : 'opacity-0 pointer-events-none'}`}
+                aria-label="Próximo"
+              >
+                <ChevronRight size={14} />
+              </button>
             </div>
           </div>
+        </section>
 
+        {/* PAINEL DE PRODUTOS */}
+        <section className="w-full max-w-6xl mx-auto bg-gray-100/50 p-4 md:p-10 rounded-[1rem] border border-gray-200 shadow-inner mb-12">
           <div className="w-full">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
               <h2 className="text-xl font-black italic uppercase text-[#394158]">{catAtiva !== 'Todos' ? catAtiva : 'Nossos Produtos'}</h2>
@@ -441,13 +556,23 @@ export default function HomeComprador() {
       </main>
 
       <BottomTabBar
-        tabs={[
-          { to: '/home2',        label: 'Início',     Icon: HomeIcon },
-          { to: '/receitas',     label: 'Receitas',   Icon: BookOpen },
-          { to: '/carrinho',     label: 'Carrinho',   Icon: ShoppingCart, badge: carrinhoCount },
-          { to: '/chat',         label: 'Chat',       Icon: MessageCircle, badge: naoLidas },
-          { to: '/perfil',       label: 'Perfil',     Icon: User },
-        ]}
+        tabs={
+          isVendedor
+            ? [
+              { to: '/home2', label: 'Vitrine', Icon: HomeIcon },
+              { to: '/painelvendedor', label: 'Painel', Icon: LayoutDashboard },
+              { to: '/receitas', label: 'Receitas', Icon: BookOpen },
+              { to: '/chat', label: 'Chat', Icon: MessageCircle, badge: naoLidas },
+              { to: '/perfilvendedor', label: 'Perfil', Icon: User },
+            ]
+            : [
+              { to: '/home2', label: 'Início', Icon: HomeIcon },
+              { to: '/receitas', label: 'Receitas', Icon: BookOpen },
+              { to: '/carrinho', label: 'Carrinho', Icon: ShoppingCart, badge: carrinhoCount },
+              { to: '/chat', label: 'Chat', Icon: MessageCircle, badge: naoLidas },
+              { to: '/perfil', label: 'Perfil', Icon: User },
+            ]
+        }
       />
     </div>
   );

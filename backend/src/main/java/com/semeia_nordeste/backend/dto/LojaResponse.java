@@ -8,6 +8,8 @@ import com.semeia_nordeste.backend.model.Loja;
 public record LojaResponse(
         Long id,
         Long usuarioId,
+        String nomeProprietaria,
+        String fotoPerfilUrl,
         String nomeLoja,
         String descricaoBio,
         String logradouro,
@@ -34,6 +36,8 @@ public record LojaResponse(
         return new LojaResponse(
                 l.getId(),
                 l.getUsuario() != null ? l.getUsuario().getId() : null,
+                l.getUsuario() != null ? l.getUsuario().getNomeCompleto() : null,
+                l.getUsuario() != null ? l.getUsuario().getFotoPerfilUrl() : null,
                 l.getNomeLoja(),
                 l.getDescricaoBio(),
                 l.getLogradouro(),

@@ -160,11 +160,11 @@ export default function Chat() {
           prev.map((c) =>
             c.id === chatAtivoId
               ? {
-                  ...c,
-                  ultimaMensagem: nova.conteudo,
-                  dataUltimaMensagem: nova.dataEnvio,
-                  remetenteUltimaMensagem: nova.remetenteId,
-                }
+                ...c,
+                ultimaMensagem: nova.conteudo,
+                dataUltimaMensagem: nova.dataEnvio,
+                remetenteUltimaMensagem: nova.remetenteId,
+              }
               : c
           )
         );
@@ -238,9 +238,8 @@ export default function Chat() {
           <div className="flex h-[70vh] min-h-[500px]">
             {/* ── Sidebar de conversas ── */}
             <aside
-              className={`${
-                chatAtivoId ? "hidden md:flex" : "flex"
-              } w-full md:w-80 md:border-r border-gray-200 flex-col`}
+              className={`${chatAtivoId ? "hidden md:flex" : "flex"
+                } w-full md:w-80 md:border-r border-gray-200 flex-col`}
             >
               <div className="px-4 py-3 border-b border-gray-100 bg-[#F5F2ED] md:rounded-tl-2xl">
                 <h2 className="font-semibold text-gray-800">
@@ -288,9 +287,8 @@ export default function Chat() {
 
             {/* ── Janela do chat ── */}
             <section
-              className={`${
-                chatAtivoId ? "flex" : "hidden md:flex"
-              } flex-1 flex-col bg-gray-100`}
+              className={`${chatAtivoId ? "flex" : "hidden md:flex"
+                } flex-1 flex-col bg-gray-100`}
             >
               {!chatAtivo && (
                 <div className="flex-1 flex flex-col items-center justify-center">
@@ -348,18 +346,18 @@ export default function Chat() {
         tabs={
           perfil === "PRODUTOR"
             ? [
-                { to: "/vendedor", label: "Início", Icon: HomeIcon },
-                { to: "/painelvendedor", label: "Painel", Icon: Store },
-                { to: "/chat", label: "Chat", Icon: MessageCircle },
-                { to: "/perfilvendedor", label: "Perfil", Icon: User },
-              ]
+              { to: "/home2", label: "Início", Icon: HomeIcon },
+              { to: "/painelvendedor", label: "Painel", Icon: Store },
+              { to: "/chat", label: "Chat", Icon: MessageCircle },
+              { to: "/perfilvendedor", label: "Perfil", Icon: User },
+            ]
             : [
-                { to: "/home2", label: "Início", Icon: HomeIcon },
-                { to: "/receitas", label: "Receitas", Icon: BookOpen },
-                { to: "/carrinho", label: "Carrinho", Icon: ShoppingCart },
-                { to: "/chat", label: "Chat", Icon: MessageCircle },
-                { to: "/perfil", label: "Perfil", Icon: User },
-              ]
+              { to: "/home2", label: "Início", Icon: HomeIcon },
+              { to: "/receitas", label: "Receitas", Icon: BookOpen },
+              { to: "/carrinho", label: "Carrinho", Icon: ShoppingCart },
+              { to: "/chat", label: "Chat", Icon: MessageCircle },
+              { to: "/perfil", label: "Perfil", Icon: User },
+            ]
         }
       />
     </div>

@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, ShoppingCart, User, Plus, Filter, MapPin,
   Star, LayoutGrid, Palette, Beef, Sprout, Wheat, Carrot, Milk, Bed, Utensils, Shirt,
-  MessageCircle, Heart, ChevronRight, Menu, X, BookOpen, Store, Bell, ChevronLeft, HelpCircle,
-  Home as HomeIcon, LayoutDashboard
+  MessageCircle, Heart, ChevronRight, ChevronLeft, Menu, X, BookOpen, Store, Bell, HelpCircle,
+  Home as HomeIcon, LayoutDashboard,
 } from 'lucide-react';
 import {
-  buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas
-} from '../../services/api';
-import { UserMenu } from '../../components/ui/UserMenu';
-import { BottomTabBar } from '../../components/ui/BottomTabBar';
+  buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho, getEmpreendedoras,
+} from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { UserMenu } from '../components/ui/UserMenu';
+import { BottomTabBar } from '../components/ui/BottomTabBar';
 
 const CATEGORIAS_ICONES: Record<string, any> = {
   'Todos': LayoutGrid, 'Artesanato': Palette, 'Carnes': Beef,
@@ -18,78 +19,116 @@ const CATEGORIAS_ICONES: Record<string, any> = {
   'Laticínios': Milk, 'Cama Mesa e Banho': Bed, 'Gastronomia': Utensils, 'Têxtil': Shirt,
 };
 
-const EMPREENDEDORAS = [
-  { id: 1, lojaId: 1, nome: "Dona Maria", negocio: "Cerâmicas do Povo", territorio: "Baixo São Francisco", historia: "Mestra ceramista há 30 anos em Santana do São Francisco. Aprendeu a arte com sua avó e hoje lidera uma cooperativa de 12 mulheres.", img: "https://cdn.awsli.com.br/2500x2500/1616/1616697/produto/109903915/e2bbd94d12.jpg" },
-  { id: 2, lojaId: 2, nome: "Chef Ana Nunes", negocio: "Sabor de Mulher", territorio: "Grande Aracaju", historia: "Especialista em gastronomia afetiva, Ana utiliza apenas ingredientes de produtores locais para criar pratos que contam a história de Sergipe.", img: "https://www.brasildefato.com.br/wp-content/uploads/2024/09/image_processing20201106-23882-1kiy8l9.jpeg" },
-  { id: 3, lojaId: 3, nome: "Lúcia da Palha", negocio: "Arte Ilha do Ferro", territorio: "Sertão Ocidental", historia: "Lúcia transforma a palha de Ouricuri em peças de design moderno sem perder a essência do artesanato tradicional.", img: "https://agenciasebrae.com.br/wp-content/uploads/2026/02/artesanato-7.jpeg" },
-];
-
-export default function HomeComprador() {
+export default function Home() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { usuario } = useAuth();
+
+  const isVendedor = usuario?.perfil === 'PRODUTOR';
+  const homePath = isVendedor ? '/home2' : '/home2';
+  const perfilPath = isVendedor ? '/perfilvendedor' : '/perfil';
+  const receitasPath = isVendedor ? '/receitas' : '/receitas';
+  const tutorialKey = isVendedor ? 'tutorial_visto_vendedor' : 'tutorial_visto_comprador';
 
   // ── Dados da API ─────────────────────────────────────────────────
+  type CategoriaAPI = { id: number; nome: string };
   const [produtos, setProdutos] = useState<any[]>([]);
-  const [categorias, setCategorias] = useState<string[]>(['Todos']);
+  const [categorias, setCategorias] = useState<CategoriaAPI[]>([{ id: 0, nome: 'Todos' }]);
   const [totalPaginas, setTotalPaginas] = useState(1);
   const [carregando, setCarregando] = useState(false);
+  const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(0);
 
   // ── Filtros e UI ─────────────────────────────────────────────────
   const [catAtiva, setCatAtiva] = useState('Todos');
+  const [catAtivaId, setCatAtivaId] = useState<number | undefined>(undefined);
   const [busca, setBusca] = useState('');
   const [termoPesquisado, setTermoPesquisado] = useState('');
   const [ordenacao, setOrdenacao] = useState('recomendados');
   const [favoritos, setFavoritos] = useState<number[]>([]);
   const [menuAberto, setMenuAberto] = useState(false);
-  const [mulherSelecionada, setMulherSelecionada] = useState<typeof EMPREENDEDORAS[0] | null>(null);
+  const [empreendedoras, setEmpreendedoras] = useState<any[]>([]);
+  const [mulherSelecionada, setMulherSelecionada] = useState<any | null>(null);
   const [paginaAtual, setPaginaAtual] = useState(0);
   const [carrinhoCount, setCarrinhoCount] = useState(0);
   const [naoLidas, setNaoLidas] = useState(0);
   const [tutorialAberto, setTutorialAberto] = useState(false);
 
-  // ── Carrega categorias ────────────────────────────────────────────
+  // ── Scroll horizontal das categorias ─────────────────────────────
+  const catScrollRef = useRef<HTMLDivElement>(null);
+  const [podePrev, setPodePrev] = useState(false);
+  const [podeNext, setPodeNext] = useState(false);
+
+  const atualizarSetas = () => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    setPodePrev(el.scrollLeft > 4);
+    setPodeNext(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
+
+  const scrollCat = (dir: 'prev' | 'next') => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === 'next' ? 220 : -220, behavior: 'smooth' });
+    setTimeout(atualizarSetas, 350);
+  };
+
+  // ── Inicialização ─────────────────────────────────────────────────
   useEffect(() => {
     sessionStorage.setItem('origemBlog', 'painel');
-    
-    // Tutorial
-    if (!localStorage.getItem('tutorial_visto_vendedor')) {
+
+    if (!localStorage.getItem(tutorialKey)) {
       setTutorialAberto(true);
-      localStorage.setItem('tutorial_visto_vendedor', 'true');
+      localStorage.setItem(tutorialKey, 'true');
     }
 
-    getCategorias()
-      .then((data: any[]) => setCategorias(['Todos', ...data.map((c: any) => c.nome)]))
-      .catch(() => setCategorias(['Todos']));
+    const carregaFiltros = async () => {
+      try {
+        const [cats, emp] = await Promise.all([
+          getCategorias(),
+          getEmpreendedoras().catch(() => []),
+        ]);
+        setCategorias([{ id: 0, nome: 'Todos' }, ...cats]);
+        setEmpreendedoras(emp);
+        setTimeout(atualizarSetas, 100);
+      } catch (err) {
+        console.error('Erro ao carregar categorias ou empreendedoras:', err);
+      }
+    };
+    carregaFiltros();
 
-    const raw = localStorage.getItem('usuarioLogado');
-    if (raw) {
-      getNaoLidas().then((d: any) => setNaoLidas(d.total)).catch(() => {});
-    }
+    getNaoLidas().then((d: any) => setNaoLidas(d.total)).catch(() => { });
+    getCarrinho().then((c: any) => {
+      const itens = c.itens || c.content || c || [];
+      setCarrinhoCount(itens.length);
+    }).catch(() => { });
 
     const salvos = localStorage.getItem('favoritos_itens');
     if (salvos) setFavoritos(JSON.parse(salvos));
-  }, []);
+  }, [tutorialKey]);
 
   // ── Carrega produtos ──────────────────────────────────────────────
   useEffect(() => {
     const carregar = async () => {
       setCarregando(true);
+      setErroCarregamento(null);
       try {
         const data = await buscarProdutos(
           termoPesquisado || undefined,
-          undefined,
-          paginaAtual
+          catAtivaId,
+          paginaAtual,
         );
-        setProdutos(data.content);
-        setTotalPaginas(data.totalPages);
-      } catch {
+        setProdutos(data.content || []);
+        setTotalPaginas(data.totalPages || 1);
+      } catch (err: any) {
         setProdutos([]);
+        setErroCarregamento(err?.message || 'Erro ao carregar produtos.');
       } finally {
         setCarregando(false);
       }
     };
     carregar();
-  }, [termoPesquisado, catAtiva, paginaAtual]);
+  }, [termoPesquisado, catAtivaId, paginaAtual, tentativa]);
 
   // ── Redirect de receitas ──────────────────────────────────────────
   useEffect(() => {
@@ -98,6 +137,7 @@ export default function HomeComprador() {
       setBusca(termo);
       setTermoPesquisado(termo);
       setCatAtiva('Todos');
+      setCatAtivaId(undefined);
       setPaginaAtual(0);
     }
   }, [location.state]);
@@ -115,8 +155,12 @@ export default function HomeComprador() {
   const adicionarRapido = async (e: React.MouseEvent, produtoId: number) => {
     e.preventDefault(); e.stopPropagation();
     try {
-      await adicionarAoCarrinho(produtoId, 1);
-      setCarrinhoCount(c => c + 1);
+      const cartReq = await getCarrinho();
+      const listaItens = cartReq.itens || cartReq.content || cartReq || [];
+      const existing = listaItens.find((i: any) => String(i.produtoId || i.produto?.id) === String(produtoId));
+      const novaQtd = existing ? existing.quantidade + 1 : 1;
+      await adicionarAoCarrinho(produtoId, novaQtd);
+      setCarrinhoCount(c => existing ? c : c + 1);
     } catch (err: any) {
       alert(err.message);
     }
@@ -125,6 +169,7 @@ export default function HomeComprador() {
   const handlePesquisa = () => {
     setTermoPesquisado(busca);
     setCatAtiva('Todos');
+    setCatAtivaId(undefined);
     setPaginaAtual(0);
   };
 
@@ -132,8 +177,9 @@ export default function HomeComprador() {
     if (e.key === 'Enter') handlePesquisa();
   };
 
-  const handleCategoriaClick = (nome: string) => {
-    setCatAtiva(nome);
+  const handleCategoriaClick = (cat: CategoriaAPI) => {
+    setCatAtiva(cat.nome);
+    setCatAtivaId(cat.nome === 'Todos' ? undefined : cat.id);
     setTermoPesquisado('');
     setBusca('');
     setPaginaAtual(0);
@@ -145,17 +191,44 @@ export default function HomeComprador() {
     return 0;
   });
 
+  // ── Bottom tabs por perfil ────────────────────────────────────────
+  const bottomTabs = isVendedor
+    ? [
+      { to: homePath, label: 'Vitrine', Icon: HomeIcon },
+      { to: '/painelvendedor', label: 'Painel', Icon: LayoutDashboard },
+      { to: receitasPath, label: 'Receitas', Icon: BookOpen },
+      { to: '/chat', label: 'Chat', Icon: MessageCircle, badge: naoLidas },
+      { to: perfilPath, label: 'Perfil', Icon: User },
+    ]
+    : [
+      { to: homePath, label: 'Início', Icon: HomeIcon },
+      { to: receitasPath, label: 'Receitas', Icon: BookOpen },
+      { to: '/carrinho', label: 'Carrinho', Icon: ShoppingCart, badge: carrinhoCount },
+      { to: '/chat', label: 'Chat', Icon: MessageCircle, badge: naoLidas },
+      { to: perfilPath, label: 'Perfil', Icon: User },
+    ];
+
   return (
     <div className="min-h-screen bg-white text-[#394158] antialiased pb-20 font-sans">
+      {/* ── Header ─────────────────────────────────────────────────── */}
       <header className="w-full bg-white py-4 px-4 md:px-8 border-b border-gray-100 sticky top-0 z-50 shadow-sm">
         <div className="max-w-6xl mx-auto flex justify-between items-center gap-4 md:gap-8">
           <div className="flex items-center gap-4 md:gap-10 flex-shrink-0">
-            <Link to="/vendedor"><img src="/assets/logo-home.png" alt="Logo" className="h-10 md:h-12 w-auto object-contain" /></Link>
+            <Link to={homePath}><img src="/assets/logo-home.png" alt="Logo" className="h-10 md:h-12 w-auto object-contain" /></Link>
             <nav className="hidden lg:flex gap-6 text-xs md:text-sm font-medium text-[#394158]">
-              <Link to="/vendedor" className="text-[#55833d] font-bold border-b-2 border-[#55833d] pb-1">Início</Link>
-              <Link to="/receitasvendedor" className="hover:text-[#f9943b] transition-colors">Receitas</Link>
+              <Link
+                to={homePath}
+                className={isVendedor
+                  ? 'text-[#55833d] font-bold border-b-2 border-[#55833d] pb-1'
+                  : 'text-[#f9943b] border-b-2 border-[#f9943b] pb-1'}
+              >
+                Início
+              </Link>
+              <Link to={receitasPath} className="hover:text-[#f9943b] transition-colors">Receitas</Link>
               <Link to="/blog" className="hover:text-[#f9943b] transition-colors">Notícias</Link>
-              <Link to="/painelvendedor" className="hover:text-[#f9943b] transition-colors">Painel Vendedor</Link>
+              {isVendedor && (
+                <Link to="/painelvendedor" className="hover:text-[#f9943b] transition-colors">Painel Vendedor</Link>
+              )}
             </nav>
           </div>
 
@@ -193,31 +266,31 @@ export default function HomeComprador() {
                   </span>
                 )}
               </Link>
-              <UserMenu perfilPath="/perfilvendedor" />
+              <UserMenu perfilPath={perfilPath} />
             </div>
-
-            {/* Mobile: só o menu hambúrguer + UserMenu compacto */}
+            {/* Mobile: hambúrguer + UserMenu compacto (vendedor) ou só hambúrguer (comprador) */}
             <div className="flex lg:hidden items-center gap-3">
-              <UserMenu perfilPath="/perfilvendedor" />
+              {isVendedor && <UserMenu perfilPath={perfilPath} />}
               <button onClick={() => setMenuAberto(true)} className="p-1 text-[#394158] hover:text-[#f9943b]"><Menu size={24} /></button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* ── RESTANTE DO CÓDIGO PERMANECE IGUAL ────────────────────── */}
-      {/* ... (Menu Mobile, Modais, Main Content, Footer) */}
+      {/* ── Menu Mobile ─────────────────────────────────────────────── */}
       {menuAberto && (
         <div className="fixed inset-0 z-[110] md:hidden">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMenuAberto(false)} />
           <div className="absolute right-0 top-0 h-full w-72 bg-white shadow-2xl p-8 flex flex-col gap-8">
             <button onClick={() => setMenuAberto(false)} className="self-end p-2 bg-[#F5F2ED] rounded-full"><X size={24} /></button>
-            <nav className="flex flex-col gap-5 text-sm md:text-base font-medium text-[#394158]">
-              <Link to="/vendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={16} /> Início</Link>
-              <Link to="/receitasvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={16} /> Receitas</Link>
-              <Link to="/blog" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={16} /> Notícias</Link>
-              <Link to="/painelvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={16} /> Painel Vendedor</Link>
-              <button onClick={() => { setMenuAberto(false); setTutorialAberto(true); }} className="flex items-center gap-4 hover:text-[#55833d] text-left"><HelpCircle size={16} /> Guia Rápido</button>
+            <nav className="flex flex-col gap-5 text-sm font-black uppercase tracking-widest text-[#394158]">
+              <Link to={homePath} onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Início</Link>
+              <Link to={receitasPath} onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Receitas</Link>
+              <Link to="/blog" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Notícias</Link>
+              {isVendedor && (
+                <Link to="/painelvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Painel Vendedor</Link>
+              )}
+              <button onClick={() => { setMenuAberto(false); setTutorialAberto(true); }} className="flex items-center gap-4 hover:text-[#55833d] text-left"><HelpCircle size={14} /> Guia Rápido</button>
               <hr className="border-gray-100" />
               <Link to="/notificacoes" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]">
                 <div className="relative">
@@ -234,52 +307,42 @@ export default function HomeComprador() {
                 </div>
                 Carrinho
               </Link>
-              <Link to="/perfilvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><User size={20} /> Meu Perfil</Link>
+              <Link to={perfilPath} onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><User size={20} /> Meu Perfil</Link>
             </nav>
           </div>
         </div>
       )}
 
-      {/* MODAL DO TUTORIAL */}
+      {/* ── Modal Tutorial ──────────────────────────────────────────── */}
       {tutorialAberto && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setTutorialAberto(false)} />
           <div className="relative bg-white w-full max-w-lg rounded-[2rem] p-6 md:p-8 shadow-2xl flex flex-col gap-6 animate-in zoom-in-95">
             <button onClick={() => setTutorialAberto(false)} className="absolute top-6 right-6 p-2 bg-[#F5F2ED] rounded-full hover:bg-gray-200"><X size={20} /></button>
-            
             <div className="text-center space-y-2 mt-4 md:mt-0">
               <h2 className="text-xl md:text-2xl font-black italic uppercase text-[#394158]">Guia Rápido</h2>
               <p className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest">Aprenda a usar a plataforma</p>
             </div>
-
             <div className="space-y-3 max-h-[50vh] md:max-h-[60vh] overflow-y-auto no-scrollbar pb-4 px-2">
               <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
-                <div className="p-3 bg-white text-[#f9943b] rounded-full shadow-sm shrink-0"><Search size={20}/></div>
+                <div className="p-3 bg-white text-[#f9943b] rounded-full shadow-sm shrink-0"><Search size={20} /></div>
                 <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Busca & Filtros</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Use a busca no topo ou clique nas categorias (Laticínios, Hortifruti) para achar exatamente o que precisa.</p></div>
               </div>
-              
               <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
-                <div className="p-3 bg-white text-[#55833d] rounded-full shadow-sm shrink-0"><ShoppingCart size={20}/></div>
+                <div className="p-3 bg-white text-[#55833d] rounded-full shadow-sm shrink-0"><ShoppingCart size={20} /></div>
                 <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Carrinho</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Clique no botão laranja com "+" nos produtos para adicionar ao carrinho, depois vá no ícone superior para fechar a compra.</p></div>
               </div>
-
               <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
-                <div className="p-3 bg-white text-red-500 rounded-full shadow-sm shrink-0"><Heart size={20}/></div>
+                <div className="p-3 bg-white text-red-500 rounded-full shadow-sm shrink-0"><Heart size={20} /></div>
                 <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Favoritar</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Gostou de algo mas não quer comprar agora? Clique no coração no canto dos produtos para salvá-lo na sua lista.</p></div>
               </div>
-
-              <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
-                <div className="flex flex-col gap-2 shrink-0">
-                  <div className="flex gap-2">
-                    <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm"><Bell size={14}/></div>
-                    <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm"><MessageCircle size={14}/></div>
-                  </div>
-                  <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm w-fit mx-auto"><User size={14}/></div>
+              {isVendedor && (
+                <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
+                  <div className="p-3 bg-white text-[#394158] rounded-full shadow-sm shrink-0"><LayoutDashboard size={20} /></div>
+                  <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Painel Vendedor</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Acesse o Painel Vendedor para gerenciar seus produtos, pedidos e configurações da loja.</p></div>
                 </div>
-                <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Menu Superior (PC) / Lateral (Celular)</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Notificações, Chat direto com vendedores e Meu Perfil ficam sempre acessíveis nos ícones do cabeçalho ou menu.</p></div>
-              </div>
+              )}
             </div>
-            
             <button onClick={() => setTutorialAberto(false)} className="w-full bg-[#55833d] text-white py-4 rounded-[1rem] font-black uppercase text-[10px] md:text-xs tracking-widest shadow-lg hover:bg-[#436b2f] transition-colors mt-2">
               Entendi, Vamos Lá!
             </button>
@@ -287,6 +350,7 @@ export default function HomeComprador() {
         </div>
       )}
 
+      {/* ── Modal Detalhe Empreendedora ─────────────────────────────── */}
       {mulherSelecionada && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setMulherSelecionada(null)} />
@@ -294,25 +358,27 @@ export default function HomeComprador() {
             <button onClick={() => setMulherSelecionada(null)} className="absolute top-6 right-6 z-10 bg-white/80 p-2 rounded-full"><X size={20} /></button>
             <div className="flex flex-col md:flex-row">
               <div className="w-full md:w-1/2 h-64 md:h-auto relative">
-                <img src={mulherSelecionada.img} className="w-full h-full object-cover" alt={mulherSelecionada.nome} />
+                <img src={mulherSelecionada.fotoPerfilUrl || mulherSelecionada.logoUrl || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" alt={mulherSelecionada.nomeProprietaria || mulherSelecionada.nomeLoja} />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#55833d]/60 to-transparent" />
               </div>
               <div className="w-full md:w-1/2 p-8 flex flex-col justify-center">
-                <div className="flex items-center gap-2 text-[#55833d] mb-2"><MapPin size={14} /><span className="text-[10px] font-black uppercase tracking-widest">{mulherSelecionada.territorio}</span></div>
-                <h2 className="text-2xl font-black text-[#394158] mb-1">{mulherSelecionada.nome}</h2>
-                <span className="text-[#f9943b] font-black italic uppercase text-xs mb-6">{mulherSelecionada.negocio}</span>
+                <div className="flex items-center gap-2 text-[#55833d] mb-2"><MapPin size={14} /><span className="text-[10px] font-black uppercase tracking-widest">{mulherSelecionada.cidade || 'Sergipe'}</span></div>
+                <h2 className="text-2xl font-black text-[#394158] mb-1">{mulherSelecionada.nomeProprietaria || 'Produtora'}</h2>
+                <span className="text-[#f9943b] font-black italic uppercase text-xs mb-6">{mulherSelecionada.nomeLoja}</span>
                 <div className="bg-[#F5F2ED] p-5 rounded-3xl mb-8">
                   <div className="flex items-center gap-2 mb-3 text-[#394158]/50 uppercase font-black text-[9px]"><BookOpen size={12} /> Nossa História</div>
-                  <p className="text-sm text-[#394158] leading-relaxed italic">"{mulherSelecionada.historia}"</p>
+                  <p className="text-sm text-[#394158] leading-relaxed italic">"{mulherSelecionada.descricaoBio || 'Sem descrição.'}"</p>
                 </div>
-                <button onClick={() => { setMulherSelecionada(null); navigate(`/loja/${mulherSelecionada.lojaId}`); }} className="w-full bg-[#55833d] text-white py-4 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-3"><Store size={16} /> Ver Loja</button>
+                <button onClick={() => { setMulherSelecionada(null); navigate(`/loja/${mulherSelecionada.id}`); }} className="w-full bg-[#55833d] text-white py-4 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-3"><Store size={16} /> Ver Loja</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* ── Main ─────────────────────────────────────────────────────── */}
       <main className="max-w-6xl mx-auto px-4 md:px-8 pt-6 md:pt-10">
+        {/* Search Mobile */}
         <div className="relative w-full mb-8 md:hidden">
           <input type="text" value={busca} onChange={e => setBusca(e.target.value)}
             onKeyDown={handleKeyDown} placeholder="O que procura?"
@@ -322,6 +388,7 @@ export default function HomeComprador() {
           </button>
         </div>
 
+        {/* Empreendedoras */}
         <section className="w-full max-w-6xl mb-12 bg-[#fededf] p-4 md:p-8 rounded-[2rem] border border-[#fededf] mx-auto shadow-xl">
           <div className="flex items-center justify-between mb-6 px-2 text-[#394158]">
             <div className="flex items-center gap-2 md:gap-3">
@@ -333,38 +400,82 @@ export default function HomeComprador() {
             </Link>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar px-2">
-            {EMPREENDEDORAS.map(mulher => (
+            {empreendedoras.map(mulher => (
               <div key={mulher.id} onClick={() => setMulherSelecionada(mulher)}
                 className="min-w-[240px] bg-white rounded-[1rem] p-3 shadow-lg flex items-center gap-3 group cursor-pointer hover:bg-[#aab2c1] transition-all duration-500 border border-white">
-                <img src={mulher.img} className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover border-2 border-[#394158]/20" alt={mulher.nome} />
+                <img src={mulher.fotoPerfilUrl || mulher.logoUrl || 'https://via.placeholder.com/150'} className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover border-2 border-[#394158]/20" alt={mulher.nomeProprietaria || mulher.nomeLoja} />
                 <div>
-                  <h3 className="text-xs font-black uppercase text-[#394158] group-hover:text-white transition-colors leading-tight">{mulher.nome}</h3>
-                  <span className="text-[10px] font-bold text-[#394158]/60 group-hover:text-white/80 transition-colors uppercase italic">{mulher.negocio}</span>
+                  <h3 className="text-xs font-black uppercase text-[#394158] group-hover:text-white transition-colors leading-tight">{mulher.nomeProprietaria || 'Produtora'}</h3>
+                  <span className="text-[10px] font-bold text-[#394158]/60 group-hover:text-white/80 transition-colors uppercase italic">{mulher.nomeLoja}</span>
                 </div>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="w-full max-w-6xl mx-auto bg-gray-100/50 p-4 md:p-10 rounded-[1rem] border border-gray-200 shadow-inner mb-12">
-          <div className="mb-12">
-            <h2 className="text-xs md:text-xl font-black uppercase tracking-widest italic mb-10 text-[#394158]">Categorias</h2>
-            <div className="flex flex-wrap justify-center gap-y-5 gap-x-2 md:grid md:grid-cols-5 md:gap-8 justify-items-center max-w-4xl mx-auto px-1">
-              {categorias.map(nome => {
-                const Icone = CATEGORIAS_ICONES[nome] || LayoutGrid;
-                return (
-                  <button key={nome} onClick={() => handleCategoriaClick(nome)}
-                    className="flex flex-col items-center gap-1.5 md:gap-3 w-[78px] md:w-[120px] group">
-                    <div className={`w-[52px] h-[52px] md:w-[72px] md:h-[72px] rounded-[18px] md:rounded-[24px] flex items-center justify-center border transition-all ${catAtiva === nome ? 'bg-[#f9943b] border-[#f9943b] text-white shadow-md scale-105' : 'bg-white border-gray-100 text-[#394158] shadow-sm group-hover:border-[#f9943b] group-hover:text-[#f9943b]'}`}>
-                      <Icone className="w-[22px] h-[22px] md:w-8 md:h-8" strokeWidth={1.5} />
-                    </div>
-                    <span className={`text-[11px] md:text-[13px] leading-[1.1] text-center px-0.5 ${catAtiva === nome ? 'font-bold text-[#f9943b]' : 'font-medium text-gray-700'}`}>{nome}</span>
-                  </button>
-                );
-              })}
+        {/* Categorias */}
+        <section className="w-full max-w-6xl mx-auto mb-4">
+          <div className="bg-white rounded-[1rem] border border-gray-200 shadow-sm p-4 md:p-8">
+            <h2 className="text-xs md:text-base font-black uppercase tracking-widest italic mb-5 text-[#394158]">Categorias</h2>
+            <div className="relative">
+              <button
+                onClick={() => scrollCat('prev')}
+                className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 w-7 h-7 md:w-8 md:h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center transition-all ${podePrev ? 'opacity-100 hover:bg-[#f9943b] hover:text-white hover:border-[#f9943b]' : 'opacity-0 pointer-events-none'}`}
+                aria-label="Anterior"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <div
+                ref={catScrollRef}
+                onScroll={atualizarSetas}
+                onLoad={atualizarSetas}
+                className="overflow-x-auto no-scrollbar"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
+                <div
+                  className="grid gap-y-4 gap-x-3 md:gap-x-5"
+                  style={{
+                    gridTemplateRows: 'repeat(2, 1fr)',
+                    gridAutoFlow: 'column',
+                    gridAutoColumns: 'calc((100% - (4 * 20px)) / 5)',
+                    paddingTop: '8px',
+                    paddingBottom: '8px',
+                  }}
+                >
+                  {categorias.map(cat => {
+                    const Icone = CATEGORIAS_ICONES[cat.nome] || LayoutGrid;
+                    const ativo = catAtiva === cat.nome;
+                    return (
+                      <button
+                        key={cat.id ?? cat.nome}
+                        onClick={() => handleCategoriaClick(cat)}
+                        className="flex flex-col items-center gap-1.5 w-full group"
+                      >
+                        <div className={`w-[48px] h-[48px] md:w-[72px] md:h-[72px] rounded-[16px] md:rounded-[24px] flex items-center justify-center border transition-all ${ativo
+                          ? 'bg-[#f9943b] border-[#f9943b] text-white shadow-md scale-105'
+                          : 'bg-[#F5F2ED] border-transparent text-[#394158] group-hover:border-[#f9943b] group-hover:text-[#f9943b]'
+                          }`}>
+                          <Icone className="w-5 h-5 md:w-6 md:h-6" strokeWidth={1.5} />
+                        </div>
+                        <span className={`text-[10px] md:text-[11px] leading-[1.2] text-center px-0.5 ${ativo ? 'font-bold text-[#f9943b]' : 'font-medium text-gray-600'}`}>{cat.nome}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <button
+                onClick={() => scrollCat('next')}
+                className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10 w-7 h-7 md:w-8 md:h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center transition-all ${podeNext ? 'opacity-100 hover:bg-[#f9943b] hover:text-white hover:border-[#f9943b]' : 'opacity-0 pointer-events-none'}`}
+                aria-label="Próximo"
+              >
+                <ChevronRight size={14} />
+              </button>
             </div>
           </div>
+        </section>
 
+        {/* Produtos */}
+        <section className="w-full max-w-6xl mx-auto bg-gray-100/50 p-4 md:p-10 rounded-[1rem] border border-gray-200 shadow-inner mb-12">
           <div className="w-full">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
               <h2 className="text-xl font-black italic uppercase text-[#394158]">{catAtiva !== 'Todos' ? catAtiva : 'Nossos Produtos'}</h2>
@@ -381,15 +492,26 @@ export default function HomeComprador() {
 
             {carregando ? (
               <div className="text-center py-20 text-sm font-black uppercase text-gray-300">Carregando...</div>
+            ) : erroCarregamento ? (
+              <div className="text-center py-20 flex flex-col items-center gap-4">
+                <p className="text-sm font-black uppercase text-red-400">Erro ao carregar produtos</p>
+                <p className="text-xs font-medium text-gray-400 max-w-md">{erroCarregamento}</p>
+                <button
+                  onClick={() => setTentativa(t => t + 1)}
+                  className="bg-[#55833d] text-white px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform"
+                >
+                  Tentar novamente
+                </button>
+              </div>
             ) : produtosExibidos.length === 0 ? (
               <div className="text-center py-20 text-sm font-black uppercase text-gray-300">Nenhum produto encontrado</div>
             ) : (
-              <div className="grid grid-cols-3 md:grid-cols-4 gap-3 md:gap-8">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-8">
                 {produtosExibidos.map(prod => (
                   <div key={prod.id} className="relative bg-white p-2 md:p-5 rounded-[1rem] shadow-xl flex flex-col group border border-transparent hover:border-[#55833d]/20 transition-all">
                     <button onClick={e => toggleFavorito(e, prod.id)}
                       className="absolute top-3 left-3 z-20 p-1.5 bg-white/80 backdrop-blur-md rounded-full shadow-sm hover:scale-110 transition-transform">
-                      <Heart size={14} className={favoritos.includes(prod.id) ? "fill-[#802D44] text-[#802D44]" : "text-gray-400"} />
+                      <Heart size={14} className={favoritos.includes(prod.id) ? 'fill-[#802D44] text-[#802D44]' : 'text-gray-400'} />
                     </button>
                     <div className="relative overflow-hidden rounded-[1rem] mb-3 md:mb-4 aspect-square">
                       <Link to={`/produto/${prod.id}`}>
@@ -401,19 +523,18 @@ export default function HomeComprador() {
                         <Plus size={14} />
                       </button>
                     </div>
-                    <span className="text-[6px] md:text-[9px] font-black uppercase text-[#55833d] mb-1">{prod.nomeCategoria}</span>
+                    <span className="text-[8px] md:text-[9px] font-black uppercase text-[#55833d] mb-1">{prod.nomeCategoria}</span>
                     <Link to={`/produto/${prod.id}`}>
-                      <h3 className="font-bold text-[#394158] text-[8px] md:text-sm leading-tight mb-1 line-clamp-1 hover:text-[#55833d] transition-colors">{prod.nome}</h3>
+                      <h3 className="font-bold text-[#394158] text-[11px] md:text-sm leading-tight mb-1 line-clamp-1 hover:text-[#55833d] transition-colors">{prod.nome}</h3>
                     </Link>
-                    <div className="flex items-center gap-1 text-[#394158]/50 mb-2 uppercase font-bold text-[6px] md:text-[9px]">
+                    <div className="flex items-center gap-1 text-[#394158]/50 mb-2 uppercase font-bold text-[8px] md:text-[9px]">
                       <MapPin size={8} /> {prod.nomeLoja}
                     </div>
                     <div className="mt-auto pt-2 border-t border-gray-50 flex justify-between items-center">
-                      <span className="text-[10px] md:text-lg font-black text-[#394158]">
+                      <span className="text-xs md:text-lg font-black text-[#394158]">
                         R$ {Number(prod.precoAtual).toFixed(2)}
-                        <span className="text-[7px] md:text-[10px] opacity-40 ml-1">/{prod.unidadeMedida}</span>
+                        {prod.unidadeMedida && <span className="text-[7px] md:text-[10px] opacity-40 ml-1">/{prod.unidadeMedida}</span>}
                       </span>
-                      <Link to={`/produto/${prod.id}`} className="hidden md:block text-[9px] font-black uppercase bg-[#394158] text-white px-4 py-1.5 rounded-xl hover:bg-[#55833d]">Detalhes</Link>
                     </div>
                   </div>
                 ))}
@@ -446,15 +567,7 @@ export default function HomeComprador() {
         <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#394158]/60">© 2026 Rede Nordeste - Todos os direitos reservados.</span>
       </footer>
 
-      <BottomTabBar
-        tabs={[
-          { to: '/vendedor',         label: 'Vitrine',  Icon: HomeIcon },
-          { to: '/painelvendedor',   label: 'Painel',   Icon: LayoutDashboard },
-          { to: '/receitasvendedor', label: 'Receitas', Icon: BookOpen },
-          { to: '/chat',             label: 'Chat',     Icon: MessageCircle, badge: naoLidas },
-          { to: '/perfilvendedor',   label: 'Perfil',   Icon: User },
-        ]}
-      />
+      <BottomTabBar tabs={bottomTabs} />
     </div>
   );
 }

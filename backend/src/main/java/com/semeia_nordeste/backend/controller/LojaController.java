@@ -58,4 +58,15 @@ public class LojaController {
     public ResponseEntity<LojaResponse> buscarPorId(@PathVariable Long id) {
         return ResponseEntity.ok(LojaResponse.fromEntity(lojaService.buscarPorId(id)));
     }
+
+    // Endpoint para usuários logados verem o mural de empreendedoras (gênero =
+    // FEMININO)
+    @GetMapping("/lojas/empreendedoras")
+    public ResponseEntity<java.util.List<LojaResponse>> buscarEmpreendedoras(
+            @AuthenticationPrincipal Usuario usuario) {
+        return ResponseEntity.ok(
+                lojaService.buscarEmpreendedoras().stream()
+                        .map(LojaResponse::fromEntity)
+                        .toList());
+    }
 }

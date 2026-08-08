@@ -20,22 +20,22 @@ export const Navbar: React.FC<NavbarProps> = ({ rotaAtiva }) => {
   const [menuAberto, setMenuAberto] = React.useState(false);
 
   const isVendedor = perfil === 'PRODUTOR';
-  const homePath = isVendedor ? '/vendedor' : '/home2';
-  const receitasPath = isVendedor ? '/receitasvendedor' : '/receitas';
+  const homePath = isVendedor ? '/home2' : '/home2';
+  const receitasPath = '/receitas';
   const perfilPath = isVendedor ? '/perfilvendedor' : '/perfil';
 
   const links = isVendedor
     ? [
-        { to: '/vendedor', label: 'Início' },
-        { to: '/receitasvendedor', label: 'Receitas' },
-        { to: '/blog', label: 'Notícias' },
-        { to: '/painelvendedor', label: 'Painel Vendedor' },
-      ]
+      { to: '/home2', label: 'Início' },
+      { to: '/receitas', label: 'Receitas' },
+      { to: '/blog', label: 'Notícias' },
+      { to: '/painelvendedor', label: 'Painel Vendedor' },
+    ]
     : [
-        { to: '/home2', label: 'Início' },
-        { to: '/receitas', label: 'Receitas' },
-        { to: '/blog', label: 'Notícias' },
-      ];
+      { to: '/home2', label: 'Início' },
+      { to: '/receitas', label: 'Receitas' },
+      { to: '/blog', label: 'Notícias' },
+    ];
 
   const getIconClass = (path: string) => {
     const base = "relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 group ";

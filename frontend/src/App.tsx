@@ -25,16 +25,14 @@ import Loja from './pages/Comprador/Loja';
 import Perfil from './pages/Comprador/Perfil';
 import Notificacao from './pages/Comprador/Notificacao';
 import Empreendedoras from './pages/Comprador/Empreendedoras';
-import HomeVendedor from './pages/Vendedor/HomeVendedor';
 import PainelVendedor from './pages/Vendedor/PainelVendedor';
 import HomeAdmin from './pages/Admin/HomeAdmin';
 import PerfilVendedor from './pages/Vendedor/PerfilVendedor';
-import ReceitasVendedor from './pages/Vendedor/ReceitasVendedor';
 
 // ── Helpers ───────────────────────────────────────────────────────
 const HOME_POR_PERFIL: Record<TipoPerfil, string> = {
   ADMIN: '/admin',
-  PRODUTOR: '/vendedor',
+  PRODUTOR: '/home2',
   COMPRADOR: '/home2',
 };
 
@@ -123,6 +121,7 @@ function App() {
              de compra" aceitam ambos. ADMIN passa em qualquer rota. */}
           <Route path="/home2" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><HomeComprador /></RotaProtegida>} />
           <Route path="/receitas" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Receitas /></RotaProtegida>} />
+          <Route path="/receitasvendedor" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Receitas /></RotaProtegida>} />
           <Route path="/produto/:id" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><ProdutoDetalhes /></RotaProtegida>} />
           <Route path="/loja/:id" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Loja /></RotaProtegida>} />
           <Route path="/carrinho" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Carrinho /></RotaProtegida>} />
@@ -136,10 +135,8 @@ function App() {
           <Route path="/empreendedoras" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Empreendedoras /></RotaProtegida>} />
 
           {/* ── VENDEDOR ─────────────────────────────────────── */}
-          <Route path="/vendedor" element={<RotaProtegida permitidos={['PRODUTOR']}><HomeVendedor /></RotaProtegida>} />
           <Route path="/painelvendedor" element={<RotaProtegida permitidos={['PRODUTOR']}><PainelVendedor /></RotaProtegida>} />
           <Route path="/perfilvendedor" element={<RotaProtegida permitidos={['PRODUTOR']}><PerfilVendedor /></RotaProtegida>} />
-          <Route path="/receitasvendedor" element={<RotaProtegida permitidos={['PRODUTOR']}><ReceitasVendedor /></RotaProtegida>} />
 
           {/* ── ADMIN ────────────────────────────────────────── */}
           <Route path="/admin" element={<RotaProtegida permitidos={['ADMIN']}><HomeAdmin /></RotaProtegida>} />

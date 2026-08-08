@@ -4,7 +4,7 @@ import {
   Plus, Package, DollarSign, ShoppingBag, Store,
   Edit2, Trash2, Image as ImageIcon, CheckCircle,
   AlertTriangle, Home as HomeIcon, LayoutDashboard,
-  MessageCircle, User, BookOpen, ShieldOff,
+  MessageCircle, User, BookOpen, ShieldOff, MapPin
 } from 'lucide-react';
 import {
   getMinhaLoja, criarLoja, atualizarLoja,
@@ -20,8 +20,9 @@ import { Button } from '../../components/ui/Button';
 import { FormField } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { Card } from '../../components/ui/Card';
+import { ModalLoja } from '../../components/modals/ModalLoja';
 
-type Aba = 'dashboard' | 'produtos' | 'pedidos' | 'loja';
+type Aba = 'dashboard' | 'produtos' | 'pedidos';
 
 export default function PainelVendedor() {
   const { success, error: toastError } = useToast();
@@ -31,13 +32,6 @@ export default function PainelVendedor() {
   const [loja, setLoja] = useState<any>(null);
   const [carregandoLoja, setCarregandoLoja] = useState(true);
   const [modalLoja, setModalLoja] = useState(false);
-  const [formLoja, setFormLoja] = useState<any>({
-    nomeLoja: '', descricaoBio: '', historia: '', cidade: '', estado: 'SE', cep: '',
-    logradouro: '', bairro: '', logoUrl: '',
-    aceitaRetirada: true, fazEntrega: false,
-    valorMinimoPedido: 0, taxaEntregaFixa: 0,
-    latitudeLoja: null, longitudeLoja: null,
-  });
 
   // ── Produtos ──────────────────────────────────────────────────
   const [produtos, setProdutos] = useState<any[]>([]);
@@ -58,7 +52,6 @@ export default function PainelVendedor() {
       try {
         const minhaLoja = await getMinhaLoja();
         setLoja(minhaLoja);
-        setFormLoja({ ...formLoja, ...minhaLoja });
       } catch {
         setLoja(null); // sem loja
       } finally {
@@ -125,25 +118,6 @@ export default function PainelVendedor() {
     return num.toFixed(2).replace('.', ',');
   };
 
-  // ── Helpers ───────────────────────────────────────────────────
-  const usarMinhaLocalizacao = () => {
-    if (!navigator.geolocation) {
-      toastError('Geolocalização não disponível');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setFormLoja({
-          ...formLoja,
-          latitudeLoja: pos.coords.latitude,
-          longitudeLoja: pos.coords.longitude,
-        });
-        success('Localização capturada');
-      },
-      () => toastError('Não foi possível obter sua localização')
-    );
-  };
-
   const lerImagemBase64 = (
     e: React.ChangeEvent<HTMLInputElement>,
     setter: (url: string) => void
@@ -160,17 +134,13 @@ export default function PainelVendedor() {
   };
 
   // ── Salvar loja (cria ou atualiza) ────────────────────────────
-  const salvarLoja = async () => {
-    if (!formLoja.nomeLoja || !formLoja.cidade) {
-      toastError('Nome da loja e cidade são obrigatórios');
-      return;
-    }
+  const salvarLoja = async (dadosLoja: any) => {
     try {
       const dadosCorrigidos = {
-        ...formLoja,
-        cep: formLoja.cep ? formLoja.cep.replace(/\D/g, '') : null,
-        valorMinimoPedido: Number(formLoja.valorMinimoPedido || 0),
-        taxaEntregaFixa: Number(formLoja.taxaEntregaFixa || 0),
+        ...dadosLoja,
+        cep: dadosLoja.cep ? dadosLoja.cep.replace(/\D/g, '') : null,
+        valorMinimoPedido: Number(dadosLoja.valorMinimoPedido || 0),
+        taxaEntregaFixa: Number(dadosLoja.taxaEntregaFixa || 0),
       };
       const salva = loja
         ? await atualizarLoja(dadosCorrigidos)
@@ -180,6 +150,7 @@ export default function PainelVendedor() {
       success(loja ? 'Loja atualizada' : 'Loja criada! Aguarde a verificação do admin');
     } catch (err: any) {
       toastError(err?.message || 'Erro ao salvar loja');
+      throw err;
     }
   };
 
@@ -271,7 +242,7 @@ export default function PainelVendedor() {
         <PageHeader
           titulo="Bem-vindo, vendedor"
           subtitulo="Primeiro passo: criar sua loja"
-          voltarPara="/vendedor"
+          voltarPara="/home2"
           labelVoltar="Vitrine"
           acoesDireita={<UserMenu perfilPath="/perfilvendedor" />}
         />
@@ -289,7 +260,7 @@ export default function PainelVendedor() {
             </Button>
           </Card>
         </main>
-        {renderModalLoja()}
+        <ModalLoja open={modalLoja} onClose={() => setModalLoja(false)} lojaAtual={loja} onSave={salvarLoja} />
       </div>
     );
   }
@@ -307,7 +278,7 @@ export default function PainelVendedor() {
         <PageHeader
           titulo={loja.nomeLoja}
           subtitulo={`${loja.cidade ?? ''}${loja.estado ? ' · ' + loja.estado : ''}`}
-          voltarPara="/vendedor"
+          voltarPara="/home2"
           labelVoltar="Vitrine"
           acoesDireita={<UserMenu perfilPath="/perfilvendedor" />}
         />
@@ -329,14 +300,13 @@ export default function PainelVendedor() {
             { id: 'dashboard', label: 'Visão geral', Icon: LayoutDashboard },
             { id: 'produtos', label: 'Produtos', Icon: Package },
             { id: 'pedidos', label: 'Pedidos', Icon: ShoppingBag },
-            { id: 'loja', label: 'Minha loja', Icon: Store },
           ] as const).map(t => (
             <button
               key={t.id}
               onClick={() => setAbaAtiva(t.id as Aba)}
               className={`px-6 py-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest border-b-2 transition-colors ${abaAtiva === t.id
-                  ? 'border-[#55833d] text-[#55833d]'
-                  : 'border-transparent text-[#394158]/50 hover:text-[#394158]'
+                ? 'border-[#55833d] text-[#55833d]'
+                : 'border-transparent text-[#394158]/50 hover:text-[#394158]'
                 }`}
             >
               <t.Icon size={16} /> {t.label}
@@ -350,7 +320,6 @@ export default function PainelVendedor() {
             { id: 'dashboard', label: 'Visão' },
             { id: 'produtos', label: 'Produtos' },
             { id: 'pedidos', label: 'Pedidos' },
-            { id: 'loja', label: 'Loja' },
           ] as const).map(t => (
             <button
               key={t.id}
@@ -483,105 +452,82 @@ export default function PainelVendedor() {
               ) : (
                 <div className="space-y-3">
                   {pedidos.map(p => (
-                  <Card key={p.id} padding="md" className="flex flex-col gap-4">
-                    {/* HEADER DO PEDIDO */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-black uppercase text-[#394158]">Pedido #{p.id}</h3>
-                        <div className="flex flex-wrap items-center gap-2 mt-1">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase bg-gray-50 px-2 py-0.5 rounded-md">
-                            {p.statusPagamento || '—'}
-                          </span>
-                          <span className="text-[10px] font-bold text-[#55833d] uppercase bg-[#55833d]/10 px-2 py-0.5 rounded-md">
-                            {p.itens?.length || 0} itens
-                          </span>
+                    <Card key={p.id} padding="md" className="flex flex-col gap-4">
+                      {/* HEADER DO PEDIDO */}
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-black uppercase text-[#394158]">Pedido #{p.id}</h3>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase bg-gray-50 px-2 py-0.5 rounded-md">
+                              {p.statusPagamento || '—'}
+                            </span>
+                            <span className="text-[10px] font-bold text-[#55833d] uppercase bg-[#55833d]/10 px-2 py-0.5 rounded-md">
+                              {p.itens?.length || 0} itens
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
+                          <span className="text-base font-black text-[#55833d] md:mr-3">R$ {Number(p.valorTotal).toFixed(2)}</span>
+                          <select
+                            value={p.statusEntrega || 'PEDIDO_RECEBIDO'}
+                            onChange={(e) => avancarStatusPedido(p.id, e.target.value)}
+                            className="bg-[#55833d] text-white text-[10px] font-black uppercase px-3 py-2 rounded-lg outline-none cursor-pointer hover:bg-[#436830] transition-colors appearance-none text-center shadow-sm"
+                            style={{ textAlignLast: 'center' }}
+                          >
+                            <option value="PEDIDO_RECEBIDO">Pedido Recebido</option>
+                            <option value="AGUARDANDO_ENTREGADOR">Aguardando Entregador</option>
+                            <option value="ENTREGADOR_ACEITOU">Entregador Aceitou</option>
+                            <option value="PEDIDO_EM_COLETA">Em Coleta / Embalando</option>
+                            <option value="SAIU_PARA_ENTREGA">Saiu para Entrega</option>
+                            <option value="RETIRADA_DISPONIVEL">Pronto para Retirada</option>
+                            <option value="ENTREGUE">Entregue</option>
+                            <option value="CANCELADO">Cancelado</option>
+                          </select>
                         </div>
                       </div>
-                      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
-                        <span className="text-base font-black text-[#55833d] md:mr-3">R$ {Number(p.valorTotal).toFixed(2)}</span>
-                        <select
-                          value={p.statusEntrega || 'PEDIDO_RECEBIDO'}
-                          onChange={(e) => avancarStatusPedido(p.id, e.target.value)}
-                          className="bg-[#55833d] text-white text-[10px] font-black uppercase px-3 py-2 rounded-lg outline-none cursor-pointer hover:bg-[#436830] transition-colors appearance-none text-center shadow-sm"
-                          style={{ textAlignLast: 'center' }}
-                        >
-                          <option value="PEDIDO_RECEBIDO">Pedido Recebido</option>
-                          <option value="AGUARDANDO_ENTREGADOR">Aguardando Entregador</option>
-                          <option value="ENTREGADOR_ACEITOU">Entregador Aceitou</option>
-                          <option value="PEDIDO_EM_COLETA">Em Coleta / Embalando</option>
-                          <option value="SAIU_PARA_ENTREGA">Saiu para Entrega</option>
-                          <option value="RETIRADA_DISPONIVEL">Pronto para Retirada</option>
-                          <option value="ENTREGUE">Entregue</option>
-                          <option value="CANCELADO">Cancelado</option>
-                        </select>
-                      </div>
-                    </div>
 
-                    {/* INFORMAÇÕES DO CLIENTE */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                      <div className="flex items-start gap-2 text-gray-600">
-                        <User size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
-                        <div>
-                          <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Comprador</p>
-                          <p className="font-black text-[#394158] uppercase">{p.nomeComprador || 'Cliente não identificado'}</p>
+                      {/* INFORMAÇÕES DO CLIENTE */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div className="flex items-start gap-2 text-gray-600">
+                          <User size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
+                          <div>
+                            <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Comprador</p>
+                            <p className="font-black text-[#394158] uppercase">{p.nomeComprador || 'Cliente não identificado'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2 text-gray-600">
+                          <MapPin size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
+                          <div>
+                            <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Entrega / Retirada</p>
+                            <p className="font-black text-[#394158]">{p.enderecoEntrega || 'RETIRADA NA LOJA'}</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-start gap-2 text-gray-600">
-                        <MapPin size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
-                        <div>
-                          <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Entrega / Retirada</p>
-                          <p className="font-black text-[#394158]">{p.enderecoEntrega || 'RETIRADA NA LOJA'}</p>
-                        </div>
-                      </div>
-                    </div>
 
-                    {/* LISTA DE PRODUTOS */}
-                    <div className="bg-[#F5F2ED] rounded-xl p-3 space-y-2">
-                      <p className="font-black uppercase text-[10px] text-[#394158] tracking-widest mb-2">Produtos do Pedido</p>
-                      {p.itens?.map((item: any, i: number) => (
-                        <div key={i} className="flex justify-between items-center text-xs border-b border-gray-200/50 last:border-0 pb-2 last:pb-0">
-                          <span className="font-bold text-gray-600">
-                            <span className="text-[#55833d] mr-1">{item.quantidade}x</span> 
-                            {item.nomeProduto}
-                          </span>
-                          <span className="font-black text-[#394158]">R$ {Number(item.subtotal).toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                ))}
+                      {/* LISTA DE PRODUTOS */}
+                      <div className="bg-[#F5F2ED] rounded-xl p-3 space-y-2">
+                        <p className="font-black uppercase text-[10px] text-[#394158] tracking-widest mb-2">Produtos do Pedido</p>
+                        {p.itens?.map((item: any, i: number) => (
+                          <div key={i} className="flex justify-between items-center text-xs border-b border-gray-200/50 last:border-0 pb-2 last:pb-0">
+                            <span className="font-bold text-gray-600">
+                              <span className="text-[#55833d] mr-1">{item.quantidade}x</span>
+                              {item.nomeProduto}
+                            </span>
+                            <span className="font-black text-[#394158]">R$ {Number(item.subtotal).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  ))}
                 </div>
               )}
             </>
           )}
 
-          {/* LOJA */}
-          {abaAtiva === 'loja' && (
-            <Card padding="lg">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-base md:text-xl font-black uppercase italic text-[#394158]">Minha loja</h2>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                    {loja.verificada ? 'Verificada ✓' : 'Aguardando verificação'}
-                  </p>
-                </div>
-                <Button onClick={() => { setFormLoja({ ...formLoja, ...loja }); setModalLoja(true); }}
-                  variant="ghost" iconLeft={<Edit2 size={14} />}>Editar</Button>
-              </div>
-              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div><dt className="text-[10px] font-black uppercase text-gray-400">Nome</dt><dd className="font-bold mt-1">{loja.nomeLoja}</dd></div>
-                <div><dt className="text-[10px] font-black uppercase text-gray-400">Cidade</dt><dd className="font-bold mt-1">{loja.cidade}/{loja.estado}</dd></div>
-                <div><dt className="text-[10px] font-black uppercase text-gray-400">Aceita retirada</dt><dd className="font-bold mt-1">{loja.aceitaRetirada ? 'Sim' : 'Não'}</dd></div>
-                <div><dt className="text-[10px] font-black uppercase text-gray-400">Faz entrega</dt><dd className="font-bold mt-1">{loja.fazEntrega ? 'Sim' : 'Não'}</dd></div>
-                <div className="md:col-span-2"><dt className="text-[10px] font-black uppercase text-gray-400">Bio</dt><dd className="font-medium text-gray-600 mt-1">{loja.descricaoBio || '—'}</dd></div>
-                <div className="md:col-span-2"><dt className="text-[10px] font-black uppercase text-gray-400">Nossa História</dt><dd className="font-medium text-gray-600 mt-1 italic">{loja.historia ? `"${loja.historia}"` : '—'}</dd></div>
-              </dl>
-            </Card>
-          )}
         </div>
       </main>
 
-      {renderModalLoja()}
+      <ModalLoja open={modalLoja} onClose={() => setModalLoja(false)} lojaAtual={loja} onSave={salvarLoja} />
 
       <Modal open={modalProduto} onClose={() => setModalProduto(false)}
         title={formProduto.id ? 'Editar produto' : 'Novo produto'} size="lg">
@@ -641,91 +587,13 @@ export default function PainelVendedor() {
 
       <BottomTabBar
         tabs={[
-          { to: '/vendedor', label: 'Vitrine', Icon: HomeIcon },
+          { to: '/home2', label: 'Vitrine', Icon: HomeIcon },
           { to: '/painelvendedor', label: 'Painel', Icon: LayoutDashboard },
-          { to: '/receitasvendedor', label: 'Receitas', Icon: BookOpen },
+          { to: '/receitas', label: 'Receitas', Icon: BookOpen },
           { to: '/chat', label: 'Chat', Icon: MessageCircle },
           { to: '/perfilvendedor', label: 'Perfil', Icon: User },
         ]}
       />
     </div>
   );
-
-  // ── Modal de Loja (compartilhado entre onboarding e edição) ───
-  function renderModalLoja() {
-    return (
-      <Modal open={modalLoja} onClose={() => setModalLoja(false)}
-        title={loja ? 'Editar minha loja' : 'Criar minha loja'} size="lg">
-        <div className="space-y-4">
-          <FormField label="Nome da loja" value={formLoja.nomeLoja}
-            onChange={e => setFormLoja({ ...formLoja, nomeLoja: e.target.value })} />
-          <div>
-            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Bio</label>
-            <textarea rows={2} value={formLoja.descricaoBio || ''}
-              onChange={e => setFormLoja({ ...formLoja, descricaoBio: e.target.value })}
-              className="w-full p-3 bg-[#F5F2ED]/50 text-[#394158] font-medium rounded-2xl outline-none border-2 border-transparent focus:border-[#55833d] resize-none" />
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Nossa História</label>
-            <textarea rows={3} value={formLoja.historia || ''}
-              onChange={e => setFormLoja({ ...formLoja, historia: e.target.value })}
-              placeholder="Conte a história da sua loja, sua trajetória como empreendedora..."
-              className="w-full p-3 bg-[#F5F2ED]/50 text-[#394158] font-medium rounded-2xl outline-none border-2 border-transparent focus:border-[#55833d] resize-none" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Cidade" value={formLoja.cidade || ''}
-              onChange={e => setFormLoja({ ...formLoja, cidade: e.target.value })} />
-            <FormField label="Estado (UF)" value={formLoja.estado || 'SE'} maxLength={2}
-              onChange={e => setFormLoja({ ...formLoja, estado: e.target.value.toUpperCase() })} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="CEP" value={formLoja.cep || ''} maxLength={9}
-              onChange={e => setFormLoja({ ...formLoja, cep: e.target.value })} />
-            <FormField label="Bairro" value={formLoja.bairro || ''}
-              onChange={e => setFormLoja({ ...formLoja, bairro: e.target.value })} />
-          </div>
-          <FormField label="Endereço Completo (Rua, Número, Complemento)" value={formLoja.logradouro || ''}
-            onChange={e => setFormLoja({ ...formLoja, logradouro: e.target.value })} />
-
-          <div>
-            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Localização (opcional)</label>
-            <div className="flex gap-2 items-center">
-              <p className="text-xs text-gray-500 flex-1 truncate">
-                {formLoja.latitudeLoja
-                  ? `${formLoja.latitudeLoja.toFixed(4)}, ${formLoja.longitudeLoja.toFixed(4)}`
-                  : 'Não definida'}
-              </p>
-              <Button variant="ghost" size="sm" onClick={usarMinhaLocalizacao}>Usar minha localização</Button>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[10px] font-black uppercase text-[#55833d] tracking-widest ml-1 block mb-1.5">Logo</label>
-            <label className="w-full p-3 bg-[#F5F2ED]/50 text-gray-400 font-bold rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#f9943b] flex items-center justify-center gap-2 cursor-pointer">
-              <ImageIcon size={18} /> {formLoja.logoUrl ? 'Selecionada ✓' : 'Escolher logo'}
-              <input type="file" className="hidden" accept="image/*"
-                onChange={e => lerImagemBase64(e, url => setFormLoja({ ...formLoja, logoUrl: url }))} />
-            </label>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <label className="flex items-center gap-2 font-bold">
-              <input type="checkbox" checked={!!formLoja.aceitaRetirada}
-                onChange={e => setFormLoja({ ...formLoja, aceitaRetirada: e.target.checked })} />
-              Aceita retirada
-            </label>
-            <label className="flex items-center gap-2 font-bold">
-              <input type="checkbox" checked={!!formLoja.fazEntrega}
-                onChange={e => setFormLoja({ ...formLoja, fazEntrega: e.target.checked })} />
-              Faz entrega
-            </label>
-          </div>
-
-          <Button onClick={salvarLoja} fullWidth size="lg" iconLeft={<CheckCircle size={18} />}>
-            {loja ? 'Salvar alterações' : 'Criar loja'}
-          </Button>
-        </div>
-      </Modal>
-    );
-  }
 }
