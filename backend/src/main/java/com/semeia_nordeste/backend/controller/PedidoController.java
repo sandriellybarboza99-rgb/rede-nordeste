@@ -61,4 +61,13 @@ public class PedidoController {
         return ResponseEntity.ok(
                 PedidoResponse.fromEntity(pedidoService.atualizarStatusEntrega(id, status, usuario)));
     }
+
+    @PatchMapping("/produtor/pedidos/{id}/confirmar-retirada")
+    public ResponseEntity<PedidoResponse> confirmarRetirada(
+            @PathVariable Long id,
+            @RequestParam String codigo,
+            @AuthenticationPrincipal Usuario usuario) {
+        return ResponseEntity.ok(
+                PedidoResponse.fromEntity(pedidoService.confirmarRetirada(id, codigo, usuario)));
+    }
 }

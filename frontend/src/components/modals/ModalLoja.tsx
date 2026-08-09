@@ -93,11 +93,11 @@ export const ModalLoja: React.FC<ModalLojaProps> = ({ open, onClose, lojaAtual, 
       }
     } else {
       // Se não aceita retirada, limpa campos de endereço para não enviar lixo
-      formLoja.cidade = '';
-      formLoja.estado = 'SE';
-      formLoja.cep = '';
-      formLoja.bairro = '';
-      formLoja.logradouro = '';
+      formLoja.cidade = null;
+      formLoja.estado = null;
+      formLoja.cep = null;
+      formLoja.bairro = null;
+      formLoja.logradouro = null;
       formLoja.latitudeLoja = null;
       formLoja.longitudeLoja = null;
     }

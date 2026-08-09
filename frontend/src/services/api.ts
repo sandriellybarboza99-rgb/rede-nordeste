@@ -526,6 +526,13 @@ export const atualizarStatusEntrega = async (
   return res.data;
 };
 
+export const confirmarRetiradaPedido = async (pedidoId: number, codigo: string) => {
+  const res = await apiService.patch(
+    `/produtor/pedidos/${pedidoId}/confirmar-retirada?codigo=${codigo}`,
+  );
+  return res.data;
+};
+
 // ============================================================
 // FRETE
 // ============================================================

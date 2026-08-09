@@ -15,7 +15,10 @@ public record PedidoResponse(
         StatusEntrega statusEntrega,
         String enderecoEntrega,
         List<ItemPedidoResponse> itens,
-        List<LojaPagamentoPixDTO> detalhesPixLojas) {
+        List<LojaPagamentoPixDTO> detalhesPixLojas,
+        String codigoRetirada,
+        Boolean retiradaNaLoja,
+        String nomeComprador) {
     public static PedidoResponse fromEntity(Pedido p) {
         return new PedidoResponse(
                 p.getId(),
@@ -27,7 +30,10 @@ public record PedidoResponse(
                 p.getEntrega().getStatusEntrega(),
                 p.getEntrega().getEnderecoEntrega(),
                 p.getItens().stream().map(ItemPedidoResponse::fromEntity).toList(),
-                calcularDetalhesPix(p));
+                calcularDetalhesPix(p),
+                p.getEntrega().getCodigoRetirada(),
+                p.getEntrega().getRetiradaNaLoja(),
+                p.getComprador() != null ? p.getComprador().getNomeCompleto() : null);
     }
 
     private static List<LojaPagamentoPixDTO> calcularDetalhesPix(Pedido p) {

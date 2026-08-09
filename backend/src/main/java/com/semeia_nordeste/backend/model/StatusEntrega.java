@@ -8,5 +8,6 @@ public enum StatusEntrega {
     SAIU_PARA_ENTREGA,
     ENTREGUE,
     RETIRADA_DISPONIVEL,
+    AGUARDANDO_RETIRADA,
     CANCELADO
 }
