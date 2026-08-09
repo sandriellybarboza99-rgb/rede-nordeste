@@ -1035,12 +1035,22 @@ export default function Perfil() {
                           {[
                             { i: Wallet, t: 'A Pagar', id: 'pagar' }, { i: Package, t: 'Preparando', id: 'preparando' },
                             { i: MapPin, t: 'Retirada', id: 'retirada' }, { i: Truck, t: 'A Caminho', id: 'caminho' }, { i: ShoppingBag, t: 'Finalizados', id: 'finalizados' },
-                          ].map((item) => (
-                            <div key={item.t} onClick={() => { setAbaAtiva(item.id as any); setTelaAtual('compras'); }} className="flex flex-col items-center gap-3 group cursor-pointer active:scale-90 transition-all">
-                              <div className="w-14 h-14 bg-[#F5F2ED] rounded-2xl flex items-center justify-center text-[#394158] group-hover:bg-[#55833d] group-hover:text-white transition-all duration-300 shadow-sm"><item.i size={22} /></div>
-                              <span className="text-[12px] font-semibold text-center tracking-tighter">{item.t}</span>
-                            </div>
-                          ))}
+                          ].map((item) => {
+                            const count = filtrarPedidosPorAba(pedidos, item.id as any).length;
+                            return (
+                              <div key={item.t} onClick={() => { setAbaAtiva(item.id as any); setTelaAtual('compras'); }} className="flex flex-col items-center gap-3 group cursor-pointer active:scale-90 transition-all">
+                                <div className="relative w-14 h-14 bg-[#F5F2ED] rounded-2xl flex items-center justify-center text-[#394158] group-hover:bg-[#55833d] group-hover:text-white transition-all duration-300 shadow-sm">
+                                  <item.i size={22} />
+                                  {count > 0 && (
+                                    <span className="absolute -top-2 -right-2 bg-[#f9943b] text-white text-[9px] font-black rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-md">
+                                      {count}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[12px] font-semibold text-center tracking-tighter">{item.t}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </section>
 
