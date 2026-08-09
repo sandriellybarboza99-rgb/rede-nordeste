@@ -96,4 +96,12 @@ public class Loja {
 
     @Column(name = "tipo_chave_pix", length = 30)
     private String tipoChavePix;
+
+    // === PERFIL DA EMPREENDEDORA (separado dos dados da loja) ===
+
+    @Column(name = "foto_empreendedora_url", columnDefinition = "TEXT")
+    private String fotoEmpreendedoraUrl;
+
+    @Column(name = "historia_empreendedora", columnDefinition = "TEXT")
+    private String historiaEmpreendedora;
 }

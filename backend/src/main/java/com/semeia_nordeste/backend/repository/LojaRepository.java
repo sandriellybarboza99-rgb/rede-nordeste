@@ -24,5 +24,5 @@ public interface LojaRepository extends JpaRepository<Loja, Long> {
 
     long countByVerificadaTrueAndSuspensaFalse();
 
-    java.util.List<Loja> findByUsuarioGenero(String genero);
+    java.util.List<Loja> findByUsuarioGeneroAndVerificadaTrueAndSuspensaFalse(String genero);
 }

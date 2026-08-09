@@ -39,6 +39,7 @@ export interface UsuarioLogado {
   telefone?: string;
   fotoPerfilUrl?: string;
   perfil: Perfil;
+  genero?: string;
 }
 
 interface AuthContextValue {

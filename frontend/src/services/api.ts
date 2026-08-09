@@ -413,10 +413,16 @@ export const buscarProdutos = async (
   nome?: string,
   categoriaId?: number,
   page = 0,
+  estado?: string,
+  cidade?: string,
+  excluirLojaId?: number
 ) => {
   const params = new URLSearchParams();
   if (nome) params.append("nome", nome);
   if (categoriaId) params.append("categoriaId", String(categoriaId));
+  if (estado) params.append("estado", estado);
+  if (cidade) params.append("cidade", cidade);
+  if (excluirLojaId) params.append("excluirLojaId", String(excluirLojaId));
   params.append("page", String(page));
   const res = await apiService.get(`/produtos?${params.toString()}`);
   return res.data;
@@ -697,6 +703,18 @@ export const desconectarWebSocket = () => {
 export const getEmpreendedoras = async () => {
   const res = await apiService.get("/lojas/empreendedoras");
   return res.data;
+};
+
+export const atualizarPerfilEmpreendedora = async (dados: {
+  fotoEmpreendedoraUrl?: string;
+  historiaEmpreendedora?: string;
+}) => {
+  const res = await apiService.patch("/produtor/loja/empreendedora", dados);
+  return res.data;
+};
+
+export const deletarPerfilEmpreendedora = async () => {
+  await apiService.delete("/produtor/loja/empreendedora");
 };
 
 // ============================================================

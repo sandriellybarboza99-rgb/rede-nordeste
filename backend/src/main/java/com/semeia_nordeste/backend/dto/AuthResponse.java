@@ -7,5 +7,6 @@ public record AuthResponse(
         String refreshToken,
         String nome,
         String email,
-        TipoPerfil perfil) {
+        TipoPerfil perfil,
+        String genero) {
 }

@@ -69,7 +69,8 @@ public class UsuarioController {
                 refreshToken,
                 usuario.getNomeCompleto(),
                 usuario.getEmail(),
-                usuario.getTipoPerfil()));
+                usuario.getTipoPerfil(),
+                usuario.getGenero()));
     }
 
     @PostMapping("/refresh")
@@ -91,7 +92,8 @@ public class UsuarioController {
                 novoRefresh,
                 usuario.getNomeCompleto(),
                 usuario.getEmail(),
-                usuario.getTipoPerfil()));
+                usuario.getTipoPerfil(),
+                usuario.getGenero()));
     }
 
     @PostMapping("/logout")

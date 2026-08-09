@@ -33,6 +33,15 @@ export default function ProdutoDetalhes() {
           const l = await getLojaPorId(data.lojaId);
           setLoja(l);
         }
+        // Registrar nas vistas recentes
+        try {
+          const salvos = localStorage.getItem('vistos_recentes');
+          let ids: number[] = salvos ? JSON.parse(salvos) : [];
+          ids = [Number(id), ...ids.filter((vId: number) => Number(vId) !== Number(id))].slice(0, 12);
+          localStorage.setItem('vistos_recentes', JSON.stringify(ids));
+        } catch (e) {
+          console.error('Erro ao salvar visto recentemente', e);
+        }
       })
       .catch(() => setErro('Produto não encontrado.'))
       .finally(() => setCarregando(false));

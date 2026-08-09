@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Search, ShoppingCart, User, Plus, Filter, MapPin,
+  Search, ShoppingCart, User, Plus,
   Star, LayoutGrid, Palette, Beef, Sprout, Wheat, Carrot, Milk, Bed, Utensils, Shirt,
-  MessageCircle, Heart, ChevronRight, ChevronLeft, Menu, X, BookOpen, Store, Bell, HelpCircle, Home as HomeIcon, LayoutDashboard
+  MessageCircle, ChevronRight, ChevronLeft, Menu, X, BookOpen, Bell, HelpCircle, Home as HomeIcon, LayoutDashboard, Sparkles
 } from 'lucide-react';
 import {
   buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho, getEmpreendedoras, getMinhaLoja
@@ -11,6 +11,12 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { UserMenu } from '../../components/ui/UserMenu';
 import { BottomTabBar } from '../../components/ui/BottomTabBar';
+import { ModalEmpreendedora } from '../../components/modals/ModalEmpreendedora';
+import { TutorialModal } from '../../components/modals/TutorialModal';
+import { ModalDetalheMulher } from '../../components/modals/ModalDetalheMulher';
+import { ProductFilters } from '../../components/ui/ProductFilters';
+import { RecipeWidget } from '../../components/ui/RecipeWidget';
+import { ProductCard } from '../../components/ui/ProductCard';
 
 const CATEGORIAS_ICONES: Record<string, any> = {
   'Todos': LayoutGrid, 'Artesanato': Palette, 'Carnes': Beef,
@@ -18,40 +24,71 @@ const CATEGORIAS_ICONES: Record<string, any> = {
   'Laticínios': Milk, 'Cama Mesa e Banho': Bed, 'Gastronomia': Utensils, 'Têxtil': Shirt,
 };
 
-// EMPREENDEDORAS será carregado da API
+const ESTADOS_NORDESTE = [
+  { uf: '', nome: 'Todos os Estados' },
+  { uf: 'AL', nome: 'Alagoas (AL)' },
+  { uf: 'BA', nome: 'Bahia (BA)' },
+  { uf: 'CE', nome: 'Ceará (CE)' },
+  { uf: 'MA', nome: 'Maranhão (MA)' },
+  { uf: 'PB', nome: 'Paraíba (PB)' },
+  { uf: 'PE', nome: 'Pernambuco (PE)' },
+  { uf: 'PI', nome: 'Piauí (PI)' },
+  { uf: 'RN', nome: 'Rio Grande do Norte (RN)' },
+  { uf: 'SE', nome: 'Sergipe (SE)' },
+];
+
+// ── Cache em memória (sobrevive entre navegações SPA) ────────────
+// Evita o estado "Carregando..." ao voltar para a Home.
+const pageCache: {
+  categorias?: any[];
+  empreendedoras?: any[];
+  produtos?: { key: string; data: any[]; totalPaginas: number; facetasEstados: any[]; facetasCidades: any[] };
+} = {};
+
+const buildProdKey = (termo: string, catId?: number, pag?: number, estado?: string, cidade?: string) =>
+  `${termo}|${catId ?? ''}|${pag ?? 0}|${estado ?? ''}|${cidade ?? ''}`;
 
 export default function HomeComprador() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { usuario } = useAuth();
   const isVendedor = usuario?.perfil === 'PRODUTOR';
+  const isMulherProdutora = usuario?.perfil === 'PRODUTOR' && usuario?.genero === 'FEMININO';
 
   // ── Dados da API ─────────────────────────────────────────────────
   type CategoriaAPI = { id: number; nome: string };
-  const [produtos, setProdutos] = useState<any[]>([]);
-  const [categorias, setCategorias] = useState<CategoriaAPI[]>([{ id: 0, nome: 'Todos' }]);
-  const [totalPaginas, setTotalPaginas] = useState(1);
-  const [carregando, setCarregando] = useState(false);
+  const [produtos, setProdutos] = useState<any[]>(pageCache.produtos?.data || []);
+  const [categorias, setCategorias] = useState<CategoriaAPI[]>(pageCache.categorias || [{ id: 0, nome: 'Todos' }]);
+  const [totalPaginas, setTotalPaginas] = useState(pageCache.produtos?.totalPaginas || 1);
+  const [carregando, setCarregando] = useState(!pageCache.produtos);
+  const [carregandoMais, setCarregandoMais] = useState(false);
   const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
-  const [tentativa, setTentativa] = useState(0); // incrementar força re-fetch
+  const [tentativa, setTentativa] = useState(0);
   const [minhaLojaId, setMinhaLojaId] = useState<number | null>(null);
 
   // ── Filtros e UI ─────────────────────────────────────────────────
-  // catAtiva guarda o NOME para destacar o chip; catAtivaId guarda o ID para filtrar
   const [catAtiva, setCatAtiva] = useState('Todos');
   const [catAtivaId, setCatAtivaId] = useState<number | undefined>(undefined);
-  const [notificacoesNaoLidas] = useState(2); // Mock para contagem visual de notificações
+  const [notificacoesNaoLidas] = useState(2);
   const [busca, setBusca] = useState('');
   const [termoPesquisado, setTermoPesquisado] = useState('');
   const [ordenacao, setOrdenacao] = useState('recomendados');
   const [favoritos, setFavoritos] = useState<number[]>([]);
   const [menuAberto, setMenuAberto] = useState(false);
-  const [empreendedoras, setEmpreendedoras] = useState<any[]>([]);
+  const [empreendedoras, setEmpreendedoras] = useState<any[]>(pageCache.empreendedoras || []);
   const [mulherSelecionada, setMulherSelecionada] = useState<any | null>(null);
   const [paginaAtual, setPaginaAtual] = useState(0);
   const [carrinhoCount, setCarrinhoCount] = useState(0);
   const [naoLidas, setNaoLidas] = useState(0);
   const [tutorialAberto, setTutorialAberto] = useState(false);
+  const [modalEmpreendedoraAberto, setModalEmpreendedoraAberto] = useState(false);
+  const [minhaLojaParaModal, setMinhaLojaParaModal] = useState<any>(null);
+  const [estadoFiltro, setEstadoFiltro] = useState('');
+  const [cidadeFiltro, setCidadeFiltro] = useState('');
+  const [facetasEstados, setFacetasEstados] = useState<any[]>(pageCache.produtos?.facetasEstados || []);
+  const [facetasCidades, setFacetasCidades] = useState<any[]>(pageCache.produtos?.facetasCidades || []);
+  const [receitaContexto, setReceitaContexto] = useState<any>(null);
 
   // ── Scroll horizontal das categorias ─────────────────────────────
   const catScrollRef = useRef<HTMLDivElement>(null);
@@ -72,7 +109,7 @@ export default function HomeComprador() {
     setTimeout(atualizarSetas, 350);
   };
 
-  // ── Carrega categorias ────────────────────────────────────────────
+  // ── Carrega categorias (stale-while-revalidate) ────────────────────
   useEffect(() => {
     sessionStorage.setItem('origemBlog', 'painel');
 
@@ -83,15 +120,18 @@ export default function HomeComprador() {
       localStorage.setItem(tutorialKey, 'true');
     }
 
-    // Carrega categorias e destaques
+    // Carrega categorias e destaques (atualiza cache silenciosamente)
     const carregaFiltros = async () => {
       try {
         const [cats, emp] = await Promise.all([
           getCategorias(),
-          getEmpreendedoras().catch(() => []) // se falhar, retorna array vazio
+          getEmpreendedoras().catch(() => [])
         ]);
-        setCategorias([{ id: 0, nome: 'Todos' }, ...cats]);
+        const categoriasCompletas = [{ id: 0, nome: 'Todos' }, ...cats];
+        setCategorias(categoriasCompletas);
         setEmpreendedoras(emp);
+        pageCache.categorias = categoriasCompletas;
+        pageCache.empreendedoras = emp;
         setTimeout(atualizarSetas, 100);
       } catch (err) {
         console.error('Erro ao carregar categorias ou empreendedoras:', err);
@@ -108,6 +148,7 @@ export default function HomeComprador() {
       getMinhaLoja().then((loja: any) => {
         if (loja && loja.id) {
           setMinhaLojaId(loja.id);
+          setMinhaLojaParaModal(loja);
         } else {
           setMinhaLojaId(0);
         }
@@ -118,85 +159,149 @@ export default function HomeComprador() {
 
     const salvos = localStorage.getItem('favoritos_itens');
     if (salvos) setFavoritos(JSON.parse(salvos));
+    
+    const contextoSalvo = sessionStorage.getItem('receitaContexto');
+    if (contextoSalvo) {
+      try {
+        setReceitaContexto(JSON.parse(contextoSalvo));
+      } catch (e) {}
+    }
   }, []);
 
-  // ── Carrega produtos ──────────────────────────────────────────────
+  // ── Carrega produtos (stale-while-revalidate) ──────────────────────
   useEffect(() => {
-    const carregar = async () => {
+    let isActive = true;
+    const cacheKey = buildProdKey(termoPesquisado, catAtivaId, paginaAtual, estadoFiltro, cidadeFiltro);
+
+    // Se temos cache para esses filtros exatos, mostramos imediatamente
+    const cached = pageCache.produtos;
+    const hasCacheHit = cached && cached.key === cacheKey;
+    if (hasCacheHit) {
+      setProdutos(cached.data);
+      setTotalPaginas(cached.totalPaginas);
+      setFacetasEstados(cached.facetasEstados);
+      setFacetasCidades(cached.facetasCidades);
+    }
+
+    // Mostra loading somente se NÃO tem cache
+    if (!hasCacheHit) {
       setCarregando(true);
-      setErroCarregamento(null);
+    }
+    setErroCarregamento(null);
+
+    const carregar = async () => {
       try {
         const data = await buscarProdutos(
           termoPesquisado || undefined,
-          catAtivaId, // ID real da categoria (undefined quando "Todos")
-          paginaAtual
+          catAtivaId,
+          paginaAtual,
+          estadoFiltro || undefined,
+          cidadeFiltro || undefined,
+          (isVendedor && minhaLojaId) ? minhaLojaId : undefined
         );
 
-        let prods = data.content || [];
-        if (isVendedor && minhaLojaId) {
-          prods = prods.filter((p: any) => p.lojaId !== minhaLojaId);
-        }
+        if (!isActive) return;
 
-        setProdutos(prods);
-        setTotalPaginas(data.totalPages || 1);
+        let prods = data.produtos?.content || data.content || [];
+
+        const newTotalPaginas = data.produtos?.totalPages || data.totalPages || 1;
+        const newFacetasEstados = data.facetas?.estados || [];
+        const newFacetasCidades = data.facetas?.cidades || [];
+
+        setProdutos(prev => {
+          const novos = paginaAtual === 0 ? prods : [...prev, ...prods];
+          // Atualiza cache em memória
+          pageCache.produtos = {
+            key: cacheKey,
+            data: novos,
+            totalPaginas: newTotalPaginas,
+            facetasEstados: newFacetasEstados,
+            facetasCidades: newFacetasCidades,
+          };
+          return novos;
+        });
+
+        setTotalPaginas(newTotalPaginas);
+        setFacetasEstados(newFacetasEstados);
+        setFacetasCidades(newFacetasCidades);
       } catch (err: any) {
-        // Não esconder o erro: distinguir "falha de carregamento" de "vitrine vazia".
-        setProdutos([]);
-        setErroCarregamento(err?.message || 'Erro ao carregar produtos.');
+        if (!isActive) return;
+        if (!hasCacheHit) {
+          setProdutos([]);
+          setErroCarregamento(err?.message || 'Erro ao carregar produtos.');
+        }
       } finally {
-        setCarregando(false);
+        if (isActive) {
+          setCarregando(false);
+          setCarregandoMais(false);
+        }
       }
     };
 
-    // Se for vendedor, aguarda descobrir o lojaId antes de buscar os produtos
     if (isVendedor && minhaLojaId === null) {
       return;
     }
 
     carregar();
-  }, [termoPesquisado, catAtivaId, paginaAtual, tentativa, isVendedor, minhaLojaId]);
+    return () => { isActive = false; };
+  }, [termoPesquisado, catAtivaId, paginaAtual, tentativa, isVendedor, minhaLojaId, estadoFiltro, cidadeFiltro]);
 
-  // ── Redirect de receitas ──────────────────────────────────────────
+  // ── Redirect de receitas / query params ───────────────────────────
   useEffect(() => {
-    if (location.state && (location.state as any).buscaReceita) {
-      const termo = (location.state as any).buscaReceita;
+    const termoQuery = searchParams.get('busca');
+    const termoState = (location.state as any)?.buscaReceita;
+    const termo = termoQuery || termoState;
+
+    if (termo) {
       setBusca(termo);
       setTermoPesquisado(termo);
       setCatAtiva('Todos');
+      setCatAtivaId(undefined);
       setPaginaAtual(0);
     }
-  }, [location.state]);
+  }, [searchParams, location.state]);
 
   // ── Helpers ───────────────────────────────────────────────────────
-  const toggleFavorito = (e: React.MouseEvent, id: number) => {
+  const handleCarregarMais = () => {
+    if (!carregandoMais && paginaAtual < totalPaginas - 1) {
+      setCarregandoMais(true);
+      setPaginaAtual(p => p + 1);
+    }
+  };
+
+  const toggleFavorito = useCallback((e: React.MouseEvent, id: number) => {
     e.preventDefault(); e.stopPropagation();
     const novos = favoritos.includes(id)
       ? favoritos.filter(f => f !== id)
       : [...favoritos, id];
     setFavoritos(novos);
     localStorage.setItem('favoritos_itens', JSON.stringify(novos));
-  };
+  }, [favoritos]);
 
-  const adicionarRapido = async (e: React.MouseEvent, produtoId: number) => {
+  const adicionarRapido = useCallback(async (e: React.MouseEvent, produtoId: number) => {
     e.preventDefault(); e.stopPropagation();
     try {
       const cartReq = await getCarrinho();
       const listaItens = cartReq.itens || cartReq.content || cartReq || [];
       const existing = listaItens.find((i: any) => String(i.produtoId || i.produto?.id) === String(produtoId));
       const novaQtd = existing ? existing.quantidade + 1 : 1;
-
       await adicionarAoCarrinho(produtoId, novaQtd);
       setCarrinhoCount(c => existing ? c : c + 1);
     } catch (err: any) {
       alert(err.message);
     }
-  };
+  }, []);
 
   const handlePesquisa = () => {
     setTermoPesquisado(busca);
     setCatAtiva('Todos');
     setCatAtivaId(undefined);
     setPaginaAtual(0);
+    if (busca.trim()) {
+      setSearchParams({ busca: busca.trim() });
+    } else {
+      setSearchParams({});
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -209,13 +314,35 @@ export default function HomeComprador() {
     setTermoPesquisado('');
     setBusca('');
     setPaginaAtual(0);
+    setSearchParams({});
   };
 
-  const produtosExibidos = [...produtos].sort((a, b) => {
-    if (ordenacao === 'menor_preco') return a.precoAtual - b.precoAtual;
-    if (ordenacao === 'maior_preco') return b.precoAtual - a.precoAtual;
-    return 0;
-  });
+  const handleFiltroWidget = (ingrediente: string) => {
+    const termo = ingrediente
+      .replace(/^[\d\/\se]+(g|kg|l|ml|xícaras?|fatias?|latas?|pacotes?|litros?)?\s*(grossas\s*)?(de\s*)?/i, '')
+      .replace(/ para acompanhar| a gosto|\(já lavado\)/gi, '')
+      .trim();
+    
+    setBusca(termo);
+    setTermoPesquisado(termo);
+    setCatAtiva('Todos');
+    setCatAtivaId(undefined);
+    setPaginaAtual(0);
+    setSearchParams({ busca: termo });
+  };
+
+  const fecharWidget = () => {
+    setReceitaContexto(null);
+    sessionStorage.removeItem('receitaContexto');
+  };
+
+  const produtosExibidos = useMemo(() => {
+    return [...produtos].sort((a, b) => {
+      if (ordenacao === 'menor_preco') return a.precoAtual - b.precoAtual;
+      if (ordenacao === 'maior_preco') return b.precoAtual - a.precoAtual;
+      return 0;
+    });
+  }, [produtos, ordenacao]);
 
   return (
     <div className="min-h-screen bg-white text-[#394158] antialiased pb-20 font-sans">
@@ -308,78 +435,23 @@ export default function HomeComprador() {
         </div>
       )}
 
-      {/* MODAL DO TUTORIAL */}
-      {tutorialAberto && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setTutorialAberto(false)} />
-          <div className="relative bg-white w-full max-w-lg rounded-[2rem] p-6 md:p-8 shadow-2xl flex flex-col gap-6 animate-in zoom-in-95">
-            <button onClick={() => setTutorialAberto(false)} className="absolute top-6 right-6 p-2 bg-[#F5F2ED] rounded-full hover:bg-gray-200"><X size={20} /></button>
+      <TutorialModal open={tutorialAberto} onClose={() => setTutorialAberto(false)} />
 
-            <div className="text-center space-y-2 mt-4 md:mt-0">
-              <h2 className="text-xl md:text-2xl font-black italic uppercase text-[#394158]">Guia Rápido</h2>
-              <p className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest">Aprenda a usar a plataforma</p>
-            </div>
+      <ModalDetalheMulher mulher={mulherSelecionada} onClose={() => setMulherSelecionada(null)} />
 
-            <div className="space-y-3 max-h-[50vh] md:max-h-[60vh] overflow-y-auto no-scrollbar pb-4 px-2">
-              <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
-                <div className="p-3 bg-white text-[#f9943b] rounded-full shadow-sm shrink-0"><Search size={20} /></div>
-                <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Busca & Filtros</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Use a busca no topo ou clique nas categorias (Laticínios, Hortifruti) para achar exatamente o que precisa.</p></div>
-              </div>
-
-              <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
-                <div className="p-3 bg-white text-[#55833d] rounded-full shadow-sm shrink-0"><ShoppingCart size={20} /></div>
-                <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Carrinho</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Clique no botão laranja com "+" nos produtos para adicionar ao carrinho, depois vá no ícone superior para fechar a compra.</p></div>
-              </div>
-
-              <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
-                <div className="p-3 bg-white text-red-500 rounded-full shadow-sm shrink-0"><Heart size={20} /></div>
-                <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Favoritar</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Gostou de algo mas não quer comprar agora? Clique no coração no canto dos produtos para salvá-lo na sua lista.</p></div>
-              </div>
-
-              <div className="flex items-start gap-4 p-4 bg-[#F5F2ED]/50 rounded-[1.5rem] border border-gray-100">
-                <div className="flex flex-col gap-2 shrink-0">
-                  <div className="flex gap-2">
-                    <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm"><Bell size={14} /></div>
-                    <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm"><MessageCircle size={14} /></div>
-                  </div>
-                  <div className="p-2 bg-white text-[#394158] rounded-full shadow-sm w-fit mx-auto"><User size={14} /></div>
-                </div>
-                <div><h4 className="font-black uppercase text-[#394158] text-[10px] md:text-xs">Menu Superior (PC) / Lateral (Celular)</h4><p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Notificações, Chat direto com vendedores e Meu Perfil ficam sempre acessíveis nos ícones do cabeçalho ou menu.</p></div>
-              </div>
-            </div>
-
-            <button onClick={() => setTutorialAberto(false)} className="w-full bg-[#55833d] text-white py-4 rounded-[1rem] font-black uppercase text-[10px] md:text-xs tracking-widest shadow-lg hover:bg-[#436b2f] transition-colors mt-2">
-              Entendi, Vamos Lá!
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DETALHE MULHER */}
-      {mulherSelecionada && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setMulherSelecionada(null)} />
-          <div className="relative bg-white w-full max-w-2xl rounded-[1rem] overflow-hidden shadow-2xl">
-            <button onClick={() => setMulherSelecionada(null)} className="absolute top-6 right-6 z-10 bg-white/80 p-2 rounded-full"><X size={20} /></button>
-            <div className="flex flex-col md:flex-row">
-              <div className="w-full md:w-1/2 h-64 md:h-auto relative">
-                <img src={mulherSelecionada.fotoPerfilUrl || mulherSelecionada.logoUrl || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" alt={mulherSelecionada.nomeProprietaria || mulherSelecionada.nomeLoja} />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#55833d]/60 to-transparent" />
-              </div>
-              <div className="w-full md:w-1/2 p-8 flex flex-col justify-center">
-                <div className="flex items-center gap-2 text-[#55833d] mb-2"><MapPin size={14} /><span className="text-[10px] font-black uppercase tracking-widest">{mulherSelecionada.cidade || 'Sergipe'}</span></div>
-                <h2 className="text-2xl font-black text-[#394158] mb-1">{mulherSelecionada.nomeProprietaria || 'Produtora'}</h2>
-                <span className="text-[#f9943b] font-black italic uppercase text-xs mb-6">{mulherSelecionada.nomeLoja}</span>
-                <div className="bg-[#F5F2ED] p-5 rounded-3xl mb-8">
-                  <div className="flex items-center gap-2 mb-3 text-[#394158]/50 uppercase font-black text-[9px]"><BookOpen size={12} /> Nossa História</div>
-                  <p className="text-sm text-[#394158] leading-relaxed italic">"{mulherSelecionada.descricaoBio || 'Sem descrição.'}"</p>
-                </div>
-                <button onClick={() => { setMulherSelecionada(null); navigate(`/loja/${mulherSelecionada.id}`); }} className="w-full bg-[#55833d] text-white py-4 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-3"><Store size={16} /> Ver Loja</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* MODAL EMPREENDEDORA (CTA) */}
+      <ModalEmpreendedora
+        open={modalEmpreendedoraAberto}
+        onClose={() => setModalEmpreendedoraAberto(false)}
+        dadosAtuais={{
+          fotoEmpreendedoraUrl: minhaLojaParaModal?.fotoEmpreendedoraUrl,
+          historiaEmpreendedora: minhaLojaParaModal?.historiaEmpreendedora,
+        }}
+        onSalvo={() => {
+          // Recarrega lista de empreendedoras para refletir a nova foto/historia
+          getEmpreendedoras().then(setEmpreendedoras).catch(() => {});
+        }}
+      />
 
       <main className="max-w-6xl mx-auto px-4 md:px-8 pt-6 md:pt-10">
         <div className="relative w-full mb-8 md:hidden">
@@ -391,7 +463,7 @@ export default function HomeComprador() {
           </button>
         </div>
 
-        {/* 🛠️ CORREÇÃO DO LINK DE REDIRECIONAMENTO DESTA SEÇÃO 🛠️ */}
+        {/* QUADRO EMPREENDEDORAS */}
         <section className="w-full max-w-6xl mb-12 bg-[#fededf] p-4 md:p-8 rounded-[2rem] border border-[#fededf] mx-auto shadow-xl">
           <div className="flex items-center justify-between mb-6 px-2 text-[#394158]">
             <div className="flex items-center gap-2 md:gap-3">
@@ -402,11 +474,33 @@ export default function HomeComprador() {
               Ver mais <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
+
+          {/* Botao CTA — visivel apenas para mulheres produtoras */}
+          {isMulherProdutora && (() => {
+            const jaNoMural = !!(minhaLojaParaModal?.fotoEmpreendedoraUrl || minhaLojaParaModal?.historiaEmpreendedora);
+            return (
+              <div className="px-2 mb-5">
+                <button
+                  onClick={() => setModalEmpreendedoraAberto(true)}
+                  className={`w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest shadow-lg hover:shadow-xl hover:scale-[1.01] active:scale-95 transition-all ${
+                    jaNoMural
+                      ? 'bg-white border-2 border-[#f9943b] text-[#f9943b] hover:bg-[#fff5ef]'
+                      : 'bg-gradient-to-r from-[#f9943b] to-[#e07a28] text-white'
+                  }`}
+                >
+                  <Sparkles size={16} className={jaNoMural ? 'text-[#f9943b]' : 'fill-white'} />
+                  {jaNoMural ? 'Editar minha historia no mural' : 'Exiba seu negocio aqui!'}
+                </button>
+              </div>
+            );
+          })()}
+
+
           <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar px-2">
             {empreendedoras.map(mulher => (
               <div key={mulher.id} onClick={() => setMulherSelecionada(mulher)}
                 className="min-w-[240px] bg-white rounded-[1rem] p-3 shadow-lg flex items-center gap-3 group cursor-pointer hover:bg-[#aab2c1] transition-all duration-500 border border-white">
-                <img src={mulher.fotoPerfilUrl || mulher.logoUrl || 'https://via.placeholder.com/150'} className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover border-2 border-[#394158]/20" alt={mulher.nomeProprietaria || mulher.nomeLoja} />
+                <img src={mulher.fotoEmpreendedoraUrl || mulher.fotoPerfilUrl || mulher.logoUrl || 'https://via.placeholder.com/150'} className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover border-2 border-[#394158]/20" alt={mulher.nomeProprietaria || mulher.nomeLoja} />
                 <div>
                   <h3 className="text-xs font-black uppercase text-[#394158] group-hover:text-white transition-colors leading-tight">{mulher.nomeProprietaria || 'Produtora'}</h3>
                   <span className="text-[10px] font-bold text-[#394158]/60 group-hover:text-white/80 transition-colors uppercase italic">{mulher.nomeLoja}</span>
@@ -491,15 +585,18 @@ export default function HomeComprador() {
           <div className="w-full">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
               <h2 className="text-xl font-black italic uppercase text-[#394158]">{catAtiva !== 'Todos' ? catAtiva : 'Nossos Produtos'}</h2>
-              <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm self-start">
-                <Filter size={14} className="text-[#55833d]" />
-                <select value={ordenacao} onChange={e => setOrdenacao(e.target.value)}
-                  className="bg-transparent text-[10px] font-black uppercase outline-none cursor-pointer">
-                  <option value="recomendados">Recomendados</option>
-                  <option value="menor_preco">Menor Preço</option>
-                  <option value="maior_preco">Maior Preço</option>
-                </select>
-              </div>
+              
+              <ProductFilters
+                estadoFiltro={estadoFiltro}
+                cidadeFiltro={cidadeFiltro}
+                ordenacao={ordenacao}
+                facetasEstados={facetasEstados}
+                facetasCidades={facetasCidades}
+                estadosNordeste={ESTADOS_NORDESTE}
+                onEstadoChange={estado => { setEstadoFiltro(estado); setCidadeFiltro(''); setPaginaAtual(0); }}
+                onCidadeChange={cidade => { setCidadeFiltro(cidade); setPaginaAtual(0); }}
+                onOrdenacaoChange={setOrdenacao}
+              />
             </div>
 
             {carregando ? (
@@ -520,40 +617,55 @@ export default function HomeComprador() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-8">
                 {produtosExibidos.map(prod => (
-                  <div key={prod.id} className="relative bg-white p-2 md:p-5 rounded-[1rem] shadow-xl flex flex-col group border border-transparent hover:border-[#55833d]/20 transition-all">
-                    <button onClick={e => toggleFavorito(e, prod.id)}
-                      className="absolute top-3 left-3 z-20 p-1.5 bg-white/80 backdrop-blur-md rounded-full shadow-sm hover:scale-110 transition-transform">
-                      <Heart size={14} className={favoritos.includes(prod.id) ? "fill-[#802D44] text-[#802D44]" : "text-gray-400"} />
-                    </button>
-                    <div className="relative overflow-hidden rounded-[1rem] mb-3 md:mb-4 aspect-square">
-                      <Link to={`/produto/${prod.id}`}>
-                        <img src={prod.imagemUrl || 'https://via.placeholder.com/400'}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-all duration-700" alt={prod.nome} />
-                      </Link>
-                      <button onClick={e => adicionarRapido(e, prod.id)}
-                        className="absolute bottom-2 right-2 md:bottom-4 md:right-4 bg-[#f9943b] text-white p-1.5 md:p-2.5 rounded-full shadow-xl z-10 active:scale-90">
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                    <span className="text-[8px] md:text-[9px] font-black uppercase text-[#55833d] mb-1">{prod.nomeCategoria}</span>
-                    <Link to={`/produto/${prod.id}`}>
-                      <h3 className="font-bold text-[#394158] text-[11px] md:text-sm leading-tight mb-1 line-clamp-1 hover:text-[#55833d] transition-colors">{prod.nome}</h3>
-                    </Link>
-                    <div className="flex items-center gap-1 text-[#394158]/50 mb-2 uppercase font-bold text-[8px] md:text-[9px]">
-                      <MapPin size={8} /> {prod.nomeLoja}
-                    </div>
-                    <div className="mt-auto pt-2 border-t border-gray-50 flex justify-between items-center">
-                      <span className="text-xs md:text-lg font-black text-[#394158]">
-                        R$ {prod.precoAtual?.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
+                  <ProductCard
+                    key={prod.id}
+                    prod={prod}
+                    isFavorito={favoritos.includes(prod.id)}
+                    onToggleFavorito={toggleFavorito}
+                    onAdicionarRapido={adicionarRapido}
+                  />
                 ))}
+              </div>
+            )}
+
+            {/* BOTÃO CARREGAR MAIS */}
+            {!carregando && produtosExibidos.length > 0 && paginaAtual < totalPaginas - 1 && (
+              <div className="mt-12 mb-4 flex justify-center">
+                <button
+                  onClick={handleCarregarMais}
+                  disabled={carregandoMais}
+                  className={`
+                    flex items-center gap-2 px-8 py-3.5 rounded-full font-black text-sm tracking-wide transition-all shadow-md active:scale-95
+                    ${carregandoMais 
+                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                      : 'bg-[#55833d] text-white hover:bg-[#466e32] hover:shadow-lg'
+                    }
+                  `}
+                >
+                  {carregandoMais ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                      Carregando mais...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={18} strokeWidth={2.5} />
+                      Carregar Mais Produtos
+                    </>
+                  )}
+                </button>
               </div>
             )}
           </div>
         </section>
       </main>
+
+      <RecipeWidget
+        receitaContexto={receitaContexto}
+        termoPesquisado={termoPesquisado}
+        onIngredienteClick={handleFiltroWidget}
+        onClose={fecharWidget}
+      />
 
       <BottomTabBar
         tabs={

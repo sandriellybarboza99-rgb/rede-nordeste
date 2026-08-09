@@ -138,7 +138,14 @@ export default function Receitas() {
 
   const comprarIngrediente = (ingrediente: string) => {
     const termo = extrairTermoBusca(ingrediente);
-    navigate('/home2', { state: { buscaReceita: termo } });
+    if (receitaAberta) {
+      sessionStorage.setItem('receitaContexto', JSON.stringify({
+        id: receitaAberta.id,
+        titulo: receitaAberta.titulo,
+        ingredientes: receitaAberta.ingredientes,
+      }));
+    }
+    navigate(`/home2?busca=${encodeURIComponent(termo)}`, { state: { buscaReceita: termo } });
   };
 
   return (

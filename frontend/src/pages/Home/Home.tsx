@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Store, ShoppingBag, ArrowRight, MousePointerClick, 
-  Truck, PackageCheck, Leaf, Target 
+  Truck, PackageCheck, Leaf, Target, ChevronLeft, ChevronRight 
 } from 'lucide-react';
 import { getBanners } from '../../services/api';
 
@@ -70,7 +70,10 @@ export default function Home() {
       <header className="w-full bg-white flex justify-center py-4 px-6 border-b border-gray-100 shadow-sm z-[100] sticky top-0">
         <div className="w-full max-w-7xl flex justify-between items-center">
           <Link to="/"><img src="/assets/logo-home.png" alt="Rede Nordeste" className="h-12 object-contain" /></Link>
-          <Link to="/login" className="bg-[#394158] text-white px-8 py-2.5 rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-[#55833d] transition-all">Entrar</Link>
+          <div className="flex items-center gap-3">
+            <Link to="/cadastro" className="border-2 border-[#55833d] text-[#55833d] px-6 py-2 rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-[#55833d] hover:text-white transition-all">Cadastrar</Link>
+            <Link to="/login" className="bg-[#394158] text-white px-8 py-2.5 rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-[#55833d] transition-all">Entrar</Link>
+          </div>
         </div>
       </header>
 
@@ -121,11 +124,27 @@ export default function Home() {
             ))}
           </div>
           {destaques.length > 1 && (
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-3 z-50">
-              {destaques.map((_, i) => (
-                <button key={i} onClick={() => setCurrent(i)} className={`w-2 h-2 rounded-full cursor-pointer ${i === current ? 'bg-white scale-150' : 'bg-white/30'}`} />
-              ))}
-            </div>
+            <>
+              <button 
+                onClick={() => setCurrent((prev) => (prev - 1 + destaques.length) % destaques.length)}
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-3 rounded-full backdrop-blur-sm transition-all z-50 cursor-pointer border border-white/10"
+                aria-label="Anterior"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <button 
+                onClick={() => setCurrent((prev) => (prev + 1) % destaques.length)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-3 rounded-full backdrop-blur-sm transition-all z-50 cursor-pointer border border-white/10"
+                aria-label="Próximo"
+              >
+                <ChevronRight size={24} />
+              </button>
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-3 z-50">
+                {destaques.map((_, i) => (
+                  <button key={i} onClick={() => setCurrent(i)} className={`w-2 h-2 rounded-full cursor-pointer ${i === current ? 'bg-white scale-150' : 'bg-white/30'}`} />
+                ))}
+              </div>
+            </>
           )}
         </section>
       )}
