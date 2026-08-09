@@ -3,6 +3,11 @@ package com.semeia_nordeste.backend.service;
 import java.math.BigDecimal;
 import java.util.List;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -41,6 +46,7 @@ public class ProdutoService {
         }
 
         @Transactional
+        @CacheEvict(value = "produtos_busca", allEntries = true)
         public Produto criar(ProdutoRequest request) {
                 var logado = usuarioAutenticado.get();
 
@@ -55,6 +61,7 @@ public class ProdutoService {
         }
 
         @Transactional
+        @CacheEvict(value = "produtos_busca", allEntries = true)
         public Produto atualizar(Long produtoId, ProdutoRequest request) {
                 var logado = usuarioAutenticado.get();
 
@@ -74,6 +81,7 @@ public class ProdutoService {
         }
 
         @Transactional
+        @CacheEvict(value = "produtos_busca", allEntries = true)
         public void deletar(Long produtoId) {
                 var logado = usuarioAutenticado.get();
 
@@ -92,24 +100,40 @@ public class ProdutoService {
         // Marketplace — combina nome + categoriaId. Sempre filtra por status APROVADO.
         // termo é "" (nunca null) quando não há busca — evita o erro lower(bytea) no
         // PostgreSQL. Ver javadoc de ProdutoRepository.buscarMarketplace.
-        public com.semeia_nordeste.backend.dto.ProdutoSearchResponse buscar(String nome, Long categoriaId, String estado, String cidade, Pageable pageable) {
+        @Cacheable(value = "produtos_busca")
+        public com.semeia_nordeste.backend.dto.ProdutoSearchResponse buscar(String nome, Long categoriaId, String estado, String cidade, Long excluirLojaId, Pageable pageable) {
                 String termo = (nome != null && !nome.isBlank()) ? nome.trim() : "";
                 String uf = (estado != null && !estado.isBlank()) ? estado.trim() : null;
                 String cid = (cidade != null && !cidade.isBlank()) ? cidade.trim() : null;
                 
-                Page<Produto> produtos = produtoRepository.buscarMarketplace(StatusProduto.APROVADO, termo, categoriaId, uf, cid, pageable);
+                // Concorrência: Executa 3 queries no banco em paralelo ao invés de sequencial
+                CompletableFuture<Page<Produto>> produtosFuture = CompletableFuture.supplyAsync(() -> 
+                        produtoRepository.buscarMarketplace(StatusProduto.APROVADO, termo, categoriaId, uf, cid, excluirLojaId, pageable)
+                );
                 
-                java.util.List<com.semeia_nordeste.backend.dto.FacetResponse> facetEstados = produtoRepository.countFacetEstados(StatusProduto.APROVADO, termo, categoriaId);
-                java.util.List<com.semeia_nordeste.backend.dto.FacetResponse> facetCidades = produtoRepository.countFacetCidades(StatusProduto.APROVADO, termo, categoriaId, uf);
+                CompletableFuture<java.util.List<com.semeia_nordeste.backend.dto.FacetResponse>> facetEstadosFuture = CompletableFuture.supplyAsync(() -> 
+                        produtoRepository.countFacetEstados(StatusProduto.APROVADO, termo, categoriaId)
+                );
+                
+                CompletableFuture<java.util.List<com.semeia_nordeste.backend.dto.FacetResponse>> facetCidadesFuture = CompletableFuture.supplyAsync(() -> 
+                        produtoRepository.countFacetCidades(StatusProduto.APROVADO, termo, categoriaId, uf)
+                );
+                
+                CompletableFuture.allOf(produtosFuture, facetEstadosFuture, facetCidadesFuture).join();
                 
                 java.util.Map<String, java.util.List<com.semeia_nordeste.backend.dto.FacetResponse>> facetas = new java.util.HashMap<>();
-                facetas.put("estados", facetEstados);
-                facetas.put("cidades", facetCidades);
-                
-                return new com.semeia_nordeste.backend.dto.ProdutoSearchResponse(
-                        produtos.map(com.semeia_nordeste.backend.dto.ProdutoResponse::fromEntity),
-                        facetas
-                );
+                try {
+                        facetas.put("estados", facetEstadosFuture.get());
+                        facetas.put("cidades", facetCidadesFuture.get());
+                        
+                        return new com.semeia_nordeste.backend.dto.ProdutoSearchResponse(
+                                produtosFuture.get().map(com.semeia_nordeste.backend.dto.ProdutoResponse::fromEntity),
+                                facetas
+                        );
+                } catch (InterruptedException | ExecutionException e) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Erro ao buscar produtos de forma paralela", e);
+                }
         }
 
         public Page<Produto> listarPorLoja(Long lojaId, Pageable pageable) {
@@ -131,6 +155,7 @@ public class ProdutoService {
         }
 
         @Transactional
+        @CacheEvict(value = "produtos_busca", allEntries = true)
         public Produto atualizarStatus(Long produtoId, StatusProdutoRequest request) {
                 Produto produto = produtoRepository.findById(produtoId)
                                 .orElseThrow(() -> new NotFoundException("Produto não encontrado."));

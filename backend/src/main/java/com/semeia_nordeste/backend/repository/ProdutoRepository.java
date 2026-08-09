@@ -44,15 +44,30 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
      * quando não há busca), o tipo é inferido como `text` e a query funciona.
      * O service garante que `nome` nunca chega null (ver ProdutoService.buscar).
      */
-    @Query("""
+    @Query(value = """
             SELECT p FROM Produto p
+            JOIN FETCH p.loja l
+            JOIN FETCH p.categoria c
             WHERE p.status = :status
-              AND p.loja.verificada = true
-              AND p.loja.suspensa = false
+              AND l.verificada = true
+              AND l.suspensa = false
               AND (:nome = '' OR LOWER(p.nome) LIKE LOWER(CONCAT('%', :nome, '%')))
-              AND (:categoriaId IS NULL OR p.categoria.id = :categoriaId)
-              AND (:estado IS NULL OR :estado = '' OR LOWER(p.loja.estado) = LOWER(:estado))
-              AND (:cidade IS NULL OR :cidade = '' OR LOWER(p.loja.cidade) LIKE LOWER(CONCAT('%', :cidade, '%')))
+              AND (:categoriaId IS NULL OR c.id = :categoriaId)
+              AND (:estado IS NULL OR :estado = '' OR LOWER(l.estado) = LOWER(:estado))
+              AND (:cidade IS NULL OR :cidade = '' OR LOWER(l.cidade) LIKE LOWER(CONCAT('%', :cidade, '%')))
+            """,
+            countQuery = """
+            SELECT COUNT(p) FROM Produto p
+            JOIN p.loja l
+            JOIN p.categoria c
+            WHERE p.status = :status
+              AND l.verificada = true
+              AND l.suspensa = false
+              AND (:nome = '' OR LOWER(p.nome) LIKE LOWER(CONCAT('%', :nome, '%')))
+              AND (:categoriaId IS NULL OR c.id = :categoriaId)
+              AND (:estado IS NULL OR :estado = '' OR LOWER(l.estado) = LOWER(:estado))
+              AND (:cidade IS NULL OR :cidade = '' OR LOWER(l.cidade) LIKE LOWER(CONCAT('%', :cidade, '%')))
+              AND (:excluirLojaId IS NULL OR l.id <> :excluirLojaId)
             """)
     Page<Produto> buscarMarketplace(
             @Param("status") StatusProduto status,
@@ -60,6 +75,7 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
             @Param("categoriaId") Long categoriaId,
             @Param("estado") String estado,
             @Param("cidade") String cidade,
+            @Param("excluirLojaId") Long excluirLojaId,
             Pageable pageable);
 
     /**

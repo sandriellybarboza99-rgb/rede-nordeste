@@ -414,13 +414,15 @@ export const buscarProdutos = async (
   categoriaId?: number,
   page = 0,
   estado?: string,
-  cidade?: string
+  cidade?: string,
+  excluirLojaId?: number
 ) => {
   const params = new URLSearchParams();
   if (nome) params.append("nome", nome);
   if (categoriaId) params.append("categoriaId", String(categoriaId));
   if (estado) params.append("estado", estado);
   if (cidade) params.append("cidade", cidade);
+  if (excluirLojaId) params.append("excluirLojaId", String(excluirLojaId));
   params.append("page", String(page));
   const res = await apiService.get(`/produtos?${params.toString()}`);
   return res.data;

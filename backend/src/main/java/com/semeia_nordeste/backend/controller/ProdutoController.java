@@ -89,8 +89,9 @@ public class ProdutoController {
                         @RequestParam(required = false) Long categoriaId,
                         @RequestParam(required = false) String estado,
                         @RequestParam(required = false) String cidade,
+                        @RequestParam(required = false) Long excluirLojaId,
                         @PageableDefault(size = 20, sort = "dataCadastro") Pageable pageable) {
-                return ResponseEntity.ok(produtoService.buscar(nome, categoriaId, estado, cidade, pageable));
+                return ResponseEntity.ok(produtoService.buscar(nome, categoriaId, estado, cidade, excluirLojaId, pageable));
         }
 
         @GetMapping("/produtos/{id}")
