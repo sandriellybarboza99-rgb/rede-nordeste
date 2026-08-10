@@ -13,7 +13,8 @@ public record CarrinhoItemResponse(
         String unidadeMedida,
         BigDecimal precoUnitario,
         Integer quantidade,
-        BigDecimal subtotal) {
+        BigDecimal subtotal,
+        BigDecimal pesoKg) {
     public static CarrinhoItemResponse fromEntity(ItemCarrinho item) {
         BigDecimal preco = item.getProduto().getPrecoAtual();
         int qty = item.getQuantidade();
@@ -26,6 +27,7 @@ public record CarrinhoItemResponse(
                 item.getProduto().getUnidadeMedida(),
                 preco,
                 qty,
-                preco.multiply(BigDecimal.valueOf(qty)));
+                preco.multiply(BigDecimal.valueOf(qty)),
+                item.getProduto().getPesoKg());
     }
 }

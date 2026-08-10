@@ -11,7 +11,11 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.CascadeType;
+import java.util.List;
+import java.util.ArrayList;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -80,4 +84,8 @@ public class Entrega {
 
     @Column(name = "data_entregue")
     private OffsetDateTime dataEntregue;
+
+    @OneToMany(mappedBy = "entrega", cascade = CascadeType.ALL)
+    @jakarta.persistence.OrderBy("dataRegistro DESC")
+    private List<HistoricoEntrega> historico = new ArrayList<>();
 }

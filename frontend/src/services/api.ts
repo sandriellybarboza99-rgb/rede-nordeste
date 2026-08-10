@@ -511,6 +511,11 @@ export const getPedidoDetalhe = async (id: number) => {
   return res.data;
 };
 
+export const cancelarPedido = async (id: number) => {
+  const res = await apiService.post(`/comprador/pedidos/${id}/cancelar`);
+  return res.data;
+};
+
 export const getPedidosDaLoja = async (page = 0) => {
   const res = await apiService.get(`/produtor/pedidos?page=${page}`);
   return res.data;
@@ -540,23 +545,25 @@ export const simularFrete = async (
   lojaId: number,
   latitudeDestino: number,
   longitudeDestino: number,
+  pesoTotal?: number,
 ) => {
   const res = await apiService.post("/frete/simular", {
     lojaId,
     latitudeDestino,
     longitudeDestino,
+    pesoTotal,
   });
   return res.data;
 };
 
 export const simularFreteMultiLoja = async (
-  lojaIds: number[],
+  lojasData: { lojaId: number, pesoTotal?: number }[],
   latitudeDestino: number,
   longitudeDestino: number,
 ) => {
-  const promises = lojaIds.map(async (lojaId) => {
+  const promises = lojasData.map(async ({ lojaId, pesoTotal }) => {
     try {
-      const res = await simularFrete(lojaId, latitudeDestino, longitudeDestino);
+      const res = await simularFrete(lojaId, latitudeDestino, longitudeDestino, pesoTotal);
       // Pega dados básicos da loja se possível para ter o nome
       let nomeLoja = `Loja ${lojaId}`;
       try {

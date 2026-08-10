@@ -37,7 +37,6 @@ public class FreteService {
 
     // ── Taxa adicional para cidades distantes (>80km de Aracaju) ─────
     private static final BigDecimal TAXA_AREA_REMOTA = new BigDecimal("15.00");
-    private static final double DISTANCIA_REMOTA_KM = 80.0;
 
     /**
      * Calcula distância em KM entre dois pontos (fórmula de Haversine)

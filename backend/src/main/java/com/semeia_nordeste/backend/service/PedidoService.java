@@ -19,8 +19,8 @@ public class PedidoService {
     private final ProdutoRepository produtoRepository;
     private final FreteService freteService;
     private final EntregadorService entregadorService;
-    private final LojaRepository lojaRepository;
     private final NotificacaoService notificacaoService;
+    private final HistoricoEntregaRepository historicoEntregaRepository;
 
     public PedidoService(PedidoRepository pedidoRepository,
             CarrinhoService carrinhoService,
@@ -28,14 +28,15 @@ public class PedidoService {
             FreteService freteService,
             EntregadorService entregadorService,
             LojaRepository lojaRepository,
-            NotificacaoService notificacaoService) {
+            NotificacaoService notificacaoService,
+            HistoricoEntregaRepository historicoEntregaRepository) {
         this.pedidoRepository = pedidoRepository;
         this.carrinhoService = carrinhoService;
         this.produtoRepository = produtoRepository;
         this.freteService = freteService;
         this.entregadorService = entregadorService;
-        this.lojaRepository = lojaRepository;
         this.notificacaoService = notificacaoService;
+        this.historicoEntregaRepository = historicoEntregaRepository;
     }
 
     @Transactional
@@ -89,10 +90,10 @@ public class PedidoService {
 
             BigDecimal freteTotal = BigDecimal.ZERO;
             BigDecimal maiorDistancia = BigDecimal.ZERO;
-            TipoVeiculo maiorVeiculo = TipoVeiculo.MOTO;
+            TipoVeiculo maiorVeiculo = TipoVeiculo.BICICLETA;
             CategoriaCarga maiorCategoria = CategoriaCarga.LEVE;
             BigDecimal pesoTotalGeral = BigDecimal.ZERO;
-            
+
             // Variáveis para a loja base do entregador
             double latOrigemBase = -10.9167;
             double lonOrigemBase = -37.0500;
@@ -105,7 +106,7 @@ public class PedidoService {
                 Loja loja = entry.getKey();
                 double latOrigem = loja.getLatitudeLoja() != null ? loja.getLatitudeLoja() : -10.9167;
                 double lonOrigem = loja.getLongitudeLoja() != null ? loja.getLongitudeLoja() : -37.0500;
-                
+
                 if (isFirst) {
                     latOrigemBase = latOrigem;
                     lonOrigemBase = lonOrigem;
@@ -115,16 +116,19 @@ public class PedidoService {
                 BigDecimal distanciaLoja = freteService.calcularDistanciaKm(
                         latOrigem, lonOrigem, request.latitudeDestino(), request.longitudeDestino());
 
-                if (distanciaLoja.compareTo(maiorDistancia) > 0) maiorDistancia = distanciaLoja;
+                if (distanciaLoja.compareTo(maiorDistancia) > 0)
+                    maiorDistancia = distanciaLoja;
 
                 BigDecimal pesoLoja = freteService.calcularPesoTotal(entry.getValue());
                 pesoTotalGeral = pesoTotalGeral.add(pesoLoja);
 
                 CategoriaCarga categoriaLoja = freteService.classificarCarga(pesoLoja);
-                if (categoriaLoja.ordinal() > maiorCategoria.ordinal()) maiorCategoria = categoriaLoja;
+                if (categoriaLoja.ordinal() > maiorCategoria.ordinal())
+                    maiorCategoria = categoriaLoja;
 
                 TipoVeiculo veiculoLoja = freteService.definirVeiculo(categoriaLoja, distanciaLoja);
-                if (veiculoLoja.ordinal() > maiorVeiculo.ordinal()) maiorVeiculo = veiculoLoja;
+                if (veiculoLoja.ordinal() > maiorVeiculo.ordinal())
+                    maiorVeiculo = veiculoLoja;
 
                 boolean areaRemota = distanciaLoja.doubleValue() > 80;
                 BigDecimal freteLoja = freteService.calcularFrete(veiculoLoja, distanciaLoja, areaRemota);
@@ -182,7 +186,7 @@ public class PedidoService {
         pedido.setObservacoes(request.observacoes());
         itensPedido.forEach(i -> i.setPedido(pedido));
         pedido.setItens(itensPedido);
-        
+
         if (request.retiradaNaLoja()) {
             // Se for retirada na loja, todos fretes são 0
             itensCarrinho.forEach(i -> mapaFreteLocal.put(i.getProduto().getLoja().getId(), BigDecimal.ZERO));
@@ -190,6 +194,7 @@ public class PedidoService {
         pedido.setFretePorLojaReal(mapaFreteLocal);
 
         Pedido salvo = pedidoRepository.save(pedido);
+        registrarHistorico(salvo.getEntrega(), "Pedido criado e confirmado.");
         carrinhoService.limpar(usuario);
 
         // ── Notificações: comprador + cada produtor envolvido ────────────
@@ -236,6 +241,47 @@ public class PedidoService {
         return pedido;
     }
 
+    @Transactional
+    public Pedido cancelarPorComprador(Long id, Usuario usuario) {
+        Pedido pedido = buscarPorId(id, usuario);
+
+        StatusEntrega statusAtual = pedido.getEntrega().getStatusEntrega();
+        if (statusAtual == StatusEntrega.ENTREGUE || statusAtual == StatusEntrega.SAIU_PARA_ENTREGA || statusAtual == StatusEntrega.RETIRADA_DISPONIVEL || statusAtual == StatusEntrega.AGUARDANDO_RETIRADA) {
+            throw new com.semeia_nordeste.backend.exception.BusinessException("Não é possível cancelar um pedido que já está em processo final de entrega ou disponível para retirada.");
+        }
+        if (statusAtual == StatusEntrega.CANCELADO) {
+            throw new com.semeia_nordeste.backend.exception.BusinessException("O pedido já está cancelado.");
+        }
+
+        pedido.getEntrega().setStatusEntrega(StatusEntrega.CANCELADO);
+        pedido.getEntrega().setDataAtualizacao(java.time.OffsetDateTime.now());
+
+        if (pedido.getPagamento().getStatusPagamento() == StatusPagamento.APROVADO) {
+            pedido.getPagamento().setStatusPagamento(StatusPagamento.ESTORNADO);
+        } else {
+            pedido.getPagamento().setStatusPagamento(StatusPagamento.REJEITADO);
+        }
+
+        Pedido salvo = pedidoRepository.save(pedido);
+        registrarHistorico(salvo.getEntrega(), "Pedido cancelado pelo comprador.");
+
+        try {
+            salvo.getItens().stream()
+                    .map(i -> i.getProduto().getLoja().getUsuario())
+                    .distinct()
+                    .forEach(produtor -> notificacaoService.notificar(
+                            produtor,
+                            com.semeia_nordeste.backend.model.TipoNotificacao.SISTEMA,
+                            "Pedido Cancelado",
+                            "O comprador cancelou o pedido #" + salvo.getId() + ".",
+                            "/painelvendedor"));
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(PedidoService.class).warn("Falha ao notificar cancelamento: {}", e.getMessage());
+        }
+
+        return salvo;
+    }
+
     public Page<Pedido> listarPedidosDaLoja(Usuario usuario, Pageable pageable) {
         return pedidoRepository.findByItens_Produto_Loja_UsuarioId(usuario.getId(), pageable);
     }
@@ -253,12 +299,23 @@ public class PedidoService {
 
         pedido.getEntrega().setStatusEntrega(novoStatus);
         pedido.getEntrega().setDataAtualizacao(java.time.OffsetDateTime.now());
-        
+
         if (novoStatus != StatusEntrega.PEDIDO_RECEBIDO && novoStatus != StatusEntrega.CANCELADO) {
             pedido.getPagamento().setStatusPagamento(StatusPagamento.APROVADO);
         }
-        
+
         Pedido salvo = pedidoRepository.save(pedido);
+
+        String statusFormatado = java.util.Arrays.stream(novoStatus.name().split("_"))
+                .map(w -> w.substring(0, 1).toUpperCase() + w.substring(1).toLowerCase())
+                .collect(java.util.stream.Collectors.joining(" "));
+
+        String descricao = "Status atualizado para: " + statusFormatado;
+        if (novoStatus == StatusEntrega.CANCELADO)
+            descricao = "Pedido cancelado pelo vendedor.";
+        else if (novoStatus == StatusEntrega.SAIU_PARA_ENTREGA)
+            descricao = "Seu pedido saiu para entrega!";
+        registrarHistorico(salvo.getEntrega(), descricao);
 
         // ── Notifica comprador sobre mudança de status (best-effort) ─────
         try {
@@ -318,6 +375,7 @@ public class PedidoService {
         pedido.getEntrega().setDataEntregue(java.time.OffsetDateTime.now());
         pedido.getEntrega().setDataAtualizacao(java.time.OffsetDateTime.now());
         Pedido salvo = pedidoRepository.save(pedido);
+        registrarHistorico(salvo.getEntrega(), "Pedido retirado na loja com sucesso.");
 
         try {
             notificacaoService.notificar(
@@ -336,5 +394,15 @@ public class PedidoService {
 
     private String gerarCodigoRetirada() {
         return String.format("%04d", new java.util.Random().nextInt(10000));
+    }
+
+    private void registrarHistorico(Entrega entrega, String descricao) {
+        if (entrega == null)
+            return;
+        HistoricoEntrega historico = new HistoricoEntrega();
+        historico.setEntrega(entrega);
+        historico.setStatusEntrega(entrega.getStatusEntrega());
+        historico.setDescricao(descricao);
+        historicoEntregaRepository.save(historico);
     }
 }

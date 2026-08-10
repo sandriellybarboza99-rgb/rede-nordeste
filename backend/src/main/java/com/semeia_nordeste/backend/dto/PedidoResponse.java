@@ -18,7 +18,8 @@ public record PedidoResponse(
         List<LojaPagamentoPixDTO> detalhesPixLojas,
         String codigoRetirada,
         Boolean retiradaNaLoja,
-        String nomeComprador) {
+        String nomeComprador,
+        List<HistoricoEntregaDTO> historico) {
     public static PedidoResponse fromEntity(Pedido p) {
         return new PedidoResponse(
                 p.getId(),
@@ -33,7 +34,8 @@ public record PedidoResponse(
                 calcularDetalhesPix(p),
                 p.getEntrega().getCodigoRetirada(),
                 p.getEntrega().getRetiradaNaLoja(),
-                p.getComprador() != null ? p.getComprador().getNomeCompleto() : null);
+                p.getComprador() != null ? p.getComprador().getNomeCompleto() : null,
+                p.getEntrega().getHistorico() != null ? p.getEntrega().getHistorico().stream().map(HistoricoEntregaDTO::fromEntity).toList() : List.of());
     }
 
     private static List<LojaPagamentoPixDTO> calcularDetalhesPix(Pedido p) {

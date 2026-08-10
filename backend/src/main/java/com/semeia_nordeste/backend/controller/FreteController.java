@@ -47,8 +47,9 @@ public class FreteController {
         BigDecimal distancia = freteService.calcularDistanciaKm(
                 latO, lonO, request.latitudeDestino(), request.longitudeDestino());
 
-        // Peso padrão para simulação (sem carrinho)
-        CategoriaCarga categoria = freteService.classificarCarga(BigDecimal.valueOf(2));
+        // Peso do request, senão usa 2kg como padrão
+        BigDecimal peso = request.pesoTotal() != null ? BigDecimal.valueOf(request.pesoTotal()) : BigDecimal.valueOf(2);
+        CategoriaCarga categoria = freteService.classificarCarga(peso);
         TipoVeiculo veiculo = freteService.definirVeiculo(categoria, distancia);
         boolean remota = distancia.doubleValue() > 80;
         BigDecimal frete = dentroSE

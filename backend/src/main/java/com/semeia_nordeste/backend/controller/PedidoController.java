@@ -45,6 +45,13 @@ public class PedidoController {
         return ResponseEntity.ok(PedidoResponse.fromEntity(pedidoService.buscarPorId(id, usuario)));
     }
 
+    @PostMapping("/comprador/pedidos/{id}/cancelar")
+    public ResponseEntity<PedidoResponse> cancelar(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Usuario usuario) {
+        return ResponseEntity.ok(PedidoResponse.fromEntity(pedidoService.cancelarPorComprador(id, usuario)));
+    }
+
     @GetMapping("/produtor/pedidos")
     public ResponseEntity<Page<PedidoResponse>> pedidosDaLoja(
             @AuthenticationPrincipal Usuario usuario,

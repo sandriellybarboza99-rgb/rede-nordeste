@@ -137,6 +137,14 @@ CREATE TABLE IF NOT EXISTS entregas (
     data_entregue           TIMESTAMP WITH TIME ZONE
 );
 
+CREATE TABLE IF NOT EXISTS historico_entrega (
+    id              BIGSERIAL PRIMARY KEY,
+    entrega_id      BIGINT REFERENCES entregas(id) ON DELETE CASCADE,
+    status_entrega  VARCHAR(40) NOT NULL,
+    descricao       VARCHAR(255),
+    data_registro   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS pedidos (
     id           BIGSERIAL PRIMARY KEY,
     comprador_id BIGINT REFERENCES usuarios(id),

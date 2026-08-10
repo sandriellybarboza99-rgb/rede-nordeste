@@ -21,7 +21,8 @@ public record ProdutoResponse(
         Integer estoqueAtual,
         String imagemUrl,
         OffsetDateTime dataCadastro,
-        StatusProduto status) {
+        StatusProduto status,
+        BigDecimal pesoKg) {
     public static ProdutoResponse fromEntity(Produto p) {
         return new ProdutoResponse(
                 p.getId(),
@@ -38,6 +39,7 @@ public record ProdutoResponse(
                 p.getEstoqueAtual(),
                 p.getImagemUrl(),
                 p.getDataCadastro(),
-                p.getStatus());
+                p.getStatus(),
+                p.getPesoKg());
     }
 }

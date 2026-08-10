@@ -12,12 +12,13 @@ import {
   getMeusPedidos, atualizarMeuPerfil, getMeuPerfil,
   getMeusEnderecos, criarEndereco, atualizarEndereco, deletarEndereco,
   getMeusCartoes, criarCartao, deletarCartao, getProdutoPorId,
-  consultarCep, geocodificarEndereco,
+  consultarCep, geocodificarEndereco, cancelarPedido
 } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { BackButton } from '../../components/ui/BackButton';
+import { Modal } from '../../components/ui/Modal';
 import { gerarPayloadPix } from '../../utils/pixPayload';
 
 interface Endereco {
@@ -107,6 +108,7 @@ export default function Perfil() {
 
   // ── Pedidos do backend ──────────────────────────────────────────
   const [pedidos, setPedidos] = useState<any[]>([]);
+  const [modalCancelarOpen, setModalCancelarOpen] = useState<{ open: boolean; pedidoId: number | null }>({ open: false, pedidoId: null });
 
   // ── Demo data (sem PII — só nomes de produtos públicos) ─────────
   const PRODUTOS_DATA = [
@@ -609,6 +611,26 @@ export default function Perfil() {
     }
   };
 
+  const handleCancelarPedido = (id: number) => {
+    setModalCancelarOpen({ open: true, pedidoId: id });
+  };
+
+  const confirmarCancelamento = async () => {
+    const id = modalCancelarOpen.pedidoId;
+    if (!id) return;
+    try {
+      const pedidoCancelado = await cancelarPedido(id);
+      success('Pedido cancelado com sucesso.');
+      setPedidos(pedidos.map(p => p.id === id ? pedidoCancelado : p));
+      if (pedidoSelecionado && pedidoSelecionado.id === id) {
+        setPedidoSelecionado(pedidoCancelado);
+      }
+      setModalCancelarOpen({ open: false, pedidoId: null });
+    } catch (err: any) {
+      toastError(err.response?.data?.message || 'Erro ao cancelar o pedido.');
+    }
+  };
+
   const renderDetalhePedido = () => {
     if (!pedidoSelecionado) return null;
 
@@ -618,7 +640,7 @@ export default function Perfil() {
     
     // Calcula o progresso (0 a 3)
     let progresso = 0;
-    if (['AGUARDANDO_ENTREGADOR', 'ENTREGADOR_ACEITOU', 'PEDIDO_EM_COLETA'].includes(status)) progresso = 1;
+    if (['PREPARANDO', 'AGUARDANDO_ENTREGADOR', 'ENTREGADOR_ACEITOU', 'PEDIDO_EM_COLETA'].includes(status)) progresso = 1;
     if (['SAIU_PARA_ENTREGA', 'RETIRADA_DISPONIVEL'].includes(status)) progresso = 2;
     if (status === 'ENTREGUE') progresso = 3;
 
@@ -816,6 +838,51 @@ export default function Perfil() {
                 <span className="text-2xl font-black text-[#55833d]">R$ {Number(pedidoSelecionado.valorTotal || pedidoSelecionado.total).toFixed(2)}</span>
               </div>
             </div>
+
+            {/* HISTÓRICO DE ATUALIZAÇÕES */}
+            {pedidoSelecionado.historico && pedidoSelecionado.historico.length > 0 && (
+              <div className="pt-6 border-t border-dashed">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-[#394158] mb-4 px-2">Histórico de Atualizações</h4>
+                <div className="space-y-0 px-2">
+                  {pedidoSelecionado.historico.map((h: any, i: number) => (
+                    <div key={h.id || i} className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#55833d] mt-1"></div>
+                        {i !== pedidoSelecionado.historico.length - 1 && <div className="w-px h-full min-h-[32px] bg-[#55833d]/20 my-1"></div>}
+                      </div>
+                      <div className="pb-4">
+                        <p className="text-xs font-bold text-[#394158]">{h.descricao}</p>
+                        <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest mt-0.5">
+                          {new Date(h.dataRegistro).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {!isCancelado && progresso < 2 && !pedidoSelecionado.retiradaNaLoja && (
+              <div className="pt-6 border-t border-dashed">
+                <button
+                  onClick={() => handleCancelarPedido(pedidoSelecionado.id)}
+                  className="w-full py-4 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all bg-red-50 text-red-600 hover:bg-red-100 active:scale-95"
+                >
+                  Cancelar Pedido
+                </button>
+              </div>
+            )}
+            
+            {!isCancelado && pedidoSelecionado.retiradaNaLoja && status !== 'ENTREGUE' && (
+              <div className="pt-6 border-t border-dashed">
+                <button
+                  onClick={() => handleCancelarPedido(pedidoSelecionado.id)}
+                  className="w-full py-4 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all bg-red-50 text-red-600 hover:bg-red-100 active:scale-95"
+                >
+                  Cancelar Pedido
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -843,7 +910,7 @@ export default function Perfil() {
         case 'pagar':
           return statusPagamento === 'AGUARDANDO';
         case 'preparando':
-          return ['PEDIDO_RECEBIDO', 'AGUARDANDO_ENTREGADOR', 'ENTREGADOR_ACEITOU', 'PEDIDO_EM_COLETA'].includes(statusEntrega);
+          return ['PEDIDO_RECEBIDO', 'PREPARANDO', 'AGUARDANDO_ENTREGADOR', 'ENTREGADOR_ACEITOU', 'PEDIDO_EM_COLETA'].includes(statusEntrega);
         case 'retirada':
           return ['RETIRADA_DISPONIVEL', 'AGUARDANDO_RETIRADA'].includes(statusEntrega);
         case 'caminho':
@@ -1080,6 +1147,39 @@ export default function Perfil() {
                     </div>
                   )}
       </main>
+
+      {/* Modal Confirmar Cancelamento */}
+      <Modal
+        open={modalCancelarOpen.open}
+        onClose={() => setModalCancelarOpen({ open: false, pedidoId: null })}
+        title="Cancelar Pedido"
+        size="sm"
+      >
+        <div className="flex flex-col items-center justify-center p-6 text-center space-y-4">
+          <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-2">
+            <X size={32} />
+          </div>
+          <h4 className="text-lg font-black text-[#394158] uppercase">Tem Certeza?</h4>
+          <p className="text-sm font-bold text-gray-500">
+            Você está prestes a cancelar este pedido. Esta ação não poderá ser desfeita.
+          </p>
+          <div className="flex gap-3 w-full mt-6">
+            <button
+              onClick={() => setModalCancelarOpen({ open: false, pedidoId: null })}
+              className="flex-1 py-4 bg-gray-100 text-gray-500 font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-gray-200 transition-colors"
+            >
+              Voltar
+            </button>
+            <button
+              onClick={confirmarCancelamento}
+              className="flex-1 py-4 bg-red-500 text-white font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-red-600 shadow-lg shadow-red-500/30 transition-all active:scale-95"
+            >
+              Cancelar Pedido
+            </button>
+          </div>
+        </div>
+      </Modal>
+
     </div>
   );
 }

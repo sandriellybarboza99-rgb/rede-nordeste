@@ -498,6 +498,7 @@ export default function PainelVendedor() {
                             style={{ textAlignLast: 'center' }}
                           >
                             <option value="PEDIDO_RECEBIDO">Pedido Recebido</option>
+                            <option value="PREPARANDO">Preparando</option>
                             {p.retiradaNaLoja ? (
                               <>
                                 <option value="PEDIDO_EM_COLETA">Embalando</option>

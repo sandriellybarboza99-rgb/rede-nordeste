@@ -186,15 +186,26 @@ export default function Carrinho() {
       return;
     }
 
-    const lojaIds = Array.from(new Set(itens.map(i => i.lojaId || i.produto?.lojaId || i.produto?.loja?.id).filter(Boolean)));
-    if (lojaIds.length === 0) {
+    const lojasMap = new Map<number, number>();
+    itens.forEach(i => {
+      const lojaId = i.lojaId || i.produto?.lojaId || i.produto?.loja?.id;
+      if (lojaId) {
+        const peso = i.pesoKg != null ? i.pesoKg : (i.produto?.pesoKg != null ? i.produto.pesoKg : 0.5);
+        const pesoTotalItem = peso * (i.quantidade || 1);
+        lojasMap.set(lojaId, (lojasMap.get(lojaId) || 0) + pesoTotalItem);
+      }
+    });
+    
+    const lojasData = Array.from(lojasMap.entries()).map(([lojaId, pesoTotal]) => ({ lojaId, pesoTotal }));
+
+    if (lojasData.length === 0) {
       setValorFrete(null);
       setFretePorLoja([]);
       return;
     }
 
     setCarregandoFrete(true);
-    simularFreteMultiLoja(lojaIds, end.latitudeDestino, end.longitudeDestino)
+    simularFreteMultiLoja(lojasData, end.latitudeDestino, end.longitudeDestino)
       .then((res) => {
         setFretePorLoja(res as any);
         const total = res.reduce((acc, curr) => acc + (curr.valorFrete || 0), 0);
