@@ -72,6 +72,9 @@ public class Entrega {
     @Column(name = "retirada_na_loja")
     private Boolean retiradaNaLoja = false;
 
+    @Column(name = "codigo_retirada", length = 4)
+    private String codigoRetirada;
+
     @Column(name = "data_atualizacao")
     private OffsetDateTime dataAtualizacao = OffsetDateTime.now();
 

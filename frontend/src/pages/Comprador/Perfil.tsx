@@ -72,7 +72,7 @@ export default function Perfil() {
     }
   };
 
-  const [abaAtiva, setAbaAtiva] = useState<'pagar' | 'preparando' | 'caminho' | 'finalizados'>('finalizados');
+  const [abaAtiva, setAbaAtiva] = useState<'pagar' | 'preparando' | 'retirada' | 'caminho' | 'finalizados'>('finalizados');
   const [secaoConfig, setSecaoConfig] = useState<'menu' | 'conta' | 'enderecos' | 'cartoes'>('menu');
   const [pedidoSelecionado, setPedidoSelecionado] = useState<any>(null);
   const [copiado, setCopiado] = useState<string | false>(false);
@@ -696,6 +696,74 @@ export default function Perfil() {
                    <p className="text-xs text-gray-400 font-bold mt-4">Dados de pagamento indisponíveis.</p>
                 )}
               </div>
+            ) : pedidoSelecionado.retiradaNaLoja ? (
+              // Wizard de retirada (3 passos)
+              <div className="space-y-6">
+                <div className="relative pt-4 pb-2">
+                  <div className="absolute top-[28px] md:top-[32px] left-8 right-8 h-1 bg-gray-100 rounded-full z-0 overflow-hidden">
+                    <div className="h-full bg-[#802D44] transition-all duration-700 ease-in-out"
+                      style={{ width: status === 'ENTREGUE' ? '100%' : status === 'AGUARDANDO_RETIRADA' ? '50%' : '0%' }}
+                    />
+                  </div>
+                  <div className="relative z-10 flex justify-between">
+                    {[
+                      { label: 'Pedido\nRecebido', icon: ShoppingBag, concluido: true },
+                      { label: 'Pronto na\nLoja', icon: MapPin, concluido: ['AGUARDANDO_RETIRADA', 'ENTREGUE'].includes(status) },
+                      { label: 'Retirado', icon: CheckCircle, concluido: status === 'ENTREGUE' },
+                    ].map((passo, idx) => (
+                      <div key={idx} className="flex flex-col items-center gap-2 w-20 md:w-28">
+                        <div className={`w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all duration-500 shadow-sm border-4 border-white ${passo.concluido ? 'bg-[#802D44] text-white' : 'bg-gray-100 text-gray-300'}`}>
+                          <passo.icon size={20} />
+                        </div>
+                        <span className={`text-[8px] md:text-[9px] font-black uppercase text-center tracking-widest leading-tight whitespace-pre-line ${passo.concluido ? 'text-[#394158]' : 'text-gray-300'}`}>
+                          {passo.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Código de retirada em destaque */}
+                {status === 'AGUARDANDO_RETIRADA' && pedidoSelecionado.codigoRetirada && (
+                  <div className="bg-gradient-to-br from-[#802D44]/8 to-[#802D44]/4 rounded-2xl p-6 border border-[#802D44]/15 flex flex-col items-center text-center gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#802D44] text-white flex items-center justify-center shrink-0">
+                        <QrCode size={18} />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="text-[#802D44] font-black uppercase tracking-widest text-sm">Código de Retirada</h4>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase mt-0.5">Informe este código ao vendedor</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      {pedidoSelecionado.codigoRetirada.split('').map((d: string, i: number) => (
+                        <div key={i} className="w-14 h-16 bg-white rounded-2xl flex items-center justify-center text-2xl font-black text-[#802D44] border-2 border-[#802D44]/20 shadow-md">
+                          {d}
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(pedidoSelecionado.codigoRetirada);
+                        setCopiado('codigo-retirada');
+                        setTimeout(() => setCopiado(false), 2000);
+                      }}
+                      className="flex items-center gap-2 text-[10px] font-black uppercase text-[#802D44] bg-white px-5 py-2.5 rounded-full shadow-sm border border-[#802D44]/20 active:scale-95 transition-all"
+                    >
+                      <Copy size={12} />
+                      {copiado === 'codigo-retirada' ? 'Copiado!' : 'Copiar Código'}
+                    </button>
+                  </div>
+                )}
+
+                {status === 'ENTREGUE' && (
+                  <div className="bg-[#55833d]/8 rounded-2xl p-6 border border-[#55833d]/15 flex flex-col items-center text-center gap-2">
+                    <CheckCircle size={32} className="text-[#55833d]" />
+                    <h4 className="text-[#55833d] font-black uppercase text-sm">Pedido Retirado!</h4>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Obrigada pela compra.</p>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="relative pt-4 pb-8">
                 {/* Linha de progresso no fundo */}
@@ -723,6 +791,7 @@ export default function Perfil() {
                 </div>
               </div>
             )}
+
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-[#F5F2ED] p-4 rounded-2xl flex items-center gap-4 border border-gray-100">
@@ -775,8 +844,10 @@ export default function Perfil() {
           return statusPagamento === 'AGUARDANDO';
         case 'preparando':
           return ['PEDIDO_RECEBIDO', 'AGUARDANDO_ENTREGADOR', 'ENTREGADOR_ACEITOU', 'PEDIDO_EM_COLETA'].includes(statusEntrega);
+        case 'retirada':
+          return ['RETIRADA_DISPONIVEL', 'AGUARDANDO_RETIRADA'].includes(statusEntrega);
         case 'caminho':
-          return ['SAIU_PARA_ENTREGA', 'RETIRADA_DISPONIVEL'].includes(statusEntrega);
+          return statusEntrega === 'SAIU_PARA_ENTREGA';
         case 'finalizados':
           return ['ENTREGUE', 'CANCELADO'].includes(statusEntrega);
         default:
@@ -789,6 +860,7 @@ export default function Perfil() {
   const visualAba = {
     pagar: { cor: 'text-[#f9943b]', bg: 'from-[#f9943b]/10 to-[#f9943b]/5', borda: 'border-[#f9943b]/10', label: 'Aguardando pagamento' },
     preparando: { cor: 'text-[#802D44]', bg: 'from-[#802D44]/10 to-[#802D44]/5', borda: 'border-[#802D44]/10', label: 'Em preparação' },
+    retirada: { cor: 'text-[#802D44]', bg: 'from-[#802D44]/10 to-[#802D44]/5', borda: 'border-[#802D44]/10', label: 'Aguardando retirada' },
     caminho: { cor: 'text-[#f9943b]', bg: 'from-[#f9943b]/10 to-[#f9943b]/5', borda: 'border-[#f9943b]/10', label: 'A caminho' },
     finalizados: { cor: 'text-[#55833d]', bg: 'from-[#55833d]/10 to-[#55833d]/5', borda: 'border-[#55833d]/10', label: 'Finalizado' },
   } as const;
@@ -804,6 +876,7 @@ export default function Perfil() {
             {([
               { id: 'pagar', l: 'A Pagar', i: Wallet },
               { id: 'preparando', l: 'Preparando', i: Package },
+              { id: 'retirada', l: 'Retirada', i: MapPin },
               { id: 'caminho', l: 'A Caminho', i: Truck },
               { id: 'finalizados', l: 'Finalizados', i: ShoppingBag },
             ] as const).map((tab) => {
@@ -839,12 +912,24 @@ export default function Perfil() {
                     onClick={() => { setPedidoSelecionado(pedido); setTelaAtual('detalhe-pedido'); }}
                     className={`bg-gradient-to-r ${visual.bg} rounded-2xl p-6 border ${visual.borda} flex items-center justify-between cursor-pointer active:scale-[0.98] transition-all hover:shadow-md group`}
                   >
-                    <div>
+                  <div>
                       <p className={`text-[10px] font-black uppercase ${visual.cor}`}>Pedido #{pedido.id}</p>
                       <h4 className="text-lg font-black text-[#394158] italic">R$ {pedido.valorTotal}</h4>
                       <p className={`text-[9px] font-black uppercase flex items-center gap-1 ${visual.cor}`}>
                         <CheckCircle size={10} /> {visual.label}
                       </p>
+                      {abaAtiva === 'retirada' && pedido.codigoRetirada && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className="text-[9px] font-black uppercase text-gray-400 tracking-widest">Código:</span>
+                          <div className="flex gap-1">
+                            {pedido.codigoRetirada.split('').map((d: string, i: number) => (
+                              <span key={i} className="w-7 h-8 bg-white rounded-lg flex items-center justify-center text-sm font-black text-[#802D44] border border-[#802D44]/30 shadow-sm">
+                                {d}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className={`bg-white p-3 rounded-full shadow-sm ${visual.cor}`}><ChevronRight size={20} /></div>
                   </div>
@@ -946,16 +1031,26 @@ export default function Perfil() {
                           <h4 className="uppercase tracking-[0.2em] text-gray-400 text-[11px] font-bold">Minhas Compras</h4>
                           <button onClick={() => { setAbaAtiva('finalizados'); setTelaAtual('compras'); }} className="uppercase text-[#394158] bg-[#802D44]/5 px-4 py-2 rounded-full active:scale-95 transition-all text-[11px] font-bold">Histórico</button>
                         </div>
-                        <div className="grid grid-cols-4 gap-4">
+                        <div className="grid grid-cols-5 gap-2">
                           {[
                             { i: Wallet, t: 'A Pagar', id: 'pagar' }, { i: Package, t: 'Preparando', id: 'preparando' },
-                            { i: Truck, t: 'A Caminho', id: 'caminho' }, { i: ShoppingBag, t: 'Finalizados', id: 'finalizados' },
-                          ].map((item) => (
-                            <div key={item.t} onClick={() => { setAbaAtiva(item.id as any); setTelaAtual('compras'); }} className="flex flex-col items-center gap-3 group cursor-pointer active:scale-90 transition-all">
-                              <div className="w-14 h-14 bg-[#F5F2ED] rounded-2xl flex items-center justify-center text-[#394158] group-hover:bg-[#55833d] group-hover:text-white transition-all duration-300 shadow-sm"><item.i size={22} /></div>
-                              <span className="text-[12px] font-semibold text-center tracking-tighter">{item.t}</span>
-                            </div>
-                          ))}
+                            { i: MapPin, t: 'Retirada', id: 'retirada' }, { i: Truck, t: 'A Caminho', id: 'caminho' }, { i: ShoppingBag, t: 'Finalizados', id: 'finalizados' },
+                          ].map((item) => {
+                            const count = filtrarPedidosPorAba(pedidos, item.id as any).length;
+                            return (
+                              <div key={item.t} onClick={() => { setAbaAtiva(item.id as any); setTelaAtual('compras'); }} className="flex flex-col items-center gap-3 group cursor-pointer active:scale-90 transition-all">
+                                <div className="relative w-14 h-14 bg-[#F5F2ED] rounded-2xl flex items-center justify-center text-[#394158] group-hover:bg-[#55833d] group-hover:text-white transition-all duration-300 shadow-sm">
+                                  <item.i size={22} />
+                                  {count > 0 && (
+                                    <span className="absolute -top-2 -right-2 bg-[#f9943b] text-white text-[9px] font-black rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-md">
+                                      {count}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[12px] font-semibold text-center tracking-tighter">{item.t}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </section>
 

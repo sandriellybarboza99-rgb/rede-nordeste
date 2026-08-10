@@ -9,7 +9,7 @@ import {
 import {
   getMinhaLoja, criarLoja, atualizarLoja,
   getProdutosPorLoja, criarProduto, atualizarProduto, deletarProduto,
-  getCategorias, getPedidosDaLoja, atualizarStatusEntrega,
+  getCategorias, getPedidosDaLoja, atualizarStatusEntrega, confirmarRetiradaPedido,
 } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { UserMenu } from '../../components/ui/UserMenu';
@@ -42,6 +42,10 @@ export default function PainelVendedor() {
     estoqueAtual: 0, pesoKg: 0.5, imagemUrl: '', categoriaId: null,
   });
   const [confirmarDelete, setConfirmarDelete] = useState<{ aberto: boolean; id: number | null }>({ aberto: false, id: null });
+
+  // ── Confirmar Retirada ────────────────────────────────────────
+  const [codigoRetiradaInput, setCodigoRetiradaInput] = useState<Record<number, string>>({});
+  const [confirmandoRetirada, setConfirmandoRetirada] = useState<number | null>(null);
 
   // ── Pedidos ───────────────────────────────────────────────────
   const [pedidos, setPedidos] = useState<any[]>([]);
@@ -90,6 +94,25 @@ export default function PainelVendedor() {
       setPedidos(data.content || []);
     } catch {
       setPedidos([]);
+    }
+  };
+
+  const handleConfirmarRetirada = async (pedidoId: number) => {
+    const codigo = codigoRetiradaInput[pedidoId] || '';
+    if (codigo.length !== 4) {
+      toastError('Informe o código de 4 dígitos.');
+      return;
+    }
+    setConfirmandoRetirada(pedidoId);
+    try {
+      await confirmarRetiradaPedido(pedidoId, codigo);
+      success('Retirada confirmada! Pedido finalizado.');
+      await carregarPedidos();
+      setCodigoRetiradaInput(prev => ({ ...prev, [pedidoId]: '' }));
+    } catch (err: any) {
+      toastError(err?.message || 'Código inválido. Tente novamente.');
+    } finally {
+      setConfirmandoRetirada(null);
     }
   };
 
@@ -475,11 +498,19 @@ export default function PainelVendedor() {
                             style={{ textAlignLast: 'center' }}
                           >
                             <option value="PEDIDO_RECEBIDO">Pedido Recebido</option>
-                            <option value="AGUARDANDO_ENTREGADOR">Aguardando Entregador</option>
-                            <option value="ENTREGADOR_ACEITOU">Entregador Aceitou</option>
-                            <option value="PEDIDO_EM_COLETA">Em Coleta / Embalando</option>
-                            <option value="SAIU_PARA_ENTREGA">Saiu para Entrega</option>
-                            <option value="RETIRADA_DISPONIVEL">Pronto para Retirada</option>
+                            {p.retiradaNaLoja ? (
+                              <>
+                                <option value="PEDIDO_EM_COLETA">Embalando</option>
+                                <option value="AGUARDANDO_RETIRADA">Aguardando Retirada</option>
+                              </>
+                            ) : (
+                              <>
+                                <option value="AGUARDANDO_ENTREGADOR">Aguardando Entregador</option>
+                                <option value="ENTREGADOR_ACEITOU">Entregador Aceitou</option>
+                                <option value="PEDIDO_EM_COLETA">Em Coleta / Embalando</option>
+                                <option value="SAIU_PARA_ENTREGA">Saiu para Entrega</option>
+                              </>
+                            )}
                             <option value="ENTREGUE">Entregue</option>
                             <option value="CANCELADO">Cancelado</option>
                           </select>
@@ -503,6 +534,41 @@ export default function PainelVendedor() {
                           </div>
                         </div>
                       </div>
+
+                      {/* CONFIRMAR RETIRADA */}
+                      {p.statusEntrega === 'AGUARDANDO_RETIRADA' && (
+                        <div className="bg-gradient-to-r from-[#802D44]/8 to-[#802D44]/5 rounded-xl p-4 border border-[#802D44]/15 flex flex-col gap-3">
+                          <div className="flex items-center gap-2">
+                            <MapPin size={16} className="text-[#802D44] shrink-0" />
+                            <div>
+                              <p className="text-[10px] font-black uppercase text-[#802D44] tracking-widest">Confirmar Retirada</p>
+                              <p className="text-[9px] text-gray-500 font-bold uppercase mt-0.5">Peça ao cliente o código de 4 dígitos</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              maxLength={4}
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              placeholder="0000"
+                              value={codigoRetiradaInput[p.id] || ''}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                                setCodigoRetiradaInput(prev => ({ ...prev, [p.id]: val }));
+                              }}
+                              className="w-24 bg-white border-2 border-[#802D44]/20 focus:border-[#802D44]/50 p-2.5 rounded-xl outline-none text-center text-lg font-black text-[#802D44] tracking-[0.4em] transition-colors"
+                            />
+                            <button
+                              onClick={() => handleConfirmarRetirada(p.id)}
+                              disabled={confirmandoRetirada === p.id || (codigoRetiradaInput[p.id] || '').length !== 4}
+                              className="flex-1 bg-[#802D44] disabled:bg-gray-200 disabled:text-gray-400 text-white py-2.5 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all"
+                            >
+                              {confirmandoRetirada === p.id ? 'Confirmando...' : 'Confirmar Retirada'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* LISTA DE PRODUTOS */}
                       <div className="bg-[#F5F2ED] rounded-xl p-3 space-y-2">

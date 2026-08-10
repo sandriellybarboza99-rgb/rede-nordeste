@@ -73,9 +73,10 @@ public class PedidoService {
 
         if (request.retiradaNaLoja()) {
             entrega.setRetiradaNaLoja(true);
-            entrega.setStatusEntrega(StatusEntrega.RETIRADA_DISPONIVEL);
+            entrega.setStatusEntrega(StatusEntrega.AGUARDANDO_RETIRADA);
             entrega.setEnderecoEntrega("Retirada na loja");
             entrega.setValorFrete(BigDecimal.ZERO);
+            entrega.setCodigoRetirada(gerarCodigoRetirada());
         } else {
             // Valida que coordenadas foram enviadas
             if (request.latitudeDestino() == null || request.longitudeDestino() == null)
@@ -252,6 +253,11 @@ public class PedidoService {
 
         pedido.getEntrega().setStatusEntrega(novoStatus);
         pedido.getEntrega().setDataAtualizacao(java.time.OffsetDateTime.now());
+        
+        if (novoStatus != StatusEntrega.PEDIDO_RECEBIDO && novoStatus != StatusEntrega.CANCELADO) {
+            pedido.getPagamento().setStatusPagamento(StatusPagamento.APROVADO);
+        }
+        
         Pedido salvo = pedidoRepository.save(pedido);
 
         // ── Notifica comprador sobre mudança de status (best-effort) ─────
@@ -290,5 +296,45 @@ public class PedidoService {
         }
 
         return salvo;
+    }
+
+    @Transactional
+    public Pedido confirmarRetirada(Long pedidoId, String codigo, Usuario produtor) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RuntimeException("Pedido não encontrado."));
+
+        boolean pertenceAoProdutor = pedido.getItens().stream()
+                .anyMatch(i -> i.getProduto().getLoja().getUsuario().getId().equals(produtor.getId()));
+        if (!pertenceAoProdutor)
+            throw new RuntimeException("Acesso negado.");
+
+        if (!StatusEntrega.AGUARDANDO_RETIRADA.equals(pedido.getEntrega().getStatusEntrega()))
+            throw new RuntimeException("Pedido não está aguardando retirada.");
+
+        if (!pedido.getEntrega().getCodigoRetirada().equals(codigo))
+            throw new RuntimeException("Código de retirada inválido.");
+
+        pedido.getEntrega().setStatusEntrega(StatusEntrega.ENTREGUE);
+        pedido.getEntrega().setDataEntregue(java.time.OffsetDateTime.now());
+        pedido.getEntrega().setDataAtualizacao(java.time.OffsetDateTime.now());
+        Pedido salvo = pedidoRepository.save(pedido);
+
+        try {
+            notificacaoService.notificar(
+                    salvo.getComprador(),
+                    com.semeia_nordeste.backend.model.TipoNotificacao.PEDIDO,
+                    "Retirada confirmada!",
+                    "Pedido #" + salvo.getId() + " foi retirado com sucesso. Obrigada pela compra!",
+                    "/perfil");
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(PedidoService.class)
+                    .warn("Falha ao notificar confirmação de retirada do pedido {}: {}", salvo.getId(), e.getMessage());
+        }
+
+        return salvo;
+    }
+
+    private String gerarCodigoRetirada() {
+        return String.format("%04d", new java.util.Random().nextInt(10000));
     }
 }

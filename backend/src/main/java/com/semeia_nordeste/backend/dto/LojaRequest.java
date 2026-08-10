@@ -14,7 +14,7 @@ public record LojaRequest(
                 String logradouro,
                 String bairro,
 
-                @NotBlank(message = "A cidade é obrigatória") String cidade,
+                @Size(max = 100, message = "A cidade não pode exceder 100 caracteres") String cidade,
 
                 @Size(min = 2, max = 2, message = "Estado deve ter 2 caracteres") String estado,
 

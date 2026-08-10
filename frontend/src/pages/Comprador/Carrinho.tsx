@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Trash2, Minus, Plus, Truck, Store, ChevronRight,
-  ShoppingBag, CreditCard, Barcode, MapPin, PlusCircle, CheckCircle, Copy, QrCode, RefreshCw, Pencil,
+  ShoppingBag, CreditCard, Barcode, MapPin, PlusCircle, CheckCircle, Copy, QrCode, RefreshCw, Pencil, Info
 } from 'lucide-react';
 import {
   getCarrinho, adicionarAoCarrinho, removerDoCarrinho, checkout, simularFrete, simularFreteMultiLoja,
@@ -75,9 +75,10 @@ export default function Carrinho() {
   const [atualizandoLocalizacao, setAtualizandoLocalizacao] = useState<Set<number>>(new Set());
 
   const [lojasRetirada, setLojasRetirada] = useState<any[]>([]);
+  const [lojasSemRetirada, setLojasSemRetirada] = useState<string[]>([]);
 
   useEffect(() => {
-    if (metodoEntrega === 'retirada' && itens.length > 0) {
+    if (itens.length > 0) {
       const storeIds = new Set<number>();
       itens.forEach(item => {
         const lojaId = item?.produto?.lojaId || item?.produto?.loja?.id || item?.lojaId;
@@ -86,11 +87,23 @@ export default function Carrinho() {
 
       Promise.all(Array.from(storeIds).map(id => getLojaPorId(id)))
         .then(lojas => {
-          setLojasRetirada(lojas.filter(l => l));
+          const lojasValidas = lojas.filter(l => l);
+          setLojasRetirada(lojasValidas);
+          
+          const storesSemRetirada = lojasValidas.filter(l => l.aceitaRetirada === false).map(l => l.nomeLoja);
+          setLojasSemRetirada(storesSemRetirada);
         })
         .catch(() => { });
+    } else {
+      setLojasSemRetirada([]);
     }
-  }, [metodoEntrega, itens]);
+  }, [itens]);
+
+  useEffect(() => {
+    if (lojasSemRetirada.length > 0 && metodoEntrega === 'retirada') {
+      setMetodoEntrega('entrega');
+    }
+  }, [lojasSemRetirada, metodoEntrega]);
 
   // Pagamento
   const [metodoPagamento, setMetodoPagamento] = useState<'cartao' | 'pix' | 'boleto'>('pix');
@@ -761,16 +774,27 @@ export default function Carrinho() {
                         <span className="text-xs font-bold uppercase">Entrega em Casa</span>
                       </button>
                       <button
-                        onClick={() => setMetodoEntrega('retirada')}
+                        onClick={() => {
+                          if (lojasSemRetirada.length === 0) setMetodoEntrega('retirada');
+                        }}
+                        disabled={lojasSemRetirada.length > 0}
                         className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${metodoEntrega === 'retirada'
                           ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
-                          : 'border-gray-100 text-gray-400 hover:border-gray-200'
-                          }`}
+                          : 'border-gray-100 text-gray-400'
+                          } ${lojasSemRetirada.length > 0 ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'hover:border-gray-200'}`}
                       >
                         <Store size={24} />
                         <span className="text-xs font-bold uppercase">Retirar na Loja</span>
                       </button>
                     </div>
+                    {lojasSemRetirada.length > 0 && (
+                      <div className="mt-4 p-3 bg-yellow-50/50 border border-yellow-200/50 rounded-xl flex items-start gap-3">
+                        <Info className="text-yellow-600 shrink-0 mt-0.5" size={18} />
+                        <p className="text-xs text-yellow-700 leading-relaxed font-medium">
+                          A opção de retirada não está disponível porque as seguintes lojas não aceitam retirada física no momento: <span className="font-bold">{lojasSemRetirada.join(', ')}</span>.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {metodoEntrega === 'entrega' && (
