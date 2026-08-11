@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  Store, ShoppingBag, ArrowRight, MousePointerClick, 
-  Truck, PackageCheck, Leaf, Target, ChevronLeft, ChevronRight 
+import {
+  Store, ShoppingBag, ArrowRight, MousePointerClick,
+  Truck, PackageCheck, Leaf, Target, ChevronLeft, ChevronRight, Quote,
+  Apple, Flower2, TreePine, Wheat, Sprout, Sun, Cherry, Citrus, Phone, Mail
 } from 'lucide-react';
 import { getBanners } from '../../services/api';
 
@@ -15,11 +16,143 @@ const TRAJETO_DB = [
   { id: 4, titulo: "Entrega", desc: "Receba em casa com garantia de origem.", Icon: PackageCheck }
 ];
 
-const HISTORIAS_DB = [
-  { id: 1, nome: "Seu João", local: "Aracaju, SE", perfil: "Produtor", foto: "https://images.pexels.com/photos/2132227/pexels-photo-2132227.jpeg?auto=compress&cs=tinysrgb&w=600", texto: "Desde que comecei a anunciar no site, minhas vendas dobraram. O suporte logístico me permitiu focar no que amo." },
-  { id: 2, nome: "Dona Maria", local: "Olinda, PE", perfil: "Artesã", foto: "https://images.pexels.com/photos/2162938/pexels-photo-2162938.jpeg?auto=compress&cs=tinysrgb&w=600", texto: "O site deu visibilidade ao meu artesanato para além da minha cidade. Hoje recebo pedidos de todo o Brasil." },
-  { id: 3, nome: "Seu Cícero", local: "Crato, CE", perfil: "Apicultor", foto: "https://images.pexels.com/photos/2583847/pexels-photo-2583847.jpeg?auto=compress&cs=tinysrgb&w=600", texto: "Vender mel direto pela plataforma mudou nossa cooperativa. O pagamento cai direto e seguro." }
+const CATEGORIAS_DB = [
+  { id: 1, titulo: "Produtos Agrícolas", desc: "Frutas, verduras e grãos cultivados com dedicação, garantindo frescor e qualidade direto da roça para sua mesa.", img: "https://images.unsplash.com/photo-1590779033100-9f60a05a013d?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", gradient: "from-green-50 to-green-900" },
+  { id: 2, titulo: "Artesanato", desc: "Peças únicas feitas à mão que carregam a identidade, cultura e a tradição dos talentosos artesãos nordestinos.", img: "https://images.unsplash.com/photo-1610701596007-11502861dcfa?q=80&w=600&auto=format&fit=crop", gradient: "from-amber-50 to-amber-500" },
+  { id: 3, titulo: "Produtos Têxteis", desc: "Roupas, bordados e tecidos produzidos com cuidado e técnicas tradicionais que valorizam a moda regional.", img: "https://images.pexels.com/photos/298863/pexels-photo-298863.jpeg?auto=compress&cs=tinysrgb&w=600", gradient: "from-[#f5e6d3] to-[#A0522D]" },
+  { id: 4, titulo: "Laticínios", desc: "Queijos artesanais, manteiga da terra e laticínios frescos produzidos com leite de alta qualidade e tradição regional.", img: "https://images.unsplash.com/photo-1550583724-b2692b85b150?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", gradient: "from-yellow-50 to-yellow-600" },
+  { id: 5, titulo: "Carnes", desc: "Carnes selecionadas, cortes especiais e embutidos artesanais, valorizando o pequeno produtor e a qualidade local.", img: "https://images.unsplash.com/photo-1728042359930-c0145f0fd442?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", gradient: "from-red-50 to-red-900" },
+  { id: 6, titulo: "Gastronomia", desc: "Pratos típicos, doces caseiros e iguarias regionais feitas com afeto, trazendo o verdadeiro sabor do Nordeste.", img: "https://images.unsplash.com/photo-1614707267537-b85aaf00c4b7?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", gradient: "from-orange-50 to-orange-700" }
 ];
+
+/* ── Componente de texto com reveal no scroll (estilo releaf.bio) ── */
+const REVEAL_WORDS = [
+  { text: "A", bold: false },
+  { text: "Rede", bold: true },
+  { text: "Nordeste", bold: true },
+  { text: "nasceu", bold: false },
+  { text: "para", bold: false },
+  { text: "conectar", bold: true },
+  { text: "quem", bold: false },
+  { text: "produz", bold: true },
+  { text: "com", bold: false },
+  { text: "paixão", bold: true },
+  { text: "a", bold: false },
+  { text: "quem", bold: false },
+  { text: "busca", bold: true },
+  { text: "produtos", bold: false },
+  { text: "autênticos,", bold: false },
+  { text: "garantindo", bold: false },
+  { text: "uma", bold: false },
+  { text: "logística", bold: true },
+  { text: "inteligente", bold: true },
+  { text: "e", bold: false },
+  { text: "um", bold: false },
+  { text: "mercado", bold: false },
+  { text: "mais", bold: false },
+  { text: "justo,", bold: true },
+  { text: "humano", bold: true },
+  { text: "e", bold: false },
+  { text: "conectado.", bold: true },
+];
+
+function ScrollRevealText() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [progress, setProgress] = useState(0);
+
+  const handleScroll = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const windowH = window.innerHeight;
+    // Começa a revelar quando o topo do container atinge 80% da tela
+    // Termina quando o topo atinge 20% da tela
+    const start = windowH * 0.85;
+    const end = windowH * 0.15;
+    const rawProgress = (start - rect.top) / (start - end);
+    setProgress(Math.max(0, Math.min(1, rawProgress)));
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
+
+  const totalWords = REVEAL_WORDS.length;
+
+  return (
+    <div ref={containerRef} className="text-left">
+      <p className="text-xl md:text-3xl leading-relaxed md:leading-relaxed tracking-tight">
+        {REVEAL_WORDS.map((word, i) => {
+          const wordProgress = (progress * totalWords - i);
+          const opacity = Math.max(0.15, Math.min(1, wordProgress));
+          return (
+            <span
+              key={i}
+              className={`inline-block mr-[0.25em] transition-opacity duration-300 ${word.bold ? 'font-black italic' : 'font-medium'
+                }`}
+              style={{
+                opacity,
+                color: '#A0522D',
+              }}
+            >
+              {word.text}
+            </span>
+          );
+        })}
+      </p>
+      <p
+        className="mt-6 text-sm md:text-base font-medium transition-opacity duration-500"
+        style={{ opacity: progress > 0.8 ? 1 : 0.3, color: '#A0522D' }}
+      >
+        A infraestrutura digital do Nordeste para o comércio direto.
+      </p>
+    </div>
+  );
+}
+
+const AnimatedTitle = () => {
+  const [progress, setProgress] = useState(0);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!titleRef.current) return;
+      const rect = titleRef.current.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+
+      const start = windowHeight * 0.95;
+      const end = windowHeight * 0.4;
+
+      let p = (start - rect.top) / (start - end);
+      p = Math.max(0, Math.min(1, p));
+      setProgress(p);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  return (
+    <h2
+      ref={titleRef}
+      className="text-[1.1rem] sm:text-2xl md:text-4xl font-black uppercase italic text-center mb-16 tracking-tight md:tracking-tighter relative z-10 whitespace-nowrap"
+    >
+      <span
+        className="bg-clip-text text-transparent"
+        style={{
+          backgroundImage: `linear-gradient(to right, #4a6741 ${progress * 100}%, #4a674130 ${progress * 100 + 40}%)`,
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          transition: 'background-image 0.1s ease-out'
+        }}
+      >
+        O QUE VOCÊ ENCONTRA AQUI
+      </span>
+    </h2>
+  );
+};
 
 export default function Home() {
   const [destaques, setDestaques] = useState<any[]>([]);
@@ -65,17 +198,19 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col items-center bg-[#F5F2ED] font-sans overflow-x-hidden">
-      
+
       {/* NAVBAR */}
-      <header className="w-full bg-white flex justify-center py-4 px-6 border-b border-gray-100 shadow-sm z-[100] sticky top-0">
+      <header className="w-full bg-white flex justify-center py-4 px-6 border-b border-gray-100 shadow-sm z-[100] fixed top-0 left-0 transition-all duration-300">
         <div className="w-full max-w-7xl flex justify-between items-center">
           <Link to="/"><img src="/assets/logo-home.png" alt="Rede Nordeste" className="h-12 object-contain" /></Link>
           <div className="flex items-center gap-3">
             <Link to="/cadastro" className="border-2 border-[#55833d] text-[#55833d] px-6 py-2 rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-[#55833d] hover:text-white transition-all">Cadastrar</Link>
-            <Link to="/login" className="bg-[#394158] text-white px-8 py-2.5 rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-[#55833d] transition-all">Entrar</Link>
+            <Link to="/login" className="bg-[#394158] text-white px-8 py-2.5 rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-[#e68c3e] transition-all">Entrar</Link>
           </div>
         </div>
       </header>
+      {/* Espaçador para compensar a navbar fixa */}
+      <div className="w-full h-[72px]" />
 
       {/* CARROSSEL HERO */}
       {carregandoBanners ? (
@@ -111,7 +246,7 @@ export default function Home() {
                     <h2 className="font-black text-3xl md:text-5xl text-white uppercase italic leading-tight tracking-tight max-w-3xl">{slide.titulo}</h2>
                     <div className="flex flex-col md:flex-row md:items-center gap-4 pt-2 w-full justify-between">
                       <p className="text-sm md:text-base text-white/80 font-medium max-w-xl">{slide.subtitulo}</p>
-                      <button 
+                      <button
                         onClick={() => navigate(`/blog/${slide.blogId}`)}
                         className="cursor-pointer flex items-center gap-2 text-white font-black uppercase text-[10px] tracking-widest bg-white/10 hover:bg-white/30 py-3 px-6 rounded-full border border-white/20 transition-all z-50"
                       >
@@ -125,14 +260,14 @@ export default function Home() {
           </div>
           {destaques.length > 1 && (
             <>
-              <button 
+              <button
                 onClick={() => setCurrent((prev) => (prev - 1 + destaques.length) % destaques.length)}
                 className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-3 rounded-full backdrop-blur-sm transition-all z-50 cursor-pointer border border-white/10"
                 aria-label="Anterior"
               >
                 <ChevronLeft size={24} />
               </button>
-              <button 
+              <button
                 onClick={() => setCurrent((prev) => (prev + 1) % destaques.length)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-3 rounded-full backdrop-blur-sm transition-all z-50 cursor-pointer border border-white/10"
                 aria-label="Próximo"
@@ -150,33 +285,50 @@ export default function Home() {
       )}
 
       <main className="w-full flex flex-col items-center">
-        {/* TEXTO DE CHAMADA */}
-        <div className="text-center space-y-4 py-16 px-6">
-          <h1 className="text-4xl font-black italic uppercase text-[#394158]">Conectando quem produz a quem consome</h1>
-          <p className="text-[#394158]/70 font-medium">A infraestrutura digital do Nordeste para o comércio direto.</p>
-        </div>
+        {/* TEXTO + BOTÕES LADO A LADO */}
+        <div className="w-full relative overflow-hidden py-28">
+          {/* Ícones decorativos de natureza no fundo */}
+          <Leaf size={80} className="absolute top-8 left-[5%] text-[#55833d]/[0.06] rotate-[-25deg]" />
+          <Apple size={60} className="absolute top-16 right-[8%] text-[#f9943b]/[0.07] rotate-[15deg]" />
+          <Flower2 size={70} className="absolute bottom-12 left-[12%] text-[#f9943b]/[0.05] rotate-[30deg]" />
+          <TreePine size={90} className="absolute top-1/2 left-[2%] -translate-y-1/2 text-[#55833d]/[0.04] rotate-[-10deg]" />
+          <Wheat size={65} className="absolute bottom-8 right-[15%] text-[#55833d]/[0.06] rotate-[20deg]" />
+          <Sprout size={50} className="absolute top-12 left-[40%] text-[#55833d]/[0.05] rotate-[-15deg]" />
+          <Sun size={55} className="absolute bottom-20 left-[55%] text-[#f9943b]/[0.05] rotate-[10deg]" />
+          <Leaf size={45} className="absolute top-1/3 right-[3%] text-[#55833d]/[0.06] rotate-[45deg]" />
+          <Cherry size={50} className="absolute bottom-1/3 left-[25%] text-[#f9943b]/[0.05] rotate-[-20deg]" />
+          <Citrus size={55} className="absolute top-20 right-[30%] text-[#f9943b]/[0.04] rotate-[25deg]" />
+          <Leaf size={35} className="absolute bottom-6 right-[40%] text-[#55833d]/[0.05] rotate-[60deg]" />
+          <Sprout size={40} className="absolute top-2/3 right-[6%] text-[#55833d]/[0.05] rotate-[35deg]" />
 
-        {/* BOTÕES DE ACESSO */}
-        <div className="flex flex-wrap justify-center gap-6 mb-24 px-6">
-         <Link
-          to="/cadastro"
-          state={{ tipoPerfil: 'PRODUTOR' }}
-          className="flex flex-col items-center bg-[#55833d] text-white p-8 w-64 rounded-[2.5rem] hover:scale-105 transition-all shadow-lg text-center group"
-      >
-          <Store size={24} className="mb-2" />
-          <span className="font-black uppercase text-sm tracking-widest">Sou vendedor</span>
-          <span className="text-[9px] font-bold opacity-70 italic">Quero anunciar meus produtos</span>
-     </Link>
-    <Link
-          to="/cadastro"
-          state={{ tipoPerfil: 'COMPRADOR' }}
-          className="flex flex-col items-center bg-[#f9943b] text-white p-8 w-64 rounded-[2.5rem] hover:scale-105 transition-all shadow-lg text-center group"
-      >
-        <ShoppingBag size={24} className="mb-2" />
-        <span className="font-black uppercase text-sm tracking-widest">Sou comprador</span>
-        <span className="text-[9px] font-bold opacity-70 italic">Procuro produtos da região</span>
-   </Link>
-  </div>
+          <div className="w-full max-w-7xl mx-auto px-8 flex flex-col md:flex-row items-center md:items-start gap-12 md:gap-28 relative z-10">
+            {/* Texto scroll-reveal à esquerda */}
+            <div className="flex-1 max-w-2xl w-full">
+              <ScrollRevealText />
+            </div>
+            {/* Botões empilhados à direita, mais embaixo */}
+            <div className="flex flex-col gap-5 flex-shrink-0 md:mt-24 w-full md:w-auto items-center">
+              <Link
+                to="/cadastro"
+                state={{ tipoPerfil: 'PRODUTOR' }}
+                className="flex flex-col items-center bg-[#4a6741] text-white py-5 px-10 w-full max-w-[340px] md:w-[340px] rounded-[1.5rem] hover:scale-105 transition-all shadow-lg text-center group"
+              >
+                <Store size={22} className="mb-2" />
+                <span className="font-black uppercase text-sm tracking-widest">Sou vendedor</span>
+                <span className="text-[11px] font-semibold italic text-white/90 mt-1">Quero anunciar meus produtos</span>
+              </Link>
+              <Link
+                to="/cadastro"
+                state={{ tipoPerfil: 'COMPRADOR' }}
+                className="flex flex-col items-center bg-[#e68c3e] text-white py-5 px-10 w-full max-w-[340px] md:w-[340px] rounded-[1.5rem] hover:scale-105 transition-all shadow-lg text-center group"
+              >
+                <ShoppingBag size={22} className="mb-2" />
+                <span className="font-black uppercase text-sm tracking-widest">Sou comprador</span>
+                <span className="text-[11px] font-semibold italic text-white mt-1">Procuro produtos da região</span>
+              </Link>
+            </div>
+          </div>
+        </div>
         {/* MISSÃO - FUNDO BRANCO CORRIGIDO */}
         <section className="w-full bg-white flex justify-center py-24 border-y border-gray-100">
           <div className="w-full max-w-7xl px-8 grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
@@ -197,51 +349,148 @@ export default function Home() {
           </div>
         </section>
 
-        {/* HISTÓRIAS */}
-        <section className="w-full max-w-7xl py-24 px-8">
-          <h2 className="font-black uppercase italic tracking-widest text-xs text-[#f9943b] mb-12">Histórias de Sucesso</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {HISTORIAS_DB.map((hist) => (
-              <div key={hist.id} className="bg-[#ff8a23] p-8 rounded-[1rem] text-white space-y-4 hover:-translate-y-2 transition-all shadow-xl">
-                <div className="flex items-center gap-4">
-                  <img src={hist.foto} className="w-16 h-16 object-cover rounded-2xl border-2 border-white/20" alt="" />
-                  <div>
-                    <span className="text-[8px] font-black uppercase text-[#394158] bg-white/20 px-2 py-0.5 rounded-full">{hist.perfil}</span>
-                    <h4 className="text-lg font-black uppercase italic">{hist.nome}</h4>
-                    <p className="text-[9px] font-bold opacity-60 uppercase">{hist.local}</p>
+        {/* CATEGORIAS */}
+        <section className="w-full max-w-7xl py-24 px-8 mx-auto relative">
+          {/* Folhinhas de Manjericão de Fundo Estáticas */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 hidden md:block">
+            <Leaf size={40} className="absolute top-[5%] left-[2%] text-[#4a6741]/10 rotate-12" strokeWidth={1.5} />
+            <Leaf size={25} className="absolute top-[25%] left-[10%] text-[#4a6741]/10 -rotate-45" strokeWidth={1.5} />
+            <Leaf size={50} className="absolute top-[15%] left-[85%] text-[#4a6741]/10 rotate-45" strokeWidth={1.5} />
+            <Leaf size={20} className="absolute top-[40%] left-[92%] text-[#4a6741]/10 rotate-90" strokeWidth={1.5} />
+            <Leaf size={60} className="absolute top-[70%] left-[5%] text-[#4a6741]/10 -rotate-12" strokeWidth={1.5} />
+            <Leaf size={30} className="absolute top-[85%] left-[18%] text-[#4a6741]/10 rotate-180" strokeWidth={1.5} />
+            <Leaf size={70} className="absolute top-[65%] left-[88%] text-[#4a6741]/10 -rotate-45" strokeWidth={1.5} />
+            <Leaf size={35} className="absolute top-[90%] left-[75%] text-[#4a6741]/10 rotate-45" strokeWidth={1.5} />
+            <Leaf size={45} className="absolute top-[10%] left-[45%] text-[#4a6741]/10 rotate-12" strokeWidth={1.5} />
+            <Leaf size={25} className="absolute top-[85%] left-[50%] text-[#4a6741]/10 -rotate-90" strokeWidth={1.5} />
+          </div>
+
+          <AnimatedTitle />
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-8 relative z-10">
+            {CATEGORIAS_DB.map((cat) => (
+              <div
+                key={cat.id}
+                className={`group relative p-[4px] md:p-[6px] shadow-xl cursor-pointer bg-gradient-to-b ${cat.gradient}`}
+              >
+                <div className="relative h-[220px] md:h-[450px] w-full overflow-hidden bg-white">
+                  {/* Imagem de Fundo */}
+                  <div className="absolute inset-0">
+                    <img
+                      src={cat.img}
+                      alt={cat.titulo}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    />
+                    <div className="absolute inset-0 bg-black/10 transition-opacity duration-500 group-hover:bg-black/30"></div>
+                  </div>
+
+                  {/* Caixa Branca Central */}
+                  <div className="absolute inset-x-1 md:inset-x-6 top-1/2 -translate-y-1/2 bg-white flex flex-col items-center justify-center p-2 md:p-6 shadow-2xl transition-all duration-500">
+                    <h3 className="text-[11px] sm:text-sm md:text-2xl font-serif text-[#394158] text-center whitespace-nowrap">
+                      {cat.titulo}
+                    </h3>
+
+                    {/* Conteúdo Expansível no Hover */}
+                    <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 w-full">
+                      <div className="overflow-hidden flex flex-col items-center">
+                        <p className="hidden md:block text-[10px] md:text-sm text-gray-500 text-center mt-2 md:mt-4 mb-3 md:mb-6 leading-relaxed line-clamp-3 md:line-clamp-none">
+                          {cat.desc}
+                        </p>
+                        <button className="text-[8px] md:text-xs uppercase tracking-[0.1em] md:tracking-[0.2em] text-[#394158] hover:text-[#f9943b] transition-colors border-b border-[#394158] hover:border-[#f9943b] pb-0.5 md:pb-1 mt-2 md:mt-0">
+                          Ver Produtos &rarr;
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <p className="text-xs font-medium italic opacity-90 leading-relaxed">"{hist.texto}"</p>
               </div>
             ))}
           </div>
         </section>
 
-        {/* TRAJETO */}
-        <section className="w-full bg-white py-24 flex justify-center border-t border-gray-100">
-          <div className="w-full max-w-7xl px-8">
-            <h2 className="font-black uppercase italic tracking-widest text-xs text-gray-400 mb-16">Da Rede Nordeste à sua mesa</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-12 relative">
-              <div className="hidden md:block absolute top-10 left-10 right-10 border-t-2 border-dashed border-gray-100"></div>
-              {TRAJETO_DB.map((item) => (
-                <div key={item.id} className="flex flex-col items-center text-center space-y-4 relative z-10 group">
-                  <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-lg border border-gray-50 text-[#394158] group-hover:bg-[#55833d] group-hover:text-white transition-all duration-300">
-                    <item.Icon size={32} />
-                  </div>
-                  <div>
-                    <h4 className="font-black uppercase text-xs tracking-widest">{item.titulo}</h4>
-                    <p className="text-[10px] text-gray-400 font-bold italic">{item.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* ANIMAÇÃO MARQUEE ESTILO RELEAF.BIO - INTEGRADA COM A SEÇÃO DE CIMA */}
+        <section className="w-full py-20 overflow-hidden flex items-center relative h-[300px] md:h-[400px]">
+          <div className="absolute top-0 bottom-0 left-0 right-0 pointer-events-none z-10 bg-gradient-to-r from-[#F5F2ED] via-transparent to-[#F5F2ED]" style={{ width: '100%' }}></div>
+          <div className="animate-marquee flex items-center text-[#e68c3e]">
+            {/* O conteúdo é duplicado para criar o efeito infinito sem quebra */}
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="flex items-center mx-4 md:mx-8">
+                <span className="text-[2.2rem] md:text-[4rem] font-bold tracking-tight lowercase whitespace-nowrap">
+                  do campo pra mesa
+                </span>
+                <Flower2 className="w-10 h-10 md:w-[70px] md:h-[70px] mx-6 md:mx-20 animate-spin-slow text-[#e68c3e]" strokeWidth={2.5} />
+              </div>
+            ))}
           </div>
         </section>
       </main>
 
-      {/* FOOTER */}
-      <footer className="w-full text-center p-20 bg-gray-50 border-t border-gray-100">
-        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#394158]/60">© 2026 Rede Nordeste - Todos os direitos reservados.</span>
+      {/* RODAPÉ ESTILO RELEAF.BIO VERDE MUSGO COM FOLHA DECORATIVA */}
+      <footer className="w-[calc(100%-2rem)] md:w-[calc(100%-4rem)] max-w-[1920px] mx-auto bg-[#4a6741] relative overflow-hidden rounded-[2rem] mb-4 md:mb-6 shadow-2xl">
+        {/* Folhas decorativas SVG no fundo (linhas finas inspiradas no releaf) */}
+        <svg className="absolute top-0 right-0 w-[800px] h-[800px] text-white/[0.1] -translate-y-1/4 translate-x-1/4" viewBox="0 0 200 200" fill="currentColor">
+          <path d="M100,10 Q140,50 130,100 Q120,150 80,180 Q60,140 50,100 Q40,60 100,10 Z" fill="none" stroke="currentColor" strokeWidth="0.5" />
+          <path d="M95,15 L100,180" stroke="currentColor" strokeWidth="0.3" fill="none" opacity="0.6" />
+          <path d="M70,60 Q85,55 95,50" stroke="currentColor" strokeWidth="0.2" fill="none" opacity="0.5" />
+          <path d="M65,90 Q80,80 97,75" stroke="currentColor" strokeWidth="0.2" fill="none" opacity="0.5" />
+          <path d="M70,120 Q82,110 96,105" stroke="currentColor" strokeWidth="0.2" fill="none" opacity="0.5" />
+          <path d="M80,145 Q88,138 97,132" stroke="currentColor" strokeWidth="0.2" fill="none" opacity="0.5" />
+        </svg>
+        <svg className="absolute bottom-0 left-0 w-[600px] h-[600px] text-white/[0.08] translate-y-1/4 -translate-x-1/4 rotate-45" viewBox="0 0 200 200" fill="currentColor">
+          <path d="M100,10 Q140,50 130,100 Q120,150 80,180 Q60,140 50,100 Q40,60 100,10 Z" fill="none" stroke="currentColor" strokeWidth="0.5" />
+          <path d="M95,15 L100,180" stroke="currentColor" strokeWidth="0.3" fill="none" opacity="0.6" />
+          <path d="M70,60 Q85,55 95,50" stroke="currentColor" strokeWidth="0.2" fill="none" opacity="0.5" />
+          <path d="M65,90 Q80,80 97,75" stroke="currentColor" strokeWidth="0.2" fill="none" opacity="0.5" />
+        </svg>
+
+        {/* Conteúdo principal do rodapé */}
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-6 md:px-16 pt-12 md:pt-24 pb-8 md:pb-12 flex flex-col justify-between min-h-[300px] md:min-h-[500px]">
+
+          <div className="flex flex-row justify-between items-start w-full gap-4 md:gap-0">
+            {/* Coluna Esquerda: Logo e Infos */}
+            <div className="flex flex-col justify-between h-full space-y-8 md:space-y-20 w-[60%] md:w-auto">
+              <div className="space-y-4 md:space-y-6">
+                <Link to="/">
+                  <img src="/assets/logo-rodape.png" alt="Rede Nordeste" className="h-20 md:h-[140px] object-contain" />
+                </Link>
+                <div className="space-y-1">
+                  <p className="text-white text-[10px] md:text-lg font-medium leading-tight">A infraestrutura digital do</p>
+                  <p className="text-white text-[10px] md:text-lg font-medium leading-tight">Nordeste para o comércio direto</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 md:space-y-4">
+                <a href="tel:+5579999999999" className="flex items-center gap-2 md:gap-4 text-white text-[9px] md:text-sm font-semibold hover:opacity-80 transition-opacity whitespace-nowrap">
+                  <Phone strokeWidth={1.5} className="w-3 h-3 md:w-[18px] md:h-[18px]" /> +55 (79) 9999-9999
+                </a>
+                <a href="mailto:contato@redenordeste.com.br" className="flex items-center gap-2 md:gap-4 text-white text-[9px] md:text-sm font-semibold hover:opacity-80 transition-opacity whitespace-nowrap">
+                  <Mail strokeWidth={1.5} className="w-3 h-3 md:w-[18px] md:h-[18px]" /> contato@redenordeste.com.br
+                </a>
+              </div>
+            </div>
+
+            {/* Coluna Direita: Links Grandes e Pequenos */}
+            <div className="flex flex-col items-end w-[40%] md:w-auto">
+
+              {/* Links Grandes */}
+              <nav className="flex flex-col space-y-4 md:space-y-5 text-right mb-10 md:mb-16">
+                <Link to="/" className="text-white text-sm md:text-2xl font-semibold hover:text-[#f9943b] transition-colors">Nossa Missão</Link>
+                <Link to="/" className="text-white text-sm md:text-2xl font-semibold hover:text-[#f9943b] transition-colors">Trabalhe conosco</Link>
+                <Link to="/" className="text-white text-sm md:text-2xl font-semibold hover:text-[#f9943b] transition-colors">Atendimento</Link>
+                <Link to="/" className="text-white text-sm md:text-2xl font-semibold hover:text-[#f9943b] transition-colors">Sobre nós</Link>
+              </nav>
+
+              {/* Links Pequenos */}
+              <nav className="flex flex-col space-y-2 md:space-y-4 text-right">
+                <a href="#" className="text-white text-[8px] md:text-sm font-medium hover:underline">Redenordeste.com.br</a>
+                <a href="#" className="text-white text-[8px] md:text-sm font-medium hover:underline">Termos de uso</a>
+                <a href="#" className="text-white text-[8px] md:text-sm font-medium hover:underline">Política de Privacidade</a>
+                <a href="#" className="text-white text-[8px] md:text-sm font-medium hover:underline">Cookies</a>
+              </nav>
+            </div>
+          </div>
+
+        </div>
       </footer>
     </div>
   );

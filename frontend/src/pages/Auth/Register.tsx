@@ -189,7 +189,7 @@ export default function Register() {
               name="tipoPerfil"
               className={`w-full py-4 px-4 rounded-2xl outline-none appearance-none font-bold focus:ring-2 transition-all ${
                 formData.tipoPerfil === 'PRODUTOR'
-                  ? 'bg-[#722F37] text-white focus:ring-[#722F37]/50'
+                  ? 'bg-[#A0522D] text-white focus:ring-[#A0522D]/50'
                   : 'bg-[#f9943b] text-white focus:ring-[#f9943b]/50'
               }`}
               onChange={handleChange}
