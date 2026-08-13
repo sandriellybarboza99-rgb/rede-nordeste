@@ -3,12 +3,17 @@ package com.semeia_nordeste.backend.model;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
@@ -104,4 +109,21 @@ public class Loja {
 
     @Column(name = "historia_empreendedora", columnDefinition = "TEXT")
     private String historiaEmpreendedora;
+    
+    // === REGRAS DE ENTREGA E FUNCIONAMENTO DA SEDE ===
+    
+    @Column(name = "dias_horarios_funcionamento", columnDefinition = "TEXT")
+    private String diasHorariosFuncionamento;
+
+    @Column(name = "regioes_entrega", columnDefinition = "TEXT")
+    private String regioesEntrega;
+
+    @Column(name = "dias_horarios_entrega", columnDefinition = "TEXT")
+    private String diasHorariosEntrega;
+
+    @Column(name = "dias_horarios_retirada", columnDefinition = "TEXT")
+    private String diasHorariosRetirada;
+
+    @OneToMany(mappedBy = "loja", fetch = FetchType.LAZY)
+    private List<EnderecoLoja> enderecos = new ArrayList<>();
 }

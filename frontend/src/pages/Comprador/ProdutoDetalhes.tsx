@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ShoppingCart, MapPin, Store, Info, Minus, Plus, CheckCircle2, Star, ChevronRight, MessageCircle, X } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { getProdutoPorId, adicionarAoCarrinho, getLojaPorId, getCarrinho } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { ModalLoginRequired } from '../../components/modals/ModalLoginRequired';
 
 export default function ProdutoDetalhes() {
   const { id } = useParams();
@@ -12,6 +14,8 @@ export default function ProdutoDetalhes() {
   const [loja, setLoja] = useState<any>(null);
   const [quantidade, setQuantidade] = useState(1);
   const [feedbackCompra, setFeedbackCompra] = useState(false);
+  const [modalLoginAberto, setModalLoginAberto] = useState(false);
+  const { estaLogado } = useAuth();
   const [showCartNotif, setShowCartNotif] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -95,6 +99,10 @@ export default function ProdutoDetalhes() {
   };
 
   const handleAdicionarAoCarrinho = async () => {
+    if (!estaLogado) {
+      setModalLoginAberto(true);
+      return;
+    }
     if (!produto) return;
     try {
       const cartReq = await getCarrinho();
@@ -155,6 +163,8 @@ export default function ProdutoDetalhes() {
           </div>
         </div>
       )}
+
+      <ModalLoginRequired open={modalLoginAberto} onClose={() => setModalLoginAberto(false)} />
 
       <main className="max-w-7xl mx-auto px-4 md:px-8 py-6 md:py-12 page-enter">
         <PageHeader
@@ -248,7 +258,10 @@ export default function ProdutoDetalhes() {
 
             {produto.lojaId && (
               <button
-                onClick={() => navigate('/chat', { state: { lojaId: produto.lojaId } })}
+                onClick={() => {
+                  if (!estaLogado) setModalLoginAberto(true);
+                  else navigate('/chat', { state: { lojaId: produto.lojaId } });
+                }}
                 className="w-full py-4 rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all active:scale-95 bg-white border-2 border-[#55833d] text-[#55833d] hover:bg-[#55833d] hover:text-white"
               >
                 <MessageCircle size={16} /> Falar com a loja

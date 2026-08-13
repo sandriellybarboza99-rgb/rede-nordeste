@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { UserMenu } from '../../components/ui/UserMenu';
+import { ModalLoginRequired } from '../../components/modals/ModalLoginRequired';
 
 const NOTIFICACOES_DATA = [
   { id: 1, titulo: 'Pedido a caminho!', mensagem: 'Seu pedido #4582 saiu para entrega.', tempo: 'Há 2 horas', lida: false, icone: Truck, cor: 'text-[#f9943b]', bg: 'bg-[#f9943b]/10' },
@@ -86,7 +87,8 @@ export default function Receitas() {
   const [notifAberta, setNotifAberta] = useState(false); 
   const [notificacoes, setNotificacoes] = useState(NOTIFICACOES_DATA); 
   const navigate = useNavigate();
-  const { perfil } = useAuth();
+  const { perfil, estaLogado } = useAuth();
+  const [modalLoginAberto, setModalLoginAberto] = useState(false);
   const isVendedor = perfil === 'PRODUTOR';
 
   const [carrinhoCount, setCarrinhoCount] = useState(() => {
@@ -166,64 +168,72 @@ export default function Receitas() {
 
           <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
             <div className="hidden md:flex items-center gap-2">
-              <div className="relative">
-                <button 
-                  onClick={() => setNotifAberta(!notifAberta)} 
-                  className={`w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 relative group ${notifAberta ? 'bg-[#f9943b] text-white shadow-lg' : 'hover:bg-[#f9943b] text-[#394158] hover:text-white'}`}
-                >
-                  <Bell className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
-                  {notificacoes.filter(n => !n.lida).length > 0 && (
-                    <span className="absolute top-0 right-0 md:top-1 md:right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white group-hover:border-[#f9943b]">
-                      {notificacoes.filter(n => !n.lida).length}
-                    </span>
-                  )}
-                </button>
+              {estaLogado ? (
+                <>
+                  <div className="relative">
+                    <button 
+                      onClick={() => setNotifAberta(!notifAberta)} 
+                      className={`w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 relative group ${notifAberta ? 'bg-[#f9943b] text-white shadow-lg' : 'hover:bg-[#f9943b] text-[#394158] hover:text-white'}`}
+                    >
+                      <Bell className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
+                      {notificacoes.filter(n => !n.lida).length > 0 && (
+                        <span className="absolute top-0 right-0 md:top-1 md:right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white group-hover:border-[#f9943b]">
+                          {notificacoes.filter(n => !n.lida).length}
+                        </span>
+                      )}
+                    </button>
 
-                {notifAberta && (
-                  <>
-                    <div className="fixed inset-0 z-[60]" onClick={() => setNotifAberta(false)}></div>
-                    <div className="absolute top-14 right-0 md:right-auto md:-left-44 w-[320px] md:w-[380px] bg-white rounded-[1rem] shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-gray-100 z-[70] animate-in slide-in-from-top-2 duration-200 overflow-hidden">
-                      <header className="p-4 border-b border-gray-50 flex justify-between items-center bg-white">
-                        <h3 className="text-sm font-black uppercase italic text-[#394158]">Notificações</h3>
-                        <div className="flex gap-2">
-                           <button onClick={limparNotificacoes} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={16}/></button>
-                           <button onClick={() => setNotifAberta(false)} className="text-gray-400 hover:text-[#394158] p-1"><X size={16}/></button>
-                        </div>
-                      </header>
-                      <div className="max-h-[350px] overflow-y-auto no-scrollbar">
-                        {notificacoes.map(n => (
-                          <div key={n.id} onClick={() => marcarComoLida(n.id)} className={`flex gap-4 p-4 border-b border-gray-50 transition-all cursor-pointer hover:bg-gray-50 relative ${!n.lida ? 'bg-[#f9943b]/5' : 'opacity-60'}`}>
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${n.bg} ${n.cor}`}><n.icone size={18}/></div>
-                            <div className="flex-1 min-w-0">
-                               <h4 className="text-[11px] font-black uppercase truncate text-[#394158]">{n.titulo}</h4>
-                               <p className="text-[10px] font-bold text-gray-500 leading-snug line-clamp-2">{n.mensagem}</p>
+                    {notifAberta && (
+                      <>
+                        <div className="fixed inset-0 z-[60]" onClick={() => setNotifAberta(false)}></div>
+                        <div className="absolute top-14 right-0 md:right-auto md:-left-44 w-[320px] md:w-[380px] bg-white rounded-[1rem] shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-gray-100 z-[70] animate-in slide-in-from-top-2 duration-200 overflow-hidden">
+                          <header className="p-4 border-b border-gray-50 flex justify-between items-center bg-white">
+                            <h3 className="text-sm font-black uppercase italic text-[#394158]">Notificações</h3>
+                            <div className="flex gap-2">
+                               <button onClick={limparNotificacoes} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={16}/></button>
+                               <button onClick={() => setNotifAberta(false)} className="text-gray-400 hover:text-[#394158] p-1"><X size={16}/></button>
                             </div>
-                            {!n.lida && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 bg-[#f9943b] rounded-full"></div>}
+                          </header>
+                          <div className="max-h-[350px] overflow-y-auto no-scrollbar">
+                            {notificacoes.map(n => (
+                              <div key={n.id} onClick={() => marcarComoLida(n.id)} className={`flex gap-4 p-4 border-b border-gray-50 transition-all cursor-pointer hover:bg-gray-50 relative ${!n.lida ? 'bg-[#f9943b]/5' : 'opacity-60'}`}>
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${n.bg} ${n.cor}`}><n.icone size={18}/></div>
+                                <div className="flex-1 min-w-0">
+                                   <h4 className="text-[11px] font-black uppercase truncate text-[#394158]">{n.titulo}</h4>
+                                   <p className="text-[10px] font-bold text-gray-500 leading-snug line-clamp-2">{n.mensagem}</p>
+                                </div>
+                                {!n.lida && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 bg-[#f9943b] rounded-full"></div>}
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
 
-              <Link to="/chat" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158] group">
-                <MessageCircle className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
-              </Link>
-              <Link to="/carrinho" className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158] group">
-                <ShoppingCart className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
-                {carrinhoCount > 0 && (
-                  <span className="absolute top-0 right-0 md:top-1 md:right-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white group-hover:border-[#f9943b]">
-                    {carrinhoCount}
-                  </span>
-                )}
-              </Link>
-              <UserMenu perfilPath={isVendedor ? "/perfilvendedor" : "/perfil"} />
+                  <Link to="/chat" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158] group">
+                    <MessageCircle className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
+                  </Link>
+                  <Link to="/carrinho" className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158] group">
+                    <ShoppingCart className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
+                    {carrinhoCount > 0 && (
+                      <span className="absolute top-0 right-0 md:top-1 md:right-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white group-hover:border-[#f9943b]">
+                        {carrinhoCount}
+                      </span>
+                    )}
+                  </Link>
+                  <UserMenu perfilPath={isVendedor ? "/perfilvendedor" : "/perfil"} />
+                </>
+              ) : (
+                <Link to="/login" className="bg-[#f9943b] text-white px-5 py-2 md:py-2.5 rounded-full text-[10px] md:text-[11px] font-black uppercase tracking-widest hover:bg-[#ff8a23] transition-colors shadow-sm whitespace-nowrap">
+                  Entrar / Cadastrar
+                </Link>
+              )}
             </div>
 
             {/* Mobile */}
-            <div className="flex lg:hidden items-center gap-3">
-              <UserMenu perfilPath={isVendedor ? "/perfilvendedor" : "/perfil"} />
+            <div className="hidden md:flex items-center gap-2">
+              <UserMenu perfilPath="/perfil" />
               <button onClick={() => setMenuAberto(true)} className="md:hidden p-1 text-[#394158] hover:text-[#f9943b] transition-colors"><Menu size={24} /></button>
             </div>
           </div>
@@ -241,28 +251,40 @@ export default function Receitas() {
                 <Link to="/receitas" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 text-[#55833d]"><ChevronRight size={14}/> Receitas</Link>
                 <Link to="/blog" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#f9943b]"><ChevronRight size={14}/> Notícias</Link>
                 {isVendedor && <Link to="/painelvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#f9943b]"><ChevronRight size={14}/> Painel Vendedor</Link>}
-                <hr className="border-gray-50 my-2" />
-                <button onClick={() => { setMenuAberto(false); setNotifAberta(true); }} className="flex items-center gap-4 hover:text-[#55833d] uppercase font-black text-sm tracking-widest">
-                  <div className="relative">
-                    <Bell size={20} />
-                    {notificacoes.filter(n => !n.lida).length > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">{notificacoes.filter(n => !n.lida).length}</span>}
-                  </div>
-                  Notificações
-                </button>
-                <Link to="/chat" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><MessageCircle size={20}/> Chat</Link>
-                <Link to="/carrinho" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]">
-                  <div className="relative">
-                    <ShoppingCart size={20} />
-                    {carrinhoCount > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">{carrinhoCount}</span>}
-                  </div>
-                  Carrinho
-                </Link>
-                <Link to="/perfil" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><User size={20}/> Meu Perfil</Link>
+                {estaLogado ? (
+                  <>
+                    <hr className="border-gray-50 my-2" />
+                    <button onClick={() => { setMenuAberto(false); setNotifAberta(true); }} className="flex items-center gap-4 hover:text-[#55833d] uppercase font-black text-sm tracking-widest">
+                      <div className="relative">
+                        <Bell size={20} />
+                        {notificacoes.filter(n => !n.lida).length > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">{notificacoes.filter(n => !n.lida).length}</span>}
+                      </div>
+                      Notificações
+                    </button>
+                    <Link to="/chat" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><MessageCircle size={20}/> Chat</Link>
+                    <Link to="/carrinho" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]">
+                      <div className="relative">
+                        <ShoppingCart size={20} />
+                        {carrinhoCount > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">{carrinhoCount}</span>}
+                      </div>
+                      Carrinho
+                    </Link>
+                    <Link to="/perfil" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><User size={20}/> Meu Perfil</Link>
+                  </>
+                ) : (
+                  <>
+                    <hr className="border-gray-50 my-2" />
+                    <Link to="/login" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 text-[#f9943b] hover:text-[#ff8a23]">
+                      <User size={20} /> Entrar / Cadastrar
+                    </Link>
+                  </>
+                )}
               </nav>
             </div>
           </div>
         )}
       </header>
+      <ModalLoginRequired open={modalLoginAberto} onClose={() => setModalLoginAberto(false)} />
 
       {/* ... Restante do conteúdo das receitas permanece exatamente igual ... */}
       <main className="max-w-6xl mx-auto px-4 md:px-8 pt-8 md:pt-12">

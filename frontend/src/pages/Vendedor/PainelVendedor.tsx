@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Plus, Package, DollarSign, ShoppingBag, Store,
   Edit2, Trash2, Image as ImageIcon, CheckCircle,
   AlertTriangle, Home as HomeIcon, LayoutDashboard,
-  MessageCircle, User, BookOpen, ShieldOff, MapPin
+  MessageCircle, User, BookOpen, ShieldOff, MapPin, Settings, Palette
 } from 'lucide-react';
 import {
   getMinhaLoja, criarLoja, atualizarLoja,
   getProdutosPorLoja, criarProduto, atualizarProduto, deletarProduto,
-  getCategorias, getPedidosDaLoja, atualizarStatusEntrega, confirmarRetiradaPedido,
+  getCategorias, getPedidosDaLoja, atualizarStatusEntrega, confirmarRetiradaPedido, deletarMinhaLoja,
+  getEnderecosLoja
 } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { UserMenu } from '../../components/ui/UserMenu';
@@ -21,17 +22,26 @@ import { FormField } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { Card } from '../../components/ui/Card';
 import { ModalLoja } from '../../components/modals/ModalLoja';
+import { FormLoja } from '../../components/forms/FormLoja';
+import { GerenciadorEnderecos } from '../../components/forms/GerenciadorEnderecos';
 
-type Aba = 'dashboard' | 'produtos' | 'pedidos';
+type Aba = 'dashboard' | 'produtos' | 'pedidos' | 'loja';
+type SubAbaLoja = 'enderecos' | 'informacoes' | 'exclusao';
 
 export default function PainelVendedor() {
+  const navigate = useNavigate();
   const { success, error: toastError } = useToast();
   const [abaAtiva, setAbaAtiva] = useState<Aba>('dashboard');
+  const [subAbaLoja, setSubAbaLoja] = useState<SubAbaLoja>('enderecos');
 
   // ── Loja ──────────────────────────────────────────────────────
   const [loja, setLoja] = useState<any>(null);
+  const [enderecos, setEnderecos] = useState<any[]>([]);
   const [carregandoLoja, setCarregandoLoja] = useState(true);
   const [modalLoja, setModalLoja] = useState(false);
+  const [modalExcluirLoja, setModalExcluirLoja] = useState(false);
+  const [textoConfirmacao, setTextoConfirmacao] = useState('');
+  const [excluindoLoja, setExcluindoLoja] = useState(false);
 
   // ── Produtos ──────────────────────────────────────────────────
   const [produtos, setProdutos] = useState<any[]>([]);
@@ -40,6 +50,7 @@ export default function PainelVendedor() {
   const [formProduto, setFormProduto] = useState<any>({
     id: null, nome: '', descricao: '', precoAtual: '', unidadeMedida: 'kg',
     estoqueAtual: 0, pesoKg: 0.5, imagemUrl: '', categoriaId: null,
+    disponivelSede: true, filiaisIds: []
   });
   const [confirmarDelete, setConfirmarDelete] = useState<{ aberto: boolean; id: number | null }>({ aberto: false, id: null });
 
@@ -76,6 +87,17 @@ export default function PainelVendedor() {
     if (!loja) return;
     if (abaAtiva === 'produtos' || abaAtiva === 'dashboard') carregarProdutos();
     if (abaAtiva === 'pedidos' || abaAtiva === 'dashboard') carregarPedidos();
+
+    // Carregar os endereços adicionais (filiais) para exibir no form de produto
+    const carregarEnderecos = async () => {
+      try {
+        const res = await getEnderecosLoja();
+        setEnderecos(res);
+      } catch (err) {
+        console.error('Erro ao carregar endereços adicionais');
+      }
+    };
+    carregarEnderecos();
   }, [abaAtiva, loja]);
 
   const carregarProdutos = async () => {
@@ -177,6 +199,23 @@ export default function PainelVendedor() {
     }
   };
 
+  // ── Excluir Loja ──────────────────────────────────────────────
+  const handleExcluirLoja = async () => {
+    if (textoConfirmacao !== 'EXCLUIR') return;
+    try {
+      setExcluindoLoja(true);
+      await deletarMinhaLoja();
+      success('Sua loja foi excluída com sucesso.');
+      setModalExcluirLoja(false);
+      setLoja(null); // Volta para a tela de onboarding
+      setAbaAtiva('dashboard');
+    } catch (err: any) {
+      toastError(err?.message || 'Erro ao excluir a loja.');
+    } finally {
+      setExcluindoLoja(false);
+    }
+  };
+
   // ── Salvar produto ────────────────────────────────────────────
   const salvarProduto = async () => {
     if (!formProduto.nome || !formProduto.categoriaId || !formProduto.precoAtual) {
@@ -193,6 +232,8 @@ export default function PainelVendedor() {
         pesoKg: Number(formProduto.pesoKg || 0.5),
         imagemUrl: formProduto.imagemUrl,
         categoriaId: Number(formProduto.categoriaId),
+        disponivelSede: formProduto.disponivelSede,
+        filiaisIds: formProduto.filiaisIds || []
       };
       if (formProduto.id) {
         await atualizarProduto(formProduto.id, dados);
@@ -213,6 +254,7 @@ export default function PainelVendedor() {
       id: null, nome: '', descricao: '', precoAtual: '', unidadeMedida: 'kg',
       estoqueAtual: 0, pesoKg: 0.5, imagemUrl: '',
       categoriaId: categorias[0]?.id ?? null,
+      disponivelSede: true, filiaisIds: []
     });
     setModalProduto(true);
   };
@@ -223,6 +265,8 @@ export default function PainelVendedor() {
       precoAtual: formatPrecoParaInput(p.precoAtual), unidadeMedida: p.unidadeMedida,
       estoqueAtual: p.estoqueAtual, pesoKg: p.pesoKg,
       imagemUrl: p.imagemUrl, categoriaId: p.categoriaId ?? categorias[0]?.id,
+      disponivelSede: p.disponivelSede ?? true,
+      filiaisIds: p.filiaisIds ?? []
     });
     setModalProduto(true);
   };
@@ -265,9 +309,8 @@ export default function PainelVendedor() {
         <PageHeader
           titulo="Bem-vindo, vendedor"
           subtitulo="Primeiro passo: criar sua loja"
-          voltarPara="/home2"
-          labelVoltar="Vitrine"
-          acoesDireita={<UserMenu perfilPath="/perfilvendedor" />}
+          voltarPara={() => navigate('/home2')}
+          acoesDireita={<UserMenu perfilPath="/perfil" />}
         />
         <main className="flex-1 flex items-center justify-center p-6 pb-20 md:pb-6 page-enter">
           <Card padding="lg" className="max-w-md w-full text-center space-y-4">
@@ -295,306 +338,437 @@ export default function PainelVendedor() {
   // PAINEL PRINCIPAL
   // ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F5F2ED] text-[#394158] font-sans antialiased pb-20 md:pb-0">
+    <div className="min-h-screen flex flex-col bg-[#F5F2ED] text-[#394158] font-sans antialiased pb-20 md:pb-0">
       <Navbar rotaAtiva="/painelvendedor" />
-      <main className="px-4 md:px-12 pt-6 md:pt-8 page-enter">
-        <PageHeader
-          titulo={loja.nomeLoja}
-          subtitulo={`${loja.cidade ?? ''}${loja.estado ? ' · ' + loja.estado : ''}`}
-          voltarPara="/home2"
-          labelVoltar="Vitrine"
-          acoesDireita={<UserMenu perfilPath="/perfilvendedor" />}
-        />
-        {/* Aviso de loja não verificada */}
-        {lojaNaoVerificada && (
-          <div className="bg-[#f9943b]/10 border border-[#f9943b]/20 rounded-2xl px-4 py-3 flex items-center gap-3 mb-4">
-            <AlertTriangle size={18} className="text-[#f9943b] shrink-0" />
-            <p className="text-xs font-bold text-[#394158]">
-              {loja.suspensa
-                ? `Loja suspensa${loja.motivoSuspensao ? `: ${loja.motivoSuspensao}` : ''}.`
-                : 'Sua loja está aguardando verificação do admin. Seus produtos só aparecem na vitrine após aprovação.'}
+
+      <div className="flex-1 flex flex-col md:flex-row page-enter min-h-0">
+        {/* SIDEBAR DESKTOP */}
+        <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 p-6 flex-shrink-0 overflow-y-auto sticky top-[73px] h-[calc(100vh-73px)] self-start">
+          <div className="mb-8">
+            <h1 className="text-2xl font-black italic text-[#394158] leading-tight">{loja.nomeLoja}</h1>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mt-1 flex items-center gap-1">
+              <MapPin size={12} />
+              {loja.cidade ?? ''}{loja.estado ? ' · ' + loja.estado : ''}
             </p>
           </div>
-        )}
 
-        {/* Tabs desktop */}
-        <nav className="hidden md:flex gap-1 px-12 pt-6 border-b border-gray-100 bg-white">
-          {([
-            { id: 'dashboard', label: 'Visão geral', Icon: LayoutDashboard },
-            { id: 'produtos', label: 'Produtos', Icon: Package },
-            { id: 'pedidos', label: 'Pedidos', Icon: ShoppingBag },
-          ] as const).map(t => (
-            <button
-              key={t.id}
-              onClick={() => setAbaAtiva(t.id as Aba)}
-              className={`px-6 py-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest border-b-2 transition-colors ${abaAtiva === t.id
-                ? 'border-[#55833d] text-[#55833d]'
-                : 'border-transparent text-[#394158]/50 hover:text-[#394158]'
-                }`}
-            >
-              <t.Icon size={16} /> {t.label}
-            </button>
-          ))}
-        </nav>
-
-        {/* Tabs mobile (pills) */}
-        <nav className="md:hidden flex gap-2 px-4 py-3 overflow-x-auto no-scrollbar bg-white border-b border-gray-100">
-          {([
-            { id: 'dashboard', label: 'Visão' },
-            { id: 'produtos', label: 'Produtos' },
-            { id: 'pedidos', label: 'Pedidos' },
-          ] as const).map(t => (
-            <button
-              key={t.id}
-              onClick={() => setAbaAtiva(t.id as Aba)}
-              className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-colors ${abaAtiva === t.id ? 'bg-[#55833d] text-white' : 'bg-gray-100 text-[#394158]'
-                }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="py-4 md:py-6 space-y-6">
-          {/* DASHBOARD */}
-          {abaAtiva === 'dashboard' && (
-            <>
-              <section className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                <Card padding="md" className="flex justify-between items-center gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Produtos</p>
-                    <h3 className="text-xl md:text-2xl font-black italic text-[#394158]">{produtos.length}</h3>
-                  </div>
-                  <Package className="text-[#55833d] shrink-0" size={24} />
-                </Card>
-                <Card padding="md" className="flex justify-between items-center gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Pedidos</p>
-                    <h3 className="text-xl md:text-2xl font-black italic text-[#394158]">{pedidos.length}</h3>
-                  </div>
-                  <ShoppingBag className="text-[#f9943b] shrink-0" size={24} />
-                </Card>
-                <Card padding="md" className="flex justify-between items-center gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Faturado</p>
-                    <h3 className="text-xl md:text-2xl font-black italic text-[#55833d]">
-                      R$ {pedidos.reduce((s, p) => s + Number(p.valorTotal || 0), 0).toFixed(0)}
-                    </h3>
-                  </div>
-                  <DollarSign className="text-[#55833d] shrink-0" size={24} />
-                </Card>
-                <Card padding="md" className="flex justify-between items-center gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Status</p>
-                    <h3 className={`text-[10px] md:text-xs font-black italic ${loja.verificada ? 'text-[#55833d]' : 'text-[#f9943b]'}`}>
-                      {loja.verificada ? 'Verificada' : 'Pendente'}
-                    </h3>
-                  </div>
-                  {loja.verificada
-                    ? <CheckCircle className="text-[#55833d] shrink-0" size={24} />
-                    : <ShieldOff className="text-[#f9943b] shrink-0" size={24} />}
-                </Card>
-              </section>
-
-              <Card padding="md">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-sm md:text-base font-black uppercase italic text-[#394158]">Últimos pedidos</h3>
-                  <Link to="#" onClick={(e) => { e.preventDefault(); setAbaAtiva('pedidos'); }}
-                    className="text-[10px] font-black uppercase text-[#55833d] hover:underline">Ver todos</Link>
-                </div>
-                {pedidos.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-8">Nenhum pedido ainda</p>
-                ) : (
-                  <div className="space-y-2">
-                    {pedidos.slice(0, 3).map(p => (
-                      <div key={p.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
-                        <div className="min-w-0">
-                          <p className="text-xs font-black text-[#394158]">#{p.id}</p>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase">{p.statusEntrega || '—'}</p>
-                        </div>
-                        <p className="text-sm font-black text-[#55833d]">R$ {Number(p.valorTotal).toFixed(2)}</p>
-                      </div>
+          <nav className="flex flex-col gap-2">
+            {([
+              { id: 'dashboard', label: 'Visão geral', Icon: LayoutDashboard },
+              { id: 'pedidos', label: 'Pedidos', Icon: ShoppingBag },
+              { id: 'produtos', label: 'Produtos', Icon: Package },
+              { id: 'loja', label: 'Loja', Icon: Store },
+            ] as const).map(t => (
+              <div key={t.id} className="flex flex-col">
+                <button
+                  onClick={() => setAbaAtiva(t.id as Aba)}
+                  className={`px-4 py-3 flex items-center gap-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${abaAtiva === t.id
+                    ? 'bg-[#55833d] text-white shadow-md'
+                    : 'text-[#394158]/60 hover:bg-gray-50 hover:text-[#394158]'
+                    }`}
+                >
+                  <t.Icon size={18} /> {t.label}
+                </button>
+                {t.id === 'loja' && abaAtiva === 'loja' && (
+                  <div className="flex flex-col ml-4 mt-2 gap-1 border-l-2 border-gray-100 pl-2 animate-in slide-in-from-top-1 fade-in duration-200">
+                    {([
+                      { id: 'informacoes', label: 'Informações', Icon: Palette },
+                      { id: 'enderecos', label: 'Endereços', Icon: MapPin },
+                      { id: 'exclusao', label: 'Excluir Loja', Icon: AlertTriangle },
+                    ] as const).map(sub => (
+                      <button
+                        key={sub.id}
+                        onClick={() => setSubAbaLoja(sub.id as SubAbaLoja)}
+                        className={`px-3 py-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${subAbaLoja === sub.id
+                          ? (sub.id === 'exclusao' ? 'bg-red-50 text-red-600' : 'bg-[#55833d]/10 text-[#55833d]')
+                          : (sub.id === 'exclusao' ? 'text-red-400 hover:bg-red-50 hover:text-red-500' : 'text-gray-500 hover:bg-gray-50 hover:text-[#394158]')
+                          }`}
+                      >
+                        <sub.Icon size={14} /> {sub.label}
+                      </button>
                     ))}
                   </div>
                 )}
-              </Card>
-            </>
-          )}
-
-          {/* PRODUTOS */}
-          {abaAtiva === 'produtos' && (
-            <>
-              <div className="flex justify-between items-center">
-                <h2 className="text-base md:text-xl font-black uppercase italic text-[#394158]">Meus produtos</h2>
-                <Button onClick={abrirNovoProduto} iconLeft={<Plus size={16} />}>Adicionar</Button>
               </div>
-              {produtos.length === 0 ? (
-                <Card padding="lg" className="text-center">
-                  <Package className="text-gray-300 mx-auto mb-3" size={40} />
-                  <p className="text-sm text-gray-400">Você ainda não tem produtos. Cadastre o primeiro!</p>
-                </Card>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {produtos.map(p => (
-                    <Card key={p.id} padding="sm" className="flex flex-col">
-                      <div className="aspect-square rounded-xl overflow-hidden bg-gray-100 mb-3">
-                        {p.imagemUrl
-                          ? <img src={p.imagemUrl} alt={p.nome} className="w-full h-full object-cover" />
-                          : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon /></div>}
-                      </div>
-                      <h3 className="text-xs font-black uppercase text-[#394158] line-clamp-2 mb-1">{p.nome}</h3>
-                      <p className="text-[10px] font-bold text-gray-400">{p.nomeCategoria}</p>
-                      <p className="text-sm font-black text-[#55833d] mt-1">R$ {Number(p.precoAtual).toFixed(2)}/{p.unidadeMedida}</p>
-                      <p className="text-[10px] font-bold text-gray-400 mt-0.5">Estoque: {p.estoqueAtual}</p>
-                      <div className="mt-3 flex gap-2">
-                        <button onClick={() => abrirEditarProduto(p)}
-                          className="flex-1 p-2 bg-[#F5F2ED] text-[#394158] hover:bg-[#f9943b] hover:text-white rounded-lg transition-colors">
-                          <Edit2 size={12} className="mx-auto" />
-                        </button>
-                        <button onClick={() => setConfirmarDelete({ aberto: true, id: p.id })}
-                          className="flex-1 p-2 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors">
-                          <Trash2 size={12} className="mx-auto" />
-                        </button>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </>
+            ))}
+          </nav>
+        </aside>
+
+        {/* MAIN CONTENT */}
+        <main className="flex-1 px-4 md:px-8 py-6 md:py-8 overflow-y-auto">
+
+          {/* Nome da loja no Mobile (já que tiramos o PageHeader) */}
+          <div className="md:hidden mb-4">
+            <h1 className="text-xl font-black italic text-[#394158]">{loja.nomeLoja}</h1>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1 mt-1">
+              <MapPin size={10} />
+              {loja.cidade ?? ''}{loja.estado ? ' · ' + loja.estado : ''}
+            </p>
+          </div>
+
+          {/* Aviso de loja não verificada */}
+          {lojaNaoVerificada && (
+            <div className="bg-[#f9943b]/10 border border-[#f9943b]/20 rounded-2xl px-4 py-3 flex items-center gap-3 mb-4">
+              <AlertTriangle size={18} className="text-[#f9943b] shrink-0" />
+              <p className="text-xs font-bold text-[#394158]">
+                {loja.suspensa
+                  ? `Loja suspensa${loja.motivoSuspensao ? `: ${loja.motivoSuspensao}` : ''}.`
+                  : 'Sua loja está aguardando verificação do admin. Seus produtos só aparecem na vitrine após aprovação.'}
+              </p>
+            </div>
           )}
 
-          {/* PEDIDOS */}
-          {abaAtiva === 'pedidos' && (
-            <>
-              <h2 className="text-base md:text-xl font-black uppercase italic text-[#394158]">Pedidos recebidos</h2>
-              {pedidos.length === 0 ? (
-                <Card padding="lg" className="text-center">
-                  <ShoppingBag className="text-gray-300 mx-auto mb-3" size={40} />
-                  <p className="text-sm text-gray-400">Nenhum pedido ainda</p>
+          {/* Tabs mobile (pills) */}
+          <nav className="md:hidden flex gap-2 mb-6 overflow-x-auto no-scrollbar">
+            {([
+              { id: 'dashboard', label: 'Visão' },
+              { id: 'produtos', label: 'Produtos' },
+              { id: 'pedidos', label: 'Pedidos' },
+              { id: 'loja', label: 'Loja' },
+            ] as const).map(t => (
+              <button
+                key={t.id}
+                onClick={() => setAbaAtiva(t.id as Aba)}
+                className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-colors ${abaAtiva === t.id ? 'bg-[#55833d] text-white' : 'bg-white border border-gray-200 text-[#394158]'
+                  }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="space-y-6">
+            {/* DASHBOARD */}
+            {abaAtiva === 'dashboard' && (
+              <>
+                <section className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                  <Card padding="md" className="flex justify-between items-center gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Produtos</p>
+                      <h3 className="text-xl md:text-2xl font-black italic text-[#394158]">{produtos.length}</h3>
+                    </div>
+                    <Package className="text-[#55833d] shrink-0" size={24} />
+                  </Card>
+                  <Card padding="md" className="flex justify-between items-center gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Pedidos</p>
+                      <h3 className="text-xl md:text-2xl font-black italic text-[#394158]">{pedidos.length}</h3>
+                    </div>
+                    <ShoppingBag className="text-[#f9943b] shrink-0" size={24} />
+                  </Card>
+                  <Card padding="md" className="flex justify-between items-center gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Faturado</p>
+                      <h3 className="text-xl md:text-2xl font-black italic text-[#55833d]">
+                        R$ {pedidos.reduce((s, p) => s + Number(p.valorTotal || 0), 0).toFixed(0)}
+                      </h3>
+                    </div>
+                    <DollarSign className="text-[#55833d] shrink-0" size={24} />
+                  </Card>
+                  <Card padding="md" className="flex justify-between items-center gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 truncate">Status</p>
+                      <h3 className={`text-[10px] md:text-xs font-black italic ${loja.verificada ? 'text-[#55833d]' : 'text-[#f9943b]'}`}>
+                        {loja.verificada ? 'Verificada' : 'Pendente'}
+                      </h3>
+                    </div>
+                    {loja.verificada
+                      ? <CheckCircle className="text-[#55833d] shrink-0" size={24} />
+                      : <ShieldOff className="text-[#f9943b] shrink-0" size={24} />}
+                  </Card>
+                </section>
+
+                <Card padding="md">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-sm md:text-base font-black uppercase italic text-[#394158]">Últimos pedidos</h3>
+                    <Link to="#" onClick={(e) => { e.preventDefault(); setAbaAtiva('pedidos'); }}
+                      className="text-[10px] font-black uppercase text-[#55833d] hover:underline">Ver todos</Link>
+                  </div>
+                  {pedidos.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-8">Nenhum pedido ainda</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {pedidos.slice(0, 3).map(p => (
+                        <div key={p.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
+                          <div className="min-w-0">
+                            <p className="text-xs font-black text-[#394158]">#{p.id}</p>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase">{p.statusEntrega || '—'}</p>
+                          </div>
+                          <p className="text-sm font-black text-[#55833d]">R$ {Number(p.valorTotal).toFixed(2)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </Card>
-              ) : (
-                <div className="space-y-3">
-                  {pedidos.map(p => (
-                    <Card key={p.id} padding="md" className="flex flex-col gap-4">
-                      {/* HEADER DO PEDIDO */}
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-black uppercase text-[#394158]">Pedido #{p.id}</h3>
-                          <div className="flex flex-wrap items-center gap-2 mt-1">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase bg-gray-50 px-2 py-0.5 rounded-md">
-                              {p.statusPagamento || '—'}
-                            </span>
-                            <span className="text-[10px] font-bold text-[#55833d] uppercase bg-[#55833d]/10 px-2 py-0.5 rounded-md">
-                              {p.itens?.length || 0} itens
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
-                          <span className="text-base font-black text-[#55833d] md:mr-3">R$ {Number(p.valorTotal).toFixed(2)}</span>
-                          <select
-                            value={p.statusEntrega || 'PEDIDO_RECEBIDO'}
-                            onChange={(e) => avancarStatusPedido(p.id, e.target.value)}
-                            className="bg-[#55833d] text-white text-[10px] font-black uppercase px-3 py-2 rounded-lg outline-none cursor-pointer hover:bg-[#436830] transition-colors appearance-none text-center shadow-sm"
-                            style={{ textAlignLast: 'center' }}
-                          >
-                            <option value="PEDIDO_RECEBIDO">Pedido Recebido</option>
-                            <option value="PREPARANDO">Preparando</option>
-                            {p.retiradaNaLoja ? (
-                              <>
-                                <option value="PEDIDO_EM_COLETA">Embalando</option>
-                                <option value="AGUARDANDO_RETIRADA">Aguardando Retirada</option>
-                              </>
-                            ) : (
-                              <>
-                                <option value="AGUARDANDO_ENTREGADOR">Aguardando Entregador</option>
-                                <option value="ENTREGADOR_ACEITOU">Entregador Aceitou</option>
-                                <option value="PEDIDO_EM_COLETA">Em Coleta / Embalando</option>
-                                <option value="SAIU_PARA_ENTREGA">Saiu para Entrega</option>
-                              </>
-                            )}
-                            <option value="ENTREGUE">Entregue</option>
-                            <option value="CANCELADO">Cancelado</option>
-                          </select>
-                        </div>
-                      </div>
+              </>
+            )}
 
-                      {/* INFORMAÇÕES DO CLIENTE */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                        <div className="flex items-start gap-2 text-gray-600">
-                          <User size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
-                          <div>
-                            <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Comprador</p>
-                            <p className="font-black text-[#394158] uppercase">{p.nomeComprador || 'Cliente não identificado'}</p>
-                          </div>
+            {/* PRODUTOS */}
+            {abaAtiva === 'produtos' && (
+              <>
+                <div className="flex justify-between items-center">
+                  <h2 className="text-base md:text-xl font-black uppercase italic text-[#394158]">Meus produtos</h2>
+                  <Button onClick={abrirNovoProduto} iconLeft={<Plus size={16} />}>Adicionar</Button>
+                </div>
+                {produtos.length === 0 ? (
+                  <Card padding="lg" className="text-center">
+                    <Package className="text-gray-300 mx-auto mb-3" size={40} />
+                    <p className="text-sm text-gray-400">Você ainda não tem produtos. Cadastre o primeiro!</p>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {produtos.map(p => (
+                      <Card key={p.id} padding="sm" className="flex flex-col">
+                        <div className="aspect-square rounded-xl overflow-hidden bg-gray-100 mb-3">
+                          {p.imagemUrl
+                            ? <img src={p.imagemUrl} alt={p.nome} className="w-full h-full object-cover" />
+                            : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon /></div>}
                         </div>
-                        <div className="flex items-start gap-2 text-gray-600">
-                          <MapPin size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
-                          <div>
-                            <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Entrega / Retirada</p>
-                            <p className="font-black text-[#394158]">{p.enderecoEntrega || 'RETIRADA NA LOJA'}</p>
-                          </div>
+                        <h3 className="text-xs font-black uppercase text-[#394158] line-clamp-2 mb-1">{p.nome}</h3>
+                        <p className="text-[10px] font-bold text-gray-400">{p.nomeCategoria}</p>
+                        <p className="text-sm font-black text-[#55833d] mt-1">R$ {Number(p.precoAtual).toFixed(2)}/{p.unidadeMedida}</p>
+                        <p className="text-[10px] font-bold text-gray-400 mt-0.5">Estoque: {p.estoqueAtual}</p>
+                        <div className="mt-3 flex gap-2">
+                          <button onClick={() => abrirEditarProduto(p)}
+                            className="flex-1 p-2 bg-[#F5F2ED] text-[#394158] hover:bg-[#f9943b] hover:text-white rounded-lg transition-colors">
+                            <Edit2 size={12} className="mx-auto" />
+                          </button>
+                          <button onClick={() => setConfirmarDelete({ aberto: true, id: p.id })}
+                            className="flex-1 p-2 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors">
+                            <Trash2 size={12} className="mx-auto" />
+                          </button>
                         </div>
-                      </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
 
-                      {/* CONFIRMAR RETIRADA */}
-                      {p.statusEntrega === 'AGUARDANDO_RETIRADA' && (
-                        <div className="bg-gradient-to-r from-[#802D44]/8 to-[#802D44]/5 rounded-xl p-4 border border-[#802D44]/15 flex flex-col gap-3">
-                          <div className="flex items-center gap-2">
-                            <MapPin size={16} className="text-[#802D44] shrink-0" />
-                            <div>
-                              <p className="text-[10px] font-black uppercase text-[#802D44] tracking-widest">Confirmar Retirada</p>
-                              <p className="text-[9px] text-gray-500 font-bold uppercase mt-0.5">Peça ao cliente o código de 4 dígitos</p>
+            {/* PEDIDOS */}
+            {abaAtiva === 'pedidos' && (
+              <>
+                <h2 className="text-base md:text-xl font-black uppercase italic text-[#394158]">Pedidos recebidos</h2>
+                {pedidos.length === 0 ? (
+                  <Card padding="lg" className="text-center">
+                    <ShoppingBag className="text-gray-300 mx-auto mb-3" size={40} />
+                    <p className="text-sm text-gray-400">Nenhum pedido ainda</p>
+                  </Card>
+                ) : (
+                  <div className="space-y-3">
+                    {pedidos.map(p => (
+                      <Card key={p.id} padding="md" className="flex flex-col gap-4">
+                        {/* HEADER DO PEDIDO */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-black uppercase text-[#394158]">Pedido #{p.id}</h3>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase bg-gray-50 px-2 py-0.5 rounded-md">
+                                {p.statusPagamento || '—'}
+                              </span>
+                              <span className="text-[10px] font-bold text-[#55833d] uppercase bg-[#55833d]/10 px-2 py-0.5 rounded-md">
+                                {p.itens?.length || 0} itens
+                              </span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              maxLength={4}
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              placeholder="0000"
-                              value={codigoRetiradaInput[p.id] || ''}
-                              onChange={(e) => {
-                                const val = e.target.value.replace(/\D/g, '').slice(0, 4);
-                                setCodigoRetiradaInput(prev => ({ ...prev, [p.id]: val }));
-                              }}
-                              className="w-24 bg-white border-2 border-[#802D44]/20 focus:border-[#802D44]/50 p-2.5 rounded-xl outline-none text-center text-lg font-black text-[#802D44] tracking-[0.4em] transition-colors"
-                            />
-                            <button
-                              onClick={() => handleConfirmarRetirada(p.id)}
-                              disabled={confirmandoRetirada === p.id || (codigoRetiradaInput[p.id] || '').length !== 4}
-                              className="flex-1 bg-[#802D44] disabled:bg-gray-200 disabled:text-gray-400 text-white py-2.5 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all"
+                          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
+                            <span className="text-base font-black text-[#55833d] md:mr-3">R$ {Number(p.valorTotal).toFixed(2)}</span>
+                            <select
+                              value={p.statusEntrega || 'PEDIDO_RECEBIDO'}
+                              onChange={(e) => avancarStatusPedido(p.id, e.target.value)}
+                              className="bg-[#55833d] text-white text-[10px] font-black uppercase px-3 py-2 rounded-lg outline-none cursor-pointer hover:bg-[#436830] transition-colors appearance-none text-center shadow-sm"
+                              style={{ textAlignLast: 'center' }}
                             >
-                              {confirmandoRetirada === p.id ? 'Confirmando...' : 'Confirmar Retirada'}
-                            </button>
+                              <option value="PEDIDO_RECEBIDO">Pedido Recebido</option>
+                              <option value="PREPARANDO">Preparando</option>
+                              {p.retiradaNaLoja ? (
+                                <>
+                                  <option value="PEDIDO_EM_COLETA">Embalando</option>
+                                  <option value="AGUARDANDO_RETIRADA">Aguardando Retirada</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value="AGUARDANDO_ENTREGADOR">Aguardando Entregador</option>
+                                  <option value="ENTREGADOR_ACEITOU">Entregador Aceitou</option>
+                                  <option value="PEDIDO_EM_COLETA">Em Coleta / Embalando</option>
+                                  <option value="SAIU_PARA_ENTREGA">Saiu para Entrega</option>
+                                </>
+                              )}
+                              <option value="ENTREGUE">Entregue</option>
+                              <option value="CANCELADO">Cancelado</option>
+                            </select>
                           </div>
                         </div>
-                      )}
 
-                      {/* LISTA DE PRODUTOS */}
-                      <div className="bg-[#F5F2ED] rounded-xl p-3 space-y-2">
-                        <p className="font-black uppercase text-[10px] text-[#394158] tracking-widest mb-2">Produtos do Pedido</p>
-                        {p.itens?.map((item: any, i: number) => (
-                          <div key={i} className="flex justify-between items-center text-xs border-b border-gray-200/50 last:border-0 pb-2 last:pb-0">
-                            <span className="font-bold text-gray-600">
-                              <span className="text-[#55833d] mr-1">{item.quantidade}x</span>
-                              {item.nomeProduto}
-                            </span>
-                            <span className="font-black text-[#394158]">R$ {Number(item.subtotal).toFixed(2)}</span>
+                        {/* INFORMAÇÕES DO CLIENTE */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                          <div className="flex items-start gap-2 text-gray-600">
+                            <User size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
+                            <div>
+                              <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Comprador</p>
+                              <p className="font-black text-[#394158] uppercase">{p.nomeComprador || 'Cliente não identificado'}</p>
+                            </div>
                           </div>
-                        ))}
+                          <div className="flex items-start gap-2 text-gray-600">
+                            <MapPin size={14} className="mt-0.5 text-[#f9943b] shrink-0" />
+                            <div>
+                              <p className="font-bold uppercase text-[10px] text-gray-400 tracking-wider">Entrega / Retirada</p>
+                              <p className="font-black text-[#394158]">{p.enderecoEntrega || 'RETIRADA NA LOJA'}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* CONFIRMAR RETIRADA */}
+                        {p.statusEntrega === 'AGUARDANDO_RETIRADA' && (
+                          <div className="bg-gradient-to-r from-[#802D44]/8 to-[#802D44]/5 rounded-xl p-4 border border-[#802D44]/15 flex flex-col gap-3">
+                            <div className="flex items-center gap-2">
+                              <MapPin size={16} className="text-[#802D44] shrink-0" />
+                              <div>
+                                <p className="text-[10px] font-black uppercase text-[#802D44] tracking-widest">Confirmar Retirada</p>
+                                <p className="text-[9px] text-gray-500 font-bold uppercase mt-0.5">Peça ao cliente o código de 4 dígitos</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                maxLength={4}
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                placeholder="0000"
+                                value={codigoRetiradaInput[p.id] || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                                  setCodigoRetiradaInput(prev => ({ ...prev, [p.id]: val }));
+                                }}
+                                className="w-24 bg-white border-2 border-[#802D44]/20 focus:border-[#802D44]/50 p-2.5 rounded-xl outline-none text-center text-lg font-black text-[#802D44] tracking-[0.4em] transition-colors"
+                              />
+                              <button
+                                onClick={() => handleConfirmarRetirada(p.id)}
+                                disabled={confirmandoRetirada === p.id || (codigoRetiradaInput[p.id] || '').length !== 4}
+                                className="flex-1 bg-[#802D44] disabled:bg-gray-200 disabled:text-gray-400 text-white py-2.5 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all"
+                              >
+                                {confirmandoRetirada === p.id ? 'Confirmando...' : 'Confirmar Retirada'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* LISTA DE PRODUTOS */}
+                        <div className="bg-[#F5F2ED] rounded-xl p-3 space-y-2">
+                          <p className="font-black uppercase text-[10px] text-[#394158] tracking-widest mb-2">Produtos do Pedido</p>
+                          {p.itens?.map((item: any, i: number) => (
+                            <div key={i} className="flex justify-between items-center text-xs border-b border-gray-200/50 last:border-0 pb-2 last:pb-0">
+                              <span className="font-bold text-gray-600">
+                                <span className="text-[#55833d] mr-1">{item.quantidade}x</span>
+                                {item.nomeProduto}
+                              </span>
+                              <span className="font-black text-[#394158]">R$ {Number(item.subtotal).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* LOJA */}
+            {abaAtiva === 'loja' && (
+              <>
+                <h2 className="text-base md:text-xl font-black uppercase italic text-[#394158] mb-4">Gerenciar Loja</h2>
+                <nav className="flex md:hidden gap-2 mb-6 overflow-x-auto no-scrollbar">
+                  {([
+                    { id: 'enderecos', label: 'Endereços', Icon: MapPin },
+                    { id: 'informacoes', label: 'Informações', Icon: Palette },
+                    { id: 'exclusao', label: 'Excluir Loja', Icon: AlertTriangle },
+                  ] as const).map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => setSubAbaLoja(t.id as SubAbaLoja)}
+                      className={`px-4 py-2 flex items-center gap-2 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest whitespace-nowrap transition-colors ${subAbaLoja === t.id ? (t.id === 'exclusao' ? 'bg-red-600 text-white' : 'bg-[#394158] text-white') : (t.id === 'exclusao' ? 'bg-red-50 text-red-500 border border-red-100 hover:bg-red-100' : 'bg-white border border-gray-200 text-[#394158] hover:bg-gray-50')
+                        }`}
+                    >
+                      <t.Icon size={14} /> {t.label}
+                    </button>
+                  ))}
+                </nav>
+
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  {subAbaLoja === 'enderecos' && (
+                    <GerenciadorEnderecos lojaAtual={loja} onSaveSede={salvarLoja} />
+                  )}
+
+                  {subAbaLoja === 'informacoes' && (
+                    <Card padding="md">
+                      <FormLoja lojaAtual={loja} onSave={salvarLoja} />
+                    </Card>
+                  )}
+
+                  {subAbaLoja === 'exclusao' && (
+                    <Card padding="md" className="border-red-100 bg-red-50/50 mt-4">
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="text-center md:text-left">
+                          <h3 className="text-sm md:text-base font-black uppercase tracking-wider text-red-600 flex items-center justify-center md:justify-start gap-2">
+                            <AlertTriangle size={18} /> Zona de Perigo
+                          </h3>
+                          <p className="text-xs text-red-500/80 mt-1 max-w-sm">
+                            A exclusão da loja é permanente e todos os seus produtos ficarão inacessíveis. Esta ação não pode ser desfeita.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setTextoConfirmacao(''); setModalExcluirLoja(true); }}
+                          className="bg-red-600 hover:bg-red-700 text-white py-2.5 px-6 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-md shrink-0 whitespace-nowrap w-full md:w-auto"
+                        >
+                          Excluir Loja
+                        </button>
                       </div>
                     </Card>
-                  ))}
+                  )}
                 </div>
-              )}
-            </>
-          )}
+              </>
+            )}
 
-        </div>
-      </main>
+          </div>
+        </main>
+      </div>
 
       <ModalLoja open={modalLoja} onClose={() => setModalLoja(false)} lojaAtual={loja} onSave={salvarLoja} />
+
+      {/* MODAL EXCLUIR LOJA */}
+      <Modal open={modalExcluirLoja} onClose={() => setModalExcluirLoja(false)} size="sm">
+        <div className="text-center space-y-4">
+          <div className="w-14 h-14 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2">
+            <AlertTriangle size={28} />
+          </div>
+          <h3 className="text-lg font-black uppercase italic text-primary-earth">Excluir Loja?</h3>
+          <p className="text-xs text-gray-500 leading-relaxed">
+            Você está prestes a excluir sua loja. Seus produtos ficarão inacessíveis e a ação <strong>não pode ser desfeita</strong>.
+          </p>
+          <p className="text-xs text-gray-500">
+            Digite <strong className="text-red-600">EXCLUIR</strong> para confirmar:
+          </p>
+          <input
+            type="text"
+            placeholder="Digite EXCLUIR"
+            value={textoConfirmacao}
+            onChange={(e) => setTextoConfirmacao(e.target.value)}
+            className="w-full bg-[#F5F2ED] p-3 rounded-xl text-xs font-bold outline-none text-center uppercase tracking-widest border border-red-200 focus:border-red-500"
+          />
+          <div className="flex gap-2 pt-2">
+            <Button variant="ghost" fullWidth onClick={() => setModalExcluirLoja(false)}>Cancelar</Button>
+            <button
+              type="button"
+              onClick={handleExcluirLoja}
+              disabled={textoConfirmacao !== 'EXCLUIR' || excluindoLoja}
+              className="w-full py-3 bg-red-600 disabled:bg-red-300 text-white rounded-xl font-black text-xs uppercase shadow-md transition-colors"
+            >
+              {excluindoLoja ? 'Excluindo...' : 'Confirmar'}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal open={modalProduto} onClose={() => setModalProduto(false)}
         title={formProduto.id ? 'Editar produto' : 'Novo produto'} size="lg">
@@ -635,6 +809,40 @@ export default function PainelVendedor() {
             </label>
             {formProduto.imagemUrl && <img src={formProduto.imagemUrl} className="mt-3 w-full h-32 object-cover rounded-xl" alt="preview" />}
           </div>
+
+          <div className="bg-[#F5F2ED] rounded-xl p-4">
+            <h4 className="text-[10px] font-black uppercase text-[#55833d] tracking-widest mb-3">Disponibilidade (Onde o cliente pode retirar?)</h4>
+
+            <label className="flex items-start gap-3 p-3 bg-white rounded-xl shadow-sm mb-2 cursor-pointer border-2 border-transparent hover:border-gray-200">
+              <input type="checkbox" checked={formProduto.disponivelSede}
+                onChange={(e) => setFormProduto({ ...formProduto, disponivelSede: e.target.checked })}
+                className="mt-1 w-4 h-4 text-[#55833d] rounded border-gray-300 focus:ring-[#55833d]" />
+              <div>
+                <p className="text-xs font-bold text-[#394158]">Sede (Endereço Principal)</p>
+                <p className="text-[10px] text-gray-500">{loja?.cidade} - {loja?.estado}</p>
+              </div>
+            </label>
+
+            {enderecos.map(end => (
+              <label key={end.id} className="flex items-start gap-3 p-3 bg-white rounded-xl shadow-sm mb-2 cursor-pointer border-2 border-transparent hover:border-gray-200">
+                <input type="checkbox"
+                  checked={(formProduto.filiaisIds || []).includes(end.id)}
+                  onChange={(e) => {
+                    const ids = formProduto.filiaisIds || [];
+                    setFormProduto({
+                      ...formProduto,
+                      filiaisIds: e.target.checked ? [...ids, end.id] : ids.filter((id: number) => id !== end.id)
+                    });
+                  }}
+                  className="mt-1 w-4 h-4 text-[#55833d] rounded border-gray-300 focus:ring-[#55833d]" />
+                <div>
+                  <p className="text-xs font-bold text-[#394158]">{end.apelido || 'Endereço Adicional'}</p>
+                  <p className="text-[10px] text-gray-500">{end.rua}, {end.cidade} - {end.estado}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+
           <Button onClick={salvarProduto} fullWidth size="lg" iconLeft={<CheckCircle size={18} />}>
             {formProduto.id ? 'Salvar' : 'Publicar produto'}
           </Button>
@@ -655,10 +863,10 @@ export default function PainelVendedor() {
       <BottomTabBar
         tabs={[
           { to: '/home2', label: 'Vitrine', Icon: HomeIcon },
-          { to: '/painelvendedor', label: 'Painel', Icon: LayoutDashboard },
+          { to: '/painelvendedor', label: 'Painel', Icon: Store },
           { to: '/receitas', label: 'Receitas', Icon: BookOpen },
           { to: '/chat', label: 'Chat', Icon: MessageCircle },
-          { to: '/perfilvendedor', label: 'Perfil', Icon: User },
+          { to: '/perfil', label: 'Perfil', Icon: User },
         ]}
       />
     </div>

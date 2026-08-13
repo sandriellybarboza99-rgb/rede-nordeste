@@ -22,7 +22,7 @@ export const Navbar: React.FC<NavbarProps> = ({ rotaAtiva }) => {
   const isVendedor = perfil === 'PRODUTOR';
   const homePath = isVendedor ? '/home2' : '/home2';
   const receitasPath = '/receitas';
-  const perfilPath = isVendedor ? '/perfilvendedor' : '/perfil';
+  const perfilPath = '/perfil';
 
   const links = isVendedor
     ? [

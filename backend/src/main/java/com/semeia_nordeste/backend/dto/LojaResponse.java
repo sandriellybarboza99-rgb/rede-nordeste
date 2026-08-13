@@ -2,6 +2,8 @@ package com.semeia_nordeste.backend.dto;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import com.semeia_nordeste.backend.model.Loja;
 
@@ -34,7 +36,16 @@ public record LojaResponse(
 
         // Perfil da empreendedora (separado dos dados da loja)
         String fotoEmpreendedoraUrl,
-        String historiaEmpreendedora) {
+        String historiaEmpreendedora,
+
+        // Regras de entrega da sede
+        String diasHorariosFuncionamento,
+        String regioesEntrega,
+        String diasHorariosEntrega,
+        String diasHorariosRetirada,
+        
+        // Endereços adicionais
+        List<EnderecoLojaResponse> enderecosAdicionais) {
 
     public static LojaResponse fromEntity(Loja l) {
         return new LojaResponse(
@@ -62,6 +73,11 @@ public record LojaResponse(
                 l.getChavePix(),
                 l.getTipoChavePix(),
                 l.getFotoEmpreendedoraUrl(),
-                l.getHistoriaEmpreendedora());
+                l.getHistoriaEmpreendedora(),
+                l.getDiasHorariosFuncionamento(),
+                l.getRegioesEntrega(),
+                l.getDiasHorariosEntrega(),
+                l.getDiasHorariosRetirada(),
+                l.getEnderecos() != null ? l.getEnderecos().stream().map(EnderecoLojaResponse::fromEntity).collect(Collectors.toList()) : List.of());
     }
 }

@@ -1,23 +1,30 @@
 package com.semeia_nordeste.backend.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.semeia_nordeste.backend.dto.EmpreendedoraRequest;
+import com.semeia_nordeste.backend.dto.EnderecoLojaRequest;
 import com.semeia_nordeste.backend.dto.LojaRequest;
 import com.semeia_nordeste.backend.exception.BusinessException;
 import com.semeia_nordeste.backend.exception.NotFoundException;
+import com.semeia_nordeste.backend.model.EnderecoLoja;
 import com.semeia_nordeste.backend.model.Loja;
 import com.semeia_nordeste.backend.model.Usuario;
+import com.semeia_nordeste.backend.repository.EnderecoLojaRepository;
 import com.semeia_nordeste.backend.repository.LojaRepository;
 
 @Service
 public class LojaService {
 
     private final LojaRepository lojaRepository;
+    private final EnderecoLojaRepository enderecoLojaRepository;
 
-    public LojaService(LojaRepository lojaRepository) {
+    public LojaService(LojaRepository lojaRepository, EnderecoLojaRepository enderecoLojaRepository) {
         this.lojaRepository = lojaRepository;
+        this.enderecoLojaRepository = enderecoLojaRepository;
     }
 
     @Transactional
@@ -72,8 +79,25 @@ public class LojaService {
 
         loja.setChavePix(request.chavePix());
         loja.setTipoChavePix(request.tipoChavePix());
+        
+        loja.setDiasHorariosFuncionamento(request.diasHorariosFuncionamento());
+        loja.setRegioesEntrega(request.regioesEntrega());
+        loja.setDiasHorariosEntrega(request.diasHorariosEntrega());
+        loja.setDiasHorariosRetirada(request.diasHorariosRetirada());
 
         return lojaRepository.save(loja);
+    }
+
+    @Transactional
+    public void deletarPorUsuario(Usuario usuario) {
+        Loja loja = lojaRepository.findByUsuarioId(usuario.getId())
+                .orElseThrow(() -> new NotFoundException("Loja não encontrada."));
+        
+        loja.setUsuario(null);
+        loja.setSuspensa(true);
+        loja.setVerificada(false);
+        loja.setNomeLoja(loja.getNomeLoja() + " (Excluída)");
+        lojaRepository.save(loja);
     }
 
     public java.util.List<Loja> buscarEmpreendedoras() {
@@ -103,5 +127,56 @@ public class LojaService {
         loja.setFotoEmpreendedoraUrl(null);
         loja.setHistoriaEmpreendedora(null);
         return lojaRepository.save(loja);
+    }
+
+    // === ENDEREÇOS DA LOJA (FILIAIS) ===
+
+    public List<EnderecoLoja> listarEnderecosLoja(Usuario usuario) {
+        Loja loja = buscarPorUsuario(usuario);
+        return enderecoLojaRepository.findByLoja(loja);
+    }
+
+    @Transactional
+    public EnderecoLoja criarEnderecoLoja(Usuario usuario, EnderecoLojaRequest request) {
+        Loja loja = buscarPorUsuario(usuario);
+        EnderecoLoja endereco = new EnderecoLoja();
+        endereco.setLoja(loja);
+        return salvarDadosEnderecoLoja(endereco, request);
+    }
+
+    @Transactional
+    public EnderecoLoja atualizarEnderecoLoja(Usuario usuario, Long enderecoId, EnderecoLojaRequest request) {
+        Loja loja = buscarPorUsuario(usuario);
+        EnderecoLoja endereco = enderecoLojaRepository.findByIdAndLoja(enderecoId, loja)
+                .orElseThrow(() -> new NotFoundException("Endereço não encontrado para esta loja."));
+        return salvarDadosEnderecoLoja(endereco, request);
+    }
+
+    @Transactional
+    public void deletarEnderecoLoja(Usuario usuario, Long enderecoId) {
+        Loja loja = buscarPorUsuario(usuario);
+        EnderecoLoja endereco = enderecoLojaRepository.findByIdAndLoja(enderecoId, loja)
+                .orElseThrow(() -> new NotFoundException("Endereço não encontrado para esta loja."));
+        enderecoLojaRepository.delete(endereco);
+    }
+
+    private EnderecoLoja salvarDadosEnderecoLoja(EnderecoLoja endereco, EnderecoLojaRequest request) {
+        endereco.setNomeLocal(request.getNomeLocal());
+        endereco.setCep(request.getCep());
+        endereco.setBairro(request.getBairro());
+        endereco.setCidade(request.getCidade());
+        endereco.setEstado(request.getEstado() != null ? request.getEstado() : "SE");
+        endereco.setRua(request.getRua());
+        endereco.setNumero(request.getNumero());
+        
+        if (request.getLatitude() != null) endereco.setLatitude(request.getLatitude());
+        if (request.getLongitude() != null) endereco.setLongitude(request.getLongitude());
+
+        endereco.setDiasHorariosFuncionamento(request.getDiasHorariosFuncionamento());
+        endereco.setRegioesEntrega(request.getRegioesEntrega());
+        endereco.setDiasHorariosEntrega(request.getDiasHorariosEntrega());
+        endereco.setDiasHorariosRetirada(request.getDiasHorariosRetirada());
+
+        return enderecoLojaRepository.save(endereco);
     }
 }

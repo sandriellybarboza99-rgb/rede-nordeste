@@ -14,8 +14,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.semeia_nordeste.backend.dto.EmpreendedoraRequest;
+import com.semeia_nordeste.backend.dto.EnderecoLojaRequest;
+import com.semeia_nordeste.backend.dto.EnderecoLojaResponse;
 import com.semeia_nordeste.backend.dto.LojaRequest;
 import com.semeia_nordeste.backend.dto.LojaResponse;
+import com.semeia_nordeste.backend.model.EnderecoLoja;
 import com.semeia_nordeste.backend.model.Loja;
 import com.semeia_nordeste.backend.model.Usuario;
 import com.semeia_nordeste.backend.service.LojaService;
@@ -48,6 +51,13 @@ public class LojaController {
             @AuthenticationPrincipal Usuario usuario) {
         Loja loja = lojaService.atualizar(request, usuario);
         return ResponseEntity.ok(LojaResponse.fromEntity(loja));
+    }
+
+    // Produtor deleta sua própria loja
+    @DeleteMapping("/produtor/loja")
+    public ResponseEntity<Void> deletar(@AuthenticationPrincipal Usuario usuario) {
+        lojaService.deletarPorUsuario(usuario);
+        return ResponseEntity.noContent().build();
     }
 
     // Produtor vê sua própria loja
@@ -88,4 +98,41 @@ public class LojaController {
         lojaService.deletarPerfilEmpreendedora(usuario);
         return ResponseEntity.noContent().build();
     }
+
+    // === ENDEREÇOS DA LOJA (FILIAIS) ===
+
+    @GetMapping("/produtor/loja/enderecos")
+    public ResponseEntity<java.util.List<EnderecoLojaResponse>> listarEnderecosLoja(
+            @AuthenticationPrincipal Usuario usuario) {
+        return ResponseEntity.ok(
+                lojaService.listarEnderecosLoja(usuario).stream()
+                        .map(EnderecoLojaResponse::fromEntity)
+                        .toList());
+    }
+
+    @PostMapping("/produtor/loja/enderecos")
+    public ResponseEntity<EnderecoLojaResponse> criarEnderecoLoja(
+            @Valid @RequestBody EnderecoLojaRequest request,
+            @AuthenticationPrincipal Usuario usuario) {
+        EnderecoLoja endereco = lojaService.criarEnderecoLoja(usuario, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(EnderecoLojaResponse.fromEntity(endereco));
+    }
+
+    @PutMapping("/produtor/loja/enderecos/{id}")
+    public ResponseEntity<EnderecoLojaResponse> atualizarEnderecoLoja(
+            @PathVariable Long id,
+            @Valid @RequestBody EnderecoLojaRequest request,
+            @AuthenticationPrincipal Usuario usuario) {
+        EnderecoLoja endereco = lojaService.atualizarEnderecoLoja(usuario, id, request);
+        return ResponseEntity.ok(EnderecoLojaResponse.fromEntity(endereco));
+    }
+
+    @DeleteMapping("/produtor/loja/enderecos/{id}")
+    public ResponseEntity<Void> deletarEnderecoLoja(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Usuario usuario) {
+        lojaService.deletarEnderecoLoja(usuario, id);
+        return ResponseEntity.noContent().build();
+    }
+
 }

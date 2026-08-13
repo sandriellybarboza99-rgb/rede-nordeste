@@ -7,6 +7,7 @@ import {
   ShoppingCart,
   User,
   Store,
+  LayoutDashboard,
 } from "lucide-react";
 
 import {
@@ -347,9 +348,9 @@ export default function Chat() {
           perfil === "PRODUTOR"
             ? [
               { to: "/home2", label: "Início", Icon: HomeIcon },
-              { to: "/painelvendedor", label: "Painel", Icon: Store },
+              { to: "/painelvendedor", label: "Painel", Icon: LayoutDashboard },
               { to: "/chat", label: "Chat", Icon: MessageCircle },
-              { to: "/perfilvendedor", label: "Perfil", Icon: User },
+              { to: "/perfil", label: "Perfil", Icon: User },
             ]
             : [
               { to: "/home2", label: "Início", Icon: HomeIcon },

@@ -2,6 +2,8 @@ package com.semeia_nordeste.backend.model;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -11,6 +13,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.DecimalMin;
@@ -73,4 +77,15 @@ public class Produto {
 
     @Column(name = "peso_kg", precision = 8, scale = 2)
     private BigDecimal pesoKg = BigDecimal.valueOf(0.5);
+
+    @Column(name = "disponivel_sede", nullable = false)
+    private boolean disponivelSede = true;
+
+    @ManyToMany(fetch = jakarta.persistence.FetchType.EAGER)
+    @JoinTable(
+        name = "produto_filiais",
+        joinColumns = @JoinColumn(name = "produto_id"),
+        inverseJoinColumns = @JoinColumn(name = "endereco_loja_id")
+    )
+    private Set<EnderecoLoja> filiaisDisponiveis = new HashSet<>();
 }

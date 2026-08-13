@@ -83,15 +83,49 @@ public class EnderecoController {
         if (cepLimpo.length() != 8) {
             return ResponseEntity.badRequest().build();
         }
+
+        // 1. Tenta ViaCEP
         try {
             String url = "https://viacep.com.br/ws/" + cepLimpo + "/json/";
             Map<String, Object> dados = restTemplate.getForObject(url, Map.class);
-            if (dados == null || Boolean.TRUE.equals(dados.get("erro"))) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            if (dados != null && !Boolean.TRUE.equals(dados.get("erro")) && !"true".equals(String.valueOf(dados.get("erro")))) {
+                return ResponseEntity.ok(dados);
             }
-            return ResponseEntity.ok(dados);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+        } catch (Exception ignored) {
         }
+
+        // 2. Fallback: BrasilAPI (suporta CEPs de cidades que foram recém desmembradas/atualizadas pelos Correios)
+        try {
+            String urlBrasilApi = "https://brasilapi.com.br/api/cep/v1/" + cepLimpo;
+            Map<String, Object> dadosBrasilApi = restTemplate.getForObject(urlBrasilApi, Map.class);
+            if (dadosBrasilApi != null && dadosBrasilApi.get("city") != null) {
+                java.util.Map<String, Object> adaptado = new java.util.HashMap<>();
+                adaptado.put("cep", dadosBrasilApi.get("cep"));
+                adaptado.put("logradouro", dadosBrasilApi.getOrDefault("street", ""));
+                adaptado.put("bairro", dadosBrasilApi.getOrDefault("neighborhood", ""));
+                adaptado.put("localidade", dadosBrasilApi.get("city"));
+                adaptado.put("uf", dadosBrasilApi.get("state"));
+                return ResponseEntity.ok(adaptado);
+            }
+        } catch (Exception ignored) {
+        }
+
+        // 3. Fallback: AwesomeAPI
+        try {
+            String urlAwesome = "https://cep.awesomeapi.com.br/json/" + cepLimpo;
+            Map<String, Object> dadosAwesome = restTemplate.getForObject(urlAwesome, Map.class);
+            if (dadosAwesome != null && dadosAwesome.get("city") != null) {
+                java.util.Map<String, Object> adaptado = new java.util.HashMap<>();
+                adaptado.put("cep", dadosAwesome.get("cep"));
+                adaptado.put("logradouro", dadosAwesome.getOrDefault("address", ""));
+                adaptado.put("bairro", dadosAwesome.getOrDefault("district", ""));
+                adaptado.put("localidade", dadosAwesome.get("city"));
+                adaptado.put("uf", dadosAwesome.get("state"));
+                return ResponseEntity.ok(adaptado);
+            }
+        } catch (Exception ignored) {
+        }
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
 }

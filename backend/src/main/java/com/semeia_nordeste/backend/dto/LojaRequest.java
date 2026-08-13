@@ -33,5 +33,10 @@ public record LojaRequest(
                 Double longitudeLoja,
 
                 @Size(max = 150, message = "A chave PIX não pode exceder 150 caracteres") String chavePix,
-                @Size(max = 30, message = "O tipo da chave PIX não pode exceder 30 caracteres") String tipoChavePix) {
+                @Size(max = 30, message = "O tipo da chave PIX não pode exceder 30 caracteres") String tipoChavePix,
+                
+                String diasHorariosFuncionamento,
+                String regioesEntrega,
+                String diasHorariosEntrega,
+                String diasHorariosRetirada) {
 }

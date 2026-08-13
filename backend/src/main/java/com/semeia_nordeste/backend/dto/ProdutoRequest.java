@@ -20,5 +20,9 @@ public record ProdutoRequest(
                 // Peso em kg para cálculo de frete
                 @DecimalMin(value = "0.01", message = "Peso deve ser maior que zero") BigDecimal pesoKg,
 
-                String imagemUrl) {
+                String imagemUrl,
+                
+                Boolean disponivelSede,
+                
+                java.util.List<Long> filiaisIds) {
 }

@@ -8,10 +8,10 @@ import {
 } from 'lucide-react';
 import {
   buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho, getEmpreendedoras,
-} from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import { UserMenu } from '../components/ui/UserMenu';
-import { BottomTabBar } from '../components/ui/BottomTabBar';
+} from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { UserMenu } from '../../components/ui/UserMenu';
+import { BottomTabBar } from '../../components/ui/BottomTabBar';
 
 const CATEGORIAS_ICONES: Record<string, any> = {
   'Todos': LayoutGrid, 'Artesanato': Palette, 'Carnes': Beef,
@@ -26,7 +26,7 @@ export default function Home() {
 
   const isVendedor = usuario?.perfil === 'PRODUTOR';
   const homePath = isVendedor ? '/home2' : '/home2';
-  const perfilPath = isVendedor ? '/perfilvendedor' : '/perfil';
+  const perfilPath = '/perfil';
   const receitasPath = isVendedor ? '/receitas' : '/receitas';
   const tutorialKey = isVendedor ? 'tutorial_visto_vendedor' : 'tutorial_visto_comprador';
 

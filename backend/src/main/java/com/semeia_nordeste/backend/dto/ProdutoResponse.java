@@ -22,7 +22,9 @@ public record ProdutoResponse(
         String imagemUrl,
         OffsetDateTime dataCadastro,
         StatusProduto status,
-        BigDecimal pesoKg) {
+        BigDecimal pesoKg,
+        Boolean disponivelSede,
+        java.util.List<Long> filiaisIds) {
     public static ProdutoResponse fromEntity(Produto p) {
         return new ProdutoResponse(
                 p.getId(),
@@ -40,6 +42,10 @@ public record ProdutoResponse(
                 p.getImagemUrl(),
                 p.getDataCadastro(),
                 p.getStatus(),
-                p.getPesoKg());
+                p.getPesoKg(),
+                p.isDisponivelSede(),
+                p.getFiliaisDisponiveis() != null ? 
+                    p.getFiliaisDisponiveis().stream().map(f -> f.getId()).toList() : 
+                    java.util.List.of());
     }
 }

@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import {
   Search, ShoppingCart, User, Plus,
   Star, LayoutGrid, Palette, Beef, Sprout, Wheat, Carrot, Milk, Bed, Utensils, Shirt,
-  MessageCircle, ChevronRight, ChevronLeft, Menu, X, BookOpen, Bell, HelpCircle, Home as HomeIcon, LayoutDashboard, Sparkles
+  MessageCircle, ChevronRight, ChevronLeft, Menu, X, BookOpen, Bell, HelpCircle, Home as HomeIcon, LayoutDashboard, Sparkles, Store, MapPin
 } from 'lucide-react';
 import {
   buscarProdutos, getCategorias, adicionarAoCarrinho, getNaoLidas, getCarrinho, getEmpreendedoras, getMinhaLoja
@@ -14,6 +14,8 @@ import { BottomTabBar } from '../../components/ui/BottomTabBar';
 import { ModalEmpreendedora } from '../../components/modals/ModalEmpreendedora';
 import { TutorialModal } from '../../components/modals/TutorialModal';
 import { ModalDetalheMulher } from '../../components/modals/ModalDetalheMulher';
+import { ModalCep } from '../../components/modals/ModalCep';
+import { ModalLoginRequired } from '../../components/modals/ModalLoginRequired';
 import { ProductFilters } from '../../components/ui/ProductFilters';
 import { RecipeWidget } from '../../components/ui/RecipeWidget';
 import { ProductCard } from '../../components/ui/ProductCard';
@@ -52,7 +54,7 @@ export default function HomeComprador() {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { usuario } = useAuth();
+  const { usuario, estaLogado } = useAuth();
   const isVendedor = usuario?.perfil === 'PRODUTOR';
   const isMulherProdutora = usuario?.perfil === 'PRODUTOR' && usuario?.genero === 'FEMININO';
 
@@ -81,11 +83,16 @@ export default function HomeComprador() {
   const [paginaAtual, setPaginaAtual] = useState(0);
   const [carrinhoCount, setCarrinhoCount] = useState(0);
   const [naoLidas, setNaoLidas] = useState(0);
-  const [tutorialAberto, setTutorialAberto] = useState(false);
+  const tutorialKey = isVendedor ? 'tutorial_visto_vendedor' : 'tutorial_visto_comprador';
+  const [tutorialAberto, setTutorialAberto] = useState(() => !localStorage.getItem(tutorialKey));
+  const [modalCepAberto, setModalCepAberto] = useState(false);
+  const userKey = usuario?.email || 'guest';
+  const [localizacaoTexto, setLocalizacaoTexto] = useState(() => localStorage.getItem(`filtro_localizacao_texto_${userKey}`) || '');
   const [modalEmpreendedoraAberto, setModalEmpreendedoraAberto] = useState(false);
+  const [modalLoginAberto, setModalLoginAberto] = useState(false);
   const [minhaLojaParaModal, setMinhaLojaParaModal] = useState<any>(null);
-  const [estadoFiltro, setEstadoFiltro] = useState('');
-  const [cidadeFiltro, setCidadeFiltro] = useState('');
+  const [estadoFiltro, setEstadoFiltro] = useState(() => localStorage.getItem(`filtro_estado_${userKey}`) || '');
+  const [cidadeFiltro, setCidadeFiltro] = useState(() => localStorage.getItem(`filtro_cidade_${userKey}`) || '');
   const [facetasEstados, setFacetasEstados] = useState<any[]>(pageCache.produtos?.facetasEstados || []);
   const [facetasCidades, setFacetasCidades] = useState<any[]>(pageCache.produtos?.facetasCidades || []);
   const [receitaContexto, setReceitaContexto] = useState<any>(null);
@@ -159,12 +166,12 @@ export default function HomeComprador() {
 
     const salvos = localStorage.getItem('favoritos_itens');
     if (salvos) setFavoritos(JSON.parse(salvos));
-    
+
     const contextoSalvo = sessionStorage.getItem('receitaContexto');
     if (contextoSalvo) {
       try {
         setReceitaContexto(JSON.parse(contextoSalvo));
-      } catch (e) {}
+      } catch (e) { }
     }
   }, []);
 
@@ -271,15 +278,23 @@ export default function HomeComprador() {
 
   const toggleFavorito = useCallback((e: React.MouseEvent, id: number) => {
     e.preventDefault(); e.stopPropagation();
+    if (!estaLogado) {
+      setModalLoginAberto(true);
+      return;
+    }
     const novos = favoritos.includes(id)
       ? favoritos.filter(f => f !== id)
       : [...favoritos, id];
     setFavoritos(novos);
     localStorage.setItem('favoritos_itens', JSON.stringify(novos));
-  }, [favoritos]);
+  }, [favoritos, estaLogado]);
 
   const adicionarRapido = useCallback(async (e: React.MouseEvent, produtoId: number) => {
     e.preventDefault(); e.stopPropagation();
+    if (!estaLogado) {
+      setModalLoginAberto(true);
+      return;
+    }
     try {
       const cartReq = await getCarrinho();
       const listaItens = cartReq.itens || cartReq.content || cartReq || [];
@@ -322,7 +337,7 @@ export default function HomeComprador() {
       .replace(/^[\d\/\se]+(g|kg|l|ml|xícaras?|fatias?|latas?|pacotes?|litros?)?\s*(grossas\s*)?(de\s*)?/i, '')
       .replace(/ para acompanhar| a gosto|\(já lavado\)/gi, '')
       .trim();
-    
+
     setBusca(termo);
     setTermoPesquisado(termo);
     setCatAtiva('Todos');
@@ -370,31 +385,51 @@ export default function HomeComprador() {
 
           <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
             <div className="hidden md:flex items-center gap-2">
-              <Link title="Notificações" to="/notificacoes" className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158] group">
-                <Bell className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
-                {notificacoesNaoLidas > 0 && (
-                  <span className="absolute top-0 right-0 md:top-1 md:right-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white group-hover:border-[#f9943b]">
-                    {notificacoesNaoLidas}
-                  </span>
-                )}
-              </Link>
-              <Link title="Chat" to="/chat" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158] group">
-                <MessageCircle className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
-              </Link>
-              <Link title="Carrinho" to="/carrinho" className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158] group">
-                <ShoppingCart className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
-                {carrinhoCount > 0 && (
-                  <span className="absolute top-0 right-0 md:top-1 md:right-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white group-hover:border-[#f9943b]">
-                    {carrinhoCount}
-                  </span>
-                )}
-              </Link>
-              <UserMenu perfilPath={isVendedor ? "/perfilvendedor" : "/perfil"} />
+              <button
+                onClick={() => setModalCepAberto(true)}
+                title="Sua Localização"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all duration-300 hover:bg-[#f9943b]/10 hover:text-[#f9943b] text-[#394158] group text-sm font-medium"
+              >
+                <MapPin className="w-5 h-5 group-hover:text-[#f9943b]" />
+                {localizacaoTexto && <span className="hidden lg:inline-block max-w-[150px] truncate">{localizacaoTexto}</span>}
+              </button>
+
+              {estaLogado ? (
+                <>
+                  <Link title="Notificações" to="/notificacoes" className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158] group">
+                    <Bell className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
+                    {notificacoesNaoLidas > 0 && (
+                      <span className="absolute top-0 right-0 md:top-1 md:right-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white group-hover:border-[#f9943b]">
+                        {notificacoesNaoLidas}
+                      </span>
+                    )}
+                  </Link>
+                  <Link title="Chat" to="/chat" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158] group">
+                    <MessageCircle className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
+                  </Link>
+                  <Link title="Carrinho" to="/carrinho" className="relative w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full transition-all duration-300 hover:bg-[#f9943b] hover:text-white text-[#394158] group">
+                    <ShoppingCart className="w-[18px] h-[18px] md:w-[22px] md:h-[22px]" />
+                    {carrinhoCount > 0 && (
+                      <span className="absolute top-0 right-0 md:top-1 md:right-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white group-hover:border-[#f9943b]">
+                        {carrinhoCount}
+                      </span>
+                    )}
+                  </Link>
+                  <UserMenu perfilPath="/perfil" />
+                </>
+              ) : (
+                <Link to="/login" className="bg-[#f9943b] text-white px-5 py-2 md:py-2.5 rounded-full text-[10px] md:text-[11px] font-black uppercase tracking-widest hover:bg-[#ff8a23] transition-colors shadow-sm whitespace-nowrap">
+                  Entrar / Cadastrar
+                </Link>
+              )}
             </div>
 
             {/* Mobile: menu hambúrguer + UserMenu compacto (se for Vendedor) */}
-            <div className="flex lg:hidden items-center gap-3">
-              {isVendedor && <UserMenu perfilPath="/perfilvendedor" />}
+            <div className="flex md:hidden items-center gap-3">
+              <button onClick={() => setModalCepAberto(true)} className="p-1 text-[#394158] hover:text-[#f9943b]">
+                <MapPin size={24} />
+              </button>
+              {isVendedor && <UserMenu perfilPath="/perfil" />}
               <button onClick={() => setMenuAberto(true)} className={`${isVendedor ? 'p-1' : 'md:hidden p-1'} text-[#394158] hover:text-[#f9943b]`}><Menu size={24} /></button>
             </div>
           </div>
@@ -413,23 +448,35 @@ export default function HomeComprador() {
               <Link to="/blog" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Notícias</Link>
               {isVendedor && <Link to="/painelvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Painel Vendedor</Link>}
               <button onClick={() => { setMenuAberto(false); setTutorialAberto(true); }} className="flex items-center gap-4 hover:text-[#55833d] text-left"><HelpCircle size={14} /> Guia Rápido</button>
-              <hr className="border-gray-100" />
-              <Link to="/notificacoes" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]">
-                <div className="relative">
-                  <Bell size={20} />
-                  {notificacoesNaoLidas > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">{notificacoesNaoLidas}</span>}
-                </div>
-                Notificações
-              </Link>
-              <Link to="/chat" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><MessageCircle size={20} /> Chat</Link>
-              <Link to="/carrinho" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]">
-                <div className="relative">
-                  <ShoppingCart size={20} />
-                  {carrinhoCount > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">{carrinhoCount}</span>}
-                </div>
-                Carrinho
-              </Link>
-              <Link to="/perfil" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><User size={20} /> Meu Perfil</Link>
+              
+              {!estaLogado ? (
+                <>
+                  <hr className="border-gray-100" />
+                  <Link to="/login" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 text-[#f9943b] hover:text-[#ff8a23]">
+                    <User size={20} /> Entrar / Cadastrar
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <hr className="border-gray-100" />
+                  <Link to="/notificacoes" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]">
+                    <div className="relative">
+                      <Bell size={20} />
+                      {notificacoesNaoLidas > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">{notificacoesNaoLidas}</span>}
+                    </div>
+                    Notificações
+                  </Link>
+                  <Link to="/chat" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><MessageCircle size={20} /> Chat</Link>
+                  <Link to="/carrinho" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]">
+                    <div className="relative">
+                      <ShoppingCart size={20} />
+                      {carrinhoCount > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">{carrinhoCount}</span>}
+                    </div>
+                    Carrinho
+                  </Link>
+                  <Link to="/perfil" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><User size={20} /> Meu Perfil</Link>
+                </>
+              )}
             </nav>
           </div>
         </div>
@@ -437,7 +484,26 @@ export default function HomeComprador() {
 
       <TutorialModal open={tutorialAberto} onClose={() => setTutorialAberto(false)} />
 
+      <ModalLoginRequired open={modalLoginAberto} onClose={() => setModalLoginAberto(false)} />
+
       <ModalDetalheMulher mulher={mulherSelecionada} onClose={() => setMulherSelecionada(null)} />
+
+      <ModalCep
+        open={modalCepAberto}
+        onClose={() => setModalCepAberto(false)}
+        onCepSelecionado={(cep, cidadeResp, estadoResp) => {
+          setCidadeFiltro(cidadeResp);
+          setEstadoFiltro(estadoResp);
+          const novoTexto = `${cidadeResp} - ${estadoResp}`;
+          setLocalizacaoTexto(novoTexto);
+          const userKey = usuario?.email || 'guest';
+          localStorage.setItem(`filtro_cidade_${userKey}`, cidadeResp);
+          localStorage.setItem(`filtro_estado_${userKey}`, estadoResp);
+          localStorage.setItem(`filtro_localizacao_texto_${userKey}`, novoTexto);
+          setPaginaAtual(0);
+          setProdutos([]); // Força reset da lista
+        }}
+      />
 
       {/* MODAL EMPREENDEDORA (CTA) */}
       <ModalEmpreendedora
@@ -449,7 +515,7 @@ export default function HomeComprador() {
         }}
         onSalvo={() => {
           // Recarrega lista de empreendedoras para refletir a nova foto/historia
-          getEmpreendedoras().then(setEmpreendedoras).catch(() => {});
+          getEmpreendedoras().then(setEmpreendedoras).catch(() => { });
         }}
       />
 
@@ -482,11 +548,10 @@ export default function HomeComprador() {
               <div className="px-2 mb-5">
                 <button
                   onClick={() => setModalEmpreendedoraAberto(true)}
-                  className={`w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest shadow-lg hover:shadow-xl hover:scale-[1.01] active:scale-95 transition-all ${
-                    jaNoMural
+                  className={`w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest shadow-lg hover:shadow-xl hover:scale-[1.01] active:scale-95 transition-all ${jaNoMural
                       ? 'bg-white border-2 border-[#f9943b] text-[#f9943b] hover:bg-[#fff5ef]'
                       : 'bg-gradient-to-r from-[#f9943b] to-[#e07a28] text-white'
-                  }`}
+                    }`}
                 >
                   <Sparkles size={16} className={jaNoMural ? 'text-[#f9943b]' : 'fill-white'} />
                   {jaNoMural ? 'Editar minha historia no mural' : 'Exiba seu negocio aqui!'}
@@ -585,7 +650,7 @@ export default function HomeComprador() {
           <div className="w-full">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
               <h2 className="text-xl font-black italic uppercase text-[#394158]">{catAtiva !== 'Todos' ? catAtiva : 'Nossos Produtos'}</h2>
-              
+
               <ProductFilters
                 estadoFiltro={estadoFiltro}
                 cidadeFiltro={cidadeFiltro}
@@ -636,8 +701,8 @@ export default function HomeComprador() {
                   disabled={carregandoMais}
                   className={`
                     flex items-center gap-2 px-8 py-3.5 rounded-full font-black text-sm tracking-wide transition-all shadow-md active:scale-95
-                    ${carregandoMais 
-                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                    ${carregandoMais
+                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       : 'bg-[#55833d] text-white hover:bg-[#466e32] hover:shadow-lg'
                     }
                   `}
@@ -672,10 +737,10 @@ export default function HomeComprador() {
           isVendedor
             ? [
               { to: '/home2', label: 'Vitrine', Icon: HomeIcon },
-              { to: '/painelvendedor', label: 'Painel', Icon: LayoutDashboard },
+              { to: '/painelvendedor', label: 'Painel', Icon: Store },
               { to: '/receitas', label: 'Receitas', Icon: BookOpen },
               { to: '/chat', label: 'Chat', Icon: MessageCircle, badge: naoLidas },
-              { to: '/perfilvendedor', label: 'Perfil', Icon: User },
+              { to: '/perfil', label: 'Perfil', Icon: User },
             ]
             : [
               { to: '/home2', label: 'Início', Icon: HomeIcon },

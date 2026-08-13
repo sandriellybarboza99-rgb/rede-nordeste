@@ -396,7 +396,7 @@ export default function Home() {
                         <p className="hidden md:block text-[10px] md:text-sm text-gray-500 text-center mt-2 md:mt-4 mb-3 md:mb-6 leading-relaxed line-clamp-3 md:line-clamp-none">
                           {cat.desc}
                         </p>
-                        <button className="text-[8px] md:text-xs uppercase tracking-[0.1em] md:tracking-[0.2em] text-[#394158] hover:text-[#f9943b] transition-colors border-b border-[#394158] hover:border-[#f9943b] pb-0.5 md:pb-1 mt-2 md:mt-0">
+                        <button onClick={() => navigate('/home2')} className="text-[8px] md:text-xs uppercase tracking-[0.1em] md:tracking-[0.2em] text-[#394158] hover:text-[#f9943b] transition-colors border-b border-[#394158] hover:border-[#f9943b] pb-0.5 md:pb-1 mt-2 md:mt-0">
                           Ver Produtos &rarr;
                         </button>
                       </div>

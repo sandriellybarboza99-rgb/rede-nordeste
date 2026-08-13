@@ -27,7 +27,6 @@ import Notificacao from './pages/Comprador/Notificacao';
 import Empreendedoras from './pages/Comprador/Empreendedoras';
 import PainelVendedor from './pages/Vendedor/PainelVendedor';
 import HomeAdmin from './pages/Admin/HomeAdmin';
-import PerfilVendedor from './pages/Vendedor/PerfilVendedor';
 
 // ── Helpers ───────────────────────────────────────────────────────
 const HOME_POR_PERFIL: Record<TipoPerfil, string> = {
@@ -115,15 +114,14 @@ function App() {
           <Route path="/login" element={<RotaAuth><Login /></RotaAuth>} />
           <Route path="/cadastro" element={<RotaAuth><Register /></RotaAuth>} />
 
-          {/* ── MARKETPLACE — qualquer logado pode comprar ─────────
-             Regra: COMPRADOR só compra; PRODUTOR vende E também pode
-             comprar de outras lojas. Por isso todas as rotas de "área
-             de compra" aceitam ambos. ADMIN passa em qualquer rota. */}
-          <Route path="/home2" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><HomeComprador /></RotaProtegida>} />
-          <Route path="/receitas" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Receitas /></RotaProtegida>} />
-          <Route path="/receitasvendedor" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Receitas /></RotaProtegida>} />
-          <Route path="/produto/:id" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><ProdutoDetalhes /></RotaProtegida>} />
-          <Route path="/loja/:id" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Loja /></RotaProtegida>} />
+          {/* ── MARKETPLACE — Rotas Públicas e Privadas ─────────
+             /home2, /receitas, /produto/:id e /loja/:id agora são acessíveis sem login.
+             O bloqueio de carrinho/favoritos é feito no próprio componente. */}
+          <Route path="/home2" element={<HomeComprador />} />
+          <Route path="/receitas" element={<Receitas />} />
+          <Route path="/receitasvendedor" element={<Receitas />} />
+          <Route path="/produto/:id" element={<ProdutoDetalhes />} />
+          <Route path="/loja/:id" element={<Loja />} />
           <Route path="/carrinho" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Carrinho /></RotaProtegida>} />
           <Route path="/notificacoes" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Notificacao /></RotaProtegida>} />
           <Route path="/perfil" element={<RotaProtegida permitidos={['COMPRADOR', 'PRODUTOR']}><Perfil /></RotaProtegida>} />
@@ -136,7 +134,6 @@ function App() {
 
           {/* ── VENDEDOR ─────────────────────────────────────── */}
           <Route path="/painelvendedor" element={<RotaProtegida permitidos={['PRODUTOR']}><PainelVendedor /></RotaProtegida>} />
-          <Route path="/perfilvendedor" element={<RotaProtegida permitidos={['PRODUTOR']}><PerfilVendedor /></RotaProtegida>} />
 
           {/* ── ADMIN ────────────────────────────────────────── */}
           <Route path="/admin" element={<RotaProtegida permitidos={['ADMIN']}><HomeAdmin /></RotaProtegida>} />

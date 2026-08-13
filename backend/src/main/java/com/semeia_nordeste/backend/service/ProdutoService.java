@@ -23,6 +23,7 @@ import com.semeia_nordeste.backend.model.Loja;
 import com.semeia_nordeste.backend.model.Produto;
 import com.semeia_nordeste.backend.model.StatusProduto;
 import com.semeia_nordeste.backend.repository.CategoriaRepository;
+import com.semeia_nordeste.backend.repository.EnderecoLojaRepository;
 import com.semeia_nordeste.backend.repository.LojaRepository;
 import com.semeia_nordeste.backend.repository.ProdutoRepository;
 import com.semeia_nordeste.backend.security.UsuarioAutenticado;
@@ -33,15 +34,18 @@ public class ProdutoService {
         private final ProdutoRepository produtoRepository;
         private final LojaRepository lojaRepository;
         private final CategoriaRepository categoriaRepository;
+        private final EnderecoLojaRepository enderecoLojaRepository;
         private final UsuarioAutenticado usuarioAutenticado;
 
         public ProdutoService(ProdutoRepository produtoRepository,
                         LojaRepository lojaRepository,
                         CategoriaRepository categoriaRepository,
+                        EnderecoLojaRepository enderecoLojaRepository,
                         UsuarioAutenticado usuarioAutenticado) {
                 this.produtoRepository = produtoRepository;
                 this.lojaRepository = lojaRepository;
                 this.categoriaRepository = categoriaRepository;
+                this.enderecoLojaRepository = enderecoLojaRepository;
                 this.usuarioAutenticado = usuarioAutenticado;
         }
 
@@ -174,6 +178,28 @@ public class ProdutoService {
                 p.setEstoqueAtual(r.estoqueAtual() != null ? r.estoqueAtual() : 0);
                 p.setPesoKg(r.pesoKg() != null ? r.pesoKg() : BigDecimal.valueOf(0.5));
                 p.setImagemUrl(r.imagemUrl());
+                
+                // Mapeamento de Disponibilidade
+                p.setDisponivelSede(r.disponivelSede() != null ? r.disponivelSede() : true);
+                
+                if (r.filiaisIds() != null && !r.filiaisIds().isEmpty()) {
+                        var filiais = enderecoLojaRepository.findAllById(r.filiaisIds());
+                        // Validar se todas as filiais pertencem à mesma loja do usuário
+                        for (var filial : filiais) {
+                                if (!filial.getLoja().getId().equals(loja.getId())) {
+                                        throw new BusinessException("Você não pode associar filiais que não pertencem à sua loja.");
+                                }
+                        }
+                        p.setFiliaisDisponiveis(new java.util.HashSet<>(filiais));
+                } else {
+                        p.setFiliaisDisponiveis(new java.util.HashSet<>());
+                }
+                
+                // Validação final: o produto deve estar em pelo menos um lugar
+                if (!p.isDisponivelSede() && p.getFiliaisDisponiveis().isEmpty()) {
+                        throw new BusinessException("O produto deve estar disponível em pelo menos um endereço (Sede ou Filial).");
+                }
+
                 if (p.getId() == null)
                         // Decisão de produto: novo produto nasce APROVADO para destravar a vitrine.
                         // ADMIN ainda pode REJEITAR a posteriori via PATCH /admin/produtos/{id}/status.

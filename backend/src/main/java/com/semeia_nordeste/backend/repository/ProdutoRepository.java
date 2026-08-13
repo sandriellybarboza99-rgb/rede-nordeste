@@ -53,8 +53,9 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
               AND l.suspensa = false
               AND (:nome = '' OR LOWER(p.nome) LIKE LOWER(CONCAT('%', :nome, '%')))
               AND (:categoriaId IS NULL OR c.id = :categoriaId)
-              AND (:estado IS NULL OR :estado = '' OR LOWER(l.estado) = LOWER(:estado))
-              AND (:cidade IS NULL OR :cidade = '' OR LOWER(l.cidade) LIKE LOWER(CONCAT('%', :cidade, '%')))
+              AND (:estado IS NULL OR :estado = '' OR LOWER(l.estado) = LOWER(:estado) OR EXISTS (SELECT 1 FROM EnderecoLoja el WHERE el.loja = l AND LOWER(el.estado) = LOWER(:estado)))
+              AND (:cidade IS NULL OR :cidade = '' OR LOWER(l.cidade) LIKE LOWER(CONCAT('%', :cidade, '%')) OR EXISTS (SELECT 1 FROM EnderecoLoja el2 WHERE el2.loja = l AND LOWER(el2.cidade) LIKE LOWER(CONCAT('%', :cidade, '%'))))
+              AND (:excluirLojaId IS NULL OR l.id <> :excluirLojaId)
             """,
             countQuery = """
             SELECT COUNT(p) FROM Produto p
@@ -65,8 +66,8 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
               AND l.suspensa = false
               AND (:nome = '' OR LOWER(p.nome) LIKE LOWER(CONCAT('%', :nome, '%')))
               AND (:categoriaId IS NULL OR c.id = :categoriaId)
-              AND (:estado IS NULL OR :estado = '' OR LOWER(l.estado) = LOWER(:estado))
-              AND (:cidade IS NULL OR :cidade = '' OR LOWER(l.cidade) LIKE LOWER(CONCAT('%', :cidade, '%')))
+              AND (:estado IS NULL OR :estado = '' OR LOWER(l.estado) = LOWER(:estado) OR EXISTS (SELECT 1 FROM EnderecoLoja el WHERE el.loja = l AND LOWER(el.estado) = LOWER(:estado)))
+              AND (:cidade IS NULL OR :cidade = '' OR LOWER(l.cidade) LIKE LOWER(CONCAT('%', :cidade, '%')) OR EXISTS (SELECT 1 FROM EnderecoLoja el2 WHERE el2.loja = l AND LOWER(el2.cidade) LIKE LOWER(CONCAT('%', :cidade, '%'))))
               AND (:excluirLojaId IS NULL OR l.id <> :excluirLojaId)
             """)
     Page<Produto> buscarMarketplace(
@@ -116,7 +117,7 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
               AND p.loja.suspensa = false
               AND (:nome = '' OR LOWER(p.nome) LIKE LOWER(CONCAT('%', :nome, '%')))
               AND (:categoriaId IS NULL OR p.categoria.id = :categoriaId)
-              AND (:estado IS NULL OR :estado = '' OR LOWER(p.loja.estado) = LOWER(:estado))
+              AND (:estado IS NULL OR :estado = '' OR LOWER(p.loja.estado) = LOWER(:estado) OR EXISTS (SELECT 1 FROM EnderecoLoja el WHERE el.loja = p.loja AND LOWER(el.estado) = LOWER(:estado)))
             GROUP BY p.loja.cidade
             ORDER BY p.loja.cidade ASC
             """)

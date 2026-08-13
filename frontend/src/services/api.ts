@@ -211,6 +211,38 @@ export const deletarEndereco = async (id: number) => {
 };
 
 // ============================================================
+// ENDEREÇOS DA LOJA (FILIAIS)
+// ============================================================
+export const getEnderecosLoja = async () => {
+  const res = await apiService.get("/produtor/loja/enderecos");
+  return res.data;
+};
+
+export const criarEnderecoLoja = async (dados: {
+  nomeLocal: string;
+  cep: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
+  rua: string;
+  numero: string;
+  latitude?: number;
+  longitude?: number;
+}) => {
+  const res = await apiService.post("/produtor/loja/enderecos", dados);
+  return res.data;
+};
+
+export const atualizarEnderecoLoja = async (id: number, dados: any) => {
+  const res = await apiService.put(`/produtor/loja/enderecos/${id}`, dados);
+  return res.data;
+};
+
+export const deletarEnderecoLoja = async (id: number) => {
+  await apiService.delete(`/produtor/loja/enderecos/${id}`);
+};
+
+// ============================================================
 // CEP — Consulta e Geocodificação
 // ============================================================
 
@@ -232,23 +264,61 @@ export const consultarCep = async (cep: string): Promise<DadosCep | null> => {
   const cepLimpo = cep.replace(/\D/g, '');
   if (cepLimpo.length !== 8) return null;
 
+  // 1. Backend proxy
   try {
-    // Tenta pelo backend proxy (evita CORS em produção)
     const res = await apiService.get(`/cep/${cepLimpo}`);
     const d = res.data;
-    if (d.erro) return null;
-    return { ...d, estadoCidade: `${d.uf} - ${d.localidade}` };
-  } catch {
-    // Fallback direto para ViaCEP
-    try {
-      const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
-      const d = await res.json();
-      if (d.erro) return null;
+    if (d && !d.erro && d.erro !== 'true') {
       return { ...d, estadoCidade: `${d.uf} - ${d.localidade}` };
-    } catch {
-      return null;
     }
-  }
+  } catch {}
+
+  // 2. ViaCEP direto
+  try {
+    const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+    const d = await res.json();
+    if (d && !d.erro && d.erro !== 'true') {
+      return { ...d, estadoCidade: `${d.uf} - ${d.localidade}` };
+    }
+  } catch {}
+
+  // 3. BrasilAPI direto
+  try {
+    const res = await fetch(`https://brasilapi.com.br/api/cep/v1/${cepLimpo}`);
+    if (res.ok) {
+      const d = await res.json();
+      if (d && d.city) {
+        return {
+          cep: d.cep,
+          logradouro: d.street || '',
+          bairro: d.neighborhood || '',
+          localidade: d.city,
+          uf: d.state,
+          estadoCidade: `${d.state} - ${d.city}`
+        };
+      }
+    }
+  } catch {}
+
+  // 4. AwesomeAPI direto
+  try {
+    const res = await fetch(`https://cep.awesomeapi.com.br/json/${cepLimpo}`);
+    if (res.ok) {
+      const d = await res.json();
+      if (d && d.city) {
+        return {
+          cep: d.cep,
+          logradouro: d.address || '',
+          bairro: d.district || '',
+          localidade: d.city,
+          uf: d.state,
+          estadoCidade: `${d.state} - ${d.city}`
+        };
+      }
+    }
+  } catch {}
+
+  return null;
 };
 
 /**
@@ -372,6 +442,10 @@ export const atualizarLoja = async (dados: any) => {
 export const getMinhaLoja = async () => {
   const res = await apiService.get("/produtor/loja");
   return res.data;
+};
+
+export const deletarMinhaLoja = async () => {
+  await apiService.delete("/produtor/loja");
 };
 
 export const getLojaPorId = async (id: number | string) => {

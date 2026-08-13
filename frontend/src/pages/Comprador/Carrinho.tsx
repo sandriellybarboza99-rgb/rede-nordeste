@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Trash2, Minus, Plus, Truck, Store, ChevronRight,
@@ -7,13 +7,14 @@ import {
 import {
   getCarrinho, adicionarAoCarrinho, removerDoCarrinho, checkout, simularFrete, simularFreteMultiLoja,
   getMeusEnderecos, criarEndereco, deletarEndereco, atualizarEndereco,
-  getMeusCartoes, criarCartao, getLojaPorId,
+  getLojaPorId,
   consultarCep, geocodificarEndereco,
 } from '../../services/api';
 import { gerarPayloadPix } from '../../utils/pixPayload';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Navbar } from '../../components/ui/Navbar';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface Endereco {
   id: number;
@@ -30,13 +31,6 @@ interface Endereco {
   principal: boolean;
 }
 
-interface Cartao {
-  id: number;
-  titular: string;
-  finalCartao: string;
-  bandeira: string;
-  validade: string;
-}
 
 export default function Carrinho() {
   const navigate = useNavigate();
@@ -76,6 +70,74 @@ export default function Carrinho() {
 
   const [lojasRetirada, setLojasRetirada] = useState<any[]>([]);
   const [lojasSemRetirada, setLojasSemRetirada] = useState<string[]>([]);
+  const [locaisSelecionados, setLocaisSelecionados] = useState<Record<number, string>>({});
+  
+  const { usuario } = useAuth();
+  const filtroCidade = localStorage.getItem(`filtro_cidade_${usuario?.email || 'guest'}`) || '';
+
+  const locaisRetiradaPorLoja = useMemo(() => {
+    return lojasRetirada.map((loja) => {
+      const locaisDaLoja: any[] = [];
+      const sedeCompativel = !filtroCidade || (loja.cidade === filtroCidade);
+      
+      const hasRetirada = (jsonStr?: string) => {
+        if (!jsonStr) return false;
+        try {
+          const parsed = JSON.parse(jsonStr);
+          return Array.isArray(parsed) && parsed.length > 0;
+        } catch {
+          return false;
+        }
+      };
+
+      // Só adiciona a sede se ela tiver horários de retirada configurados (ou se aceitaRetirada = true, mas respeitando o array de horários)
+      if (sedeCompativel && hasRetirada(loja.diasHorariosRetirada)) {
+        locaisDaLoja.push({
+          id: `sede-${loja.id}`,
+          nome: 'Sede Principal',
+          logradouro: loja.logradouro,
+          bairro: loja.bairro,
+          cidade: loja.cidade,
+          estado: loja.estado,
+          cep: loja.cep,
+          diasHorariosRetirada: JSON.parse(loja.diasHorariosRetirada)
+        });
+      }
+
+      if (Array.isArray(loja.enderecosAdicionais)) {
+        loja.enderecosAdicionais.forEach((end: any) => {
+          if ((!filtroCidade || end.cidade === filtroCidade) && hasRetirada(end.diasHorariosRetirada)) {
+            locaisDaLoja.push({
+              id: `adicional-${end.id}`,
+              nome: end.nomeLocal,
+              logradouro: end.rua && end.numero ? `${end.rua}, ${end.numero}` : end.rua,
+              bairro: end.bairro,
+              cidade: end.cidade,
+              estado: end.estado,
+              cep: end.cep,
+              diasHorariosRetirada: JSON.parse(end.diasHorariosRetirada)
+            });
+          }
+        });
+      }
+
+      return {
+        lojaId: loja.id,
+        nomeLoja: loja.nomeLoja,
+        locais: locaisDaLoja
+      };
+    }).filter(l => l.locais.length > 0);
+  }, [lojasRetirada, filtroCidade]);
+
+  useEffect(() => {
+    const selecaoInicial: Record<number, string> = {};
+    locaisRetiradaPorLoja.forEach(loja => {
+      if (loja.locais.length > 0) {
+        selecaoInicial[loja.lojaId] = loja.locais[0].id;
+      }
+    });
+    setLocaisSelecionados(selecaoInicial);
+  }, [locaisRetiradaPorLoja]);
 
   useEffect(() => {
     if (itens.length > 0) {
@@ -89,15 +151,28 @@ export default function Carrinho() {
         .then(lojas => {
           const lojasValidas = lojas.filter(l => l);
           setLojasRetirada(lojasValidas);
-          
-          const storesSemRetirada = lojasValidas.filter(l => l.aceitaRetirada === false).map(l => l.nomeLoja);
-          setLojasSemRetirada(storesSemRetirada);
         })
         .catch(() => { });
     } else {
+      setLojasRetirada([]);
       setLojasSemRetirada([]);
     }
   }, [itens]);
+
+  useEffect(() => {
+    // Computar lojasSemRetirada
+    if (lojasRetirada.length > 0) {
+      const storesSemRetirada = lojasRetirada.filter(l => {
+        // Se a loja não aceita retirada globalmente
+        if (l.aceitaRetirada === false) return true;
+        // Ou se a loja aceita, mas não possui locais disponíveis na cidade filtrada
+        const temLocalValido = locaisRetiradaPorLoja.some(lr => lr.lojaId === l.id);
+        return !temLocalValido;
+      }).map(l => l.nomeLoja);
+      
+      setLojasSemRetirada(storesSemRetirada);
+    }
+  }, [lojasRetirada, locaisRetiradaPorLoja]);
 
   useEffect(() => {
     if (lojasSemRetirada.length > 0 && metodoEntrega === 'retirada') {
@@ -105,17 +180,130 @@ export default function Carrinho() {
     }
   }, [lojasSemRetirada, metodoEntrega]);
 
+  // Filtra os endereços de entrega do comprador baseado nas regioesEntrega das lojas do carrinho
+  const enderecosValidosParaEntrega = useMemo(() => {
+    if (lojasRetirada.length === 0) return enderecos;
+
+    return enderecos.filter(end => {
+      // O endereço deve ser atendido por TODAS as lojas no carrinho
+      return lojasRetirada.every(loja => {
+        if (loja.fazEntrega === false) return false;
+
+        let atende = false;
+
+        const checkRegiao = (jsonStr?: string) => {
+          if (!jsonStr) return false;
+          try {
+            const regioes = JSON.parse(jsonStr);
+            if (Array.isArray(regioes)) {
+              const bairroComp = (end.bairro || '').toLowerCase().trim();
+              const cidadeComp = (end.estadoCidade?.split(' - ')[1] || end.estadoCidade || '').toLowerCase().trim();
+              const estadoComp = (end.estadoCidade?.split(' - ')[0] || '').toLowerCase().trim();
+
+              return regioes.some(r => {
+                if (typeof r === 'string') {
+                  const reg = r.toLowerCase().trim();
+                  return reg === bairroComp || reg === cidadeComp;
+                }
+                if (typeof r === 'object' && r !== null) {
+                  const rCidade = (r.cidade || '').toLowerCase().trim();
+                  const rBairro = (r.bairro || '').toLowerCase().trim();
+                  const rEstado = (r.estado || '').toLowerCase().trim();
+
+                  if (rEstado && estadoComp && rEstado !== estadoComp) return false;
+                  if (rCidade && rCidade !== cidadeComp) return false;
+                  if (rBairro && rBairro !== bairroComp) return false;
+                  
+                  return true;
+                }
+                return false;
+              });
+            }
+          } catch { }
+          return false;
+        };
+
+        // Sede
+        if (checkRegiao(loja.regioesEntrega)) atende = true;
+
+        // Filiais
+        if (!atende && Array.isArray(loja.enderecosAdicionais)) {
+          for (const filial of loja.enderecosAdicionais) {
+            if (checkRegiao(filial.regioesEntrega)) {
+              atende = true;
+              break;
+            }
+          }
+        }
+
+        return atende;
+      });
+    });
+  }, [enderecos, lojasRetirada]);
+
+  // Se o endereço selecionado não for mais válido, resetar
+  useEffect(() => {
+    if (enderecosValidosParaEntrega.length > 0) {
+      if (!enderecosValidosParaEntrega.some(e => e.id === enderecoSelecionado)) {
+        setEnderecoSelecionado(enderecosValidosParaEntrega[0].id);
+      }
+    } else {
+      if (enderecoSelecionado !== null) {
+        setEnderecoSelecionado(null);
+      }
+    }
+  }, [enderecosValidosParaEntrega, enderecoSelecionado]);
+
+  // Função helper para encontrar os horários de entrega de uma loja para um endereço específico
+  const getHorariosEntregaForEndereco = useCallback((loja: any, end: Endereco) => {
+    const bairroComp = (end.bairro || '').toLowerCase().trim();
+    const cidadeComp = (end.estadoCidade?.split(' - ')[1] || end.estadoCidade || '').toLowerCase().trim();
+    const estadoComp = (end.estadoCidade?.split(' - ')[0] || '').toLowerCase().trim();
+
+    const match = (jsonStr?: string) => {
+      if (!jsonStr) return false;
+      try {
+        const regioes = JSON.parse(jsonStr);
+        if (Array.isArray(regioes)) {
+          return regioes.some(r => {
+             if (typeof r === 'string') {
+               const reg = r.toLowerCase().trim();
+               return reg === bairroComp || reg === cidadeComp;
+             }
+             if (typeof r === 'object' && r !== null) {
+                const rCidade = (r.cidade || '').toLowerCase().trim();
+                const rBairro = (r.bairro || '').toLowerCase().trim();
+                const rEstado = (r.estado || '').toLowerCase().trim();
+                
+                if (rEstado && estadoComp && rEstado !== estadoComp) return false;
+                if (rCidade && rCidade !== cidadeComp) return false;
+                if (rBairro && rBairro !== bairroComp) return false;
+                
+                return true;
+             }
+             return false;
+          });
+        }
+      } catch { }
+      return false;
+    };
+
+    const parseHorarios = (jsonStr?: string) => {
+      if (!jsonStr) return null;
+      try { return JSON.parse(jsonStr); } catch { return null; }
+    };
+
+    if (match(loja.regioesEntrega)) return parseHorarios(loja.diasHorariosEntrega);
+    if (Array.isArray(loja.enderecosAdicionais)) {
+      for (const filial of loja.enderecosAdicionais) {
+        if (match(filial.regioesEntrega)) return parseHorarios(filial.diasHorariosEntrega);
+      }
+    }
+    return null;
+  }, []);
+
   // Pagamento
-  const [metodoPagamento, setMetodoPagamento] = useState<'cartao' | 'pix' | 'boleto'>('pix');
-  const [cartoes, setCartoes] = useState<Cartao[]>([]);
-  const [cartaoSelecionado, setCartaoSelecionado] = useState<number | null>(null);
-  const [modalNovoCartao, setModalNovoCartao] = useState(false);
-  const [novoCartao, setNovoCartao] = useState({
-    numero: '',
-    titular: '',
-    validade: '',
-    cvv: '',
-  });
+  const [metodoPagamento, setMetodoPagamento] = useState<'pix'>('pix');
 
   // Estado dos Dados do PIX (gerados após o checkout)
   const [pixDados, setPixDados] = useState<{
@@ -136,10 +324,9 @@ export default function Carrinho() {
     async function carregarTudo() {
       try {
         setCarregando(true);
-        const [carrinhoRes, endRes, cartaoRes] = await Promise.all([
+        const [carrinhoRes, endRes] = await Promise.all([
           getCarrinho().catch(() => ({ itens: [] })),
           getMeusEnderecos().catch(() => []),
-          getMeusCartoes().catch(() => []),
         ]);
 
         const listaItens = carrinhoRes.itens || carrinhoRes.content || carrinhoRes || [];
@@ -150,11 +337,6 @@ export default function Carrinho() {
           const princ = endRes.find((e: Endereco) => e.principal);
           if (princ) setEnderecoSelecionado(princ.id);
           else if (endRes.length > 0) setEnderecoSelecionado(endRes[0].id);
-        }
-
-        if (Array.isArray(cartaoRes)) {
-          setCartoes(cartaoRes);
-          if (cartaoRes.length > 0) setCartaoSelecionado(cartaoRes[0].id);
         }
       } catch (err: any) {
         toastError(err.message || 'Erro ao carregar carrinho.');
@@ -195,7 +377,7 @@ export default function Carrinho() {
         lojasMap.set(lojaId, (lojasMap.get(lojaId) || 0) + pesoTotalItem);
       }
     });
-    
+
     const lojasData = Array.from(lojasMap.entries()).map(([lojaId, pesoTotal]) => ({ lojaId, pesoTotal }));
 
     if (lojasData.length === 0) {
@@ -405,25 +587,7 @@ export default function Carrinho() {
     }
   };
 
-  // Criar Cartão no Modal
-  const handleSalvarCartao = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const criado = await criarCartao({
-        titular: novoCartao.titular,
-        numero: novoCartao.numero.replace(/\D/g, ''),
-        validade: novoCartao.validade,
-        cvv: novoCartao.cvv,
-      });
-      setCartoes((prev) => [...prev, criado]);
-      setCartaoSelecionado(criado.id);
-      setModalNovoCartao(false);
-      setNovoCartao({ numero: '', titular: '', validade: '', cvv: '' });
-      success('Cartão cadastrado com sucesso!');
-    } catch (err: any) {
-      toastError(err.message || 'Erro ao salvar cartão.');
-    }
-  };
+
 
   // Finalizar o Pedido no Backend
   const handleFinalizarPedido = async () => {
@@ -431,14 +595,24 @@ export default function Carrinho() {
       toastError('Selecione um endereço de entrega.');
       return;
     }
-    if (metodoPagamento === 'cartao' && !cartaoSelecionado) {
-      toastError('Selecione um cartão de crédito.');
+    if (metodoEntrega === 'retirada' && locaisRetiradaPorLoja.length === 0) {
+      toastError('Não há endereços de retirada disponíveis para sua região.');
       return;
     }
-
     setProcessando(true);
     try {
       const end = enderecos.find((e) => e.id === enderecoSelecionado);
+      
+      let observacoesGerais = '';
+      if (metodoEntrega === 'retirada') {
+        const locaisText = locaisRetiradaPorLoja.map(l => {
+          const selectedId = locaisSelecionados[l.lojaId];
+          const local = l.locais.find((loc: any) => loc.id === selectedId);
+          return local ? `Retirada em ${l.nomeLoja} - Unidade: ${local.nome} (${local.logradouro})` : '';
+        }).filter(Boolean).join(' | ');
+        observacoesGerais = locaisText;
+      }
+
       const resposta = await checkout({
         metodoPagamento: metodoPagamento.toUpperCase(),
         retiradaNaLoja: metodoEntrega === 'retirada',
@@ -446,7 +620,7 @@ export default function Carrinho() {
         cidadeDestino: end?.estadoCidade,
         latitudeDestino: end?.latitudeDestino,
         longitudeDestino: end?.longitudeDestino,
-        cartaoId: metodoPagamento === 'cartao' ? (cartaoSelecionado || undefined) : undefined,
+        observacoes: observacoesGerais || undefined
       });
 
       if (metodoPagamento === 'pix') {
@@ -821,7 +995,13 @@ export default function Carrinho() {
                       </div>
 
                       <div className="space-y-3">
-                        {enderecos.map((end) => (
+                        {enderecos.length > 0 && enderecosValidosParaEntrega.length === 0 && (
+                          <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-center">
+                            <p className="text-xs font-bold text-red-600">Nenhum dos seus endereços cadastrados é atendido pelas lojas do carrinho.</p>
+                            <p className="text-[11px] text-red-500 mt-1">Por favor, adicione um endereço válido para a região de entrega ou escolha a opção de Retirada.</p>
+                          </div>
+                        )}
+                        {enderecosValidosParaEntrega.map((end) => (
                           <div
                             key={end.id}
                             onClick={() => setEnderecoSelecionado(end.id)}
@@ -895,6 +1075,35 @@ export default function Carrinho() {
                                 </span>
                               </div>
                             )}
+                            
+                            {/* Horários de Entrega da Loja se selecionado */}
+                            {enderecoSelecionado === end.id && (
+                              <div className="mt-3 pt-3 border-t border-gray-100/50">
+                                <p className="text-[10px] font-black uppercase text-[#55833d] tracking-wider mb-2 ml-1">Previsão de Entrega (por loja):</p>
+                                <div className="space-y-2">
+                                  {lojasRetirada.map(loja => {
+                                    const horarios = getHorariosEntregaForEndereco(loja, end);
+                                    return (
+                                      <div key={loja.id} className="bg-white rounded-lg p-2 border border-gray-100">
+                                        <p className="text-[10px] font-bold text-[#394158] mb-1">{loja.nomeLoja}</p>
+                                        {horarios && horarios.length > 0 ? (
+                                          <div className="space-y-0.5">
+                                            {horarios.map((h: any, idx: number) => (
+                                              <p key={idx} className="text-[10px] text-gray-500 font-medium flex items-center gap-1.5">
+                                                <span className="w-1 h-1 rounded-full bg-[#55833d]"></span>
+                                                <span className="font-bold">{h.dias}:</span> {h.horario}
+                                              </p>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <p className="text-[10px] text-gray-400 italic">Horários não especificados</p>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -904,36 +1113,78 @@ export default function Carrinho() {
                   {metodoEntrega === 'retirada' && lojasRetirada.length > 0 && (
                     <div className="bg-white rounded-3xl p-6 shadow-sm border border-[#55833d] space-y-4 mt-6">
                       <div className="flex justify-between items-center">
-                        <h3 className="text-sm font-black uppercase tracking-wider text-[#394158]">{lojasRetirada.length > 1 ? 'Endereços de Retirada' : 'Endereço de Retirada'}</h3>
+                        <h3 className="text-sm font-black uppercase tracking-wider text-[#394158]">{locaisRetiradaPorLoja.length > 1 ? 'Endereços de Retirada' : 'Endereço de Retirada'}</h3>
                         <span className="text-[10px] font-black bg-[#55833d]/10 text-[#55833d] px-3 py-1 rounded-full uppercase tracking-widest">
                           Na Loja
                         </span>
                       </div>
 
-                      <div className="space-y-3">
-                        {lojasRetirada.map((loja) => (
-                          <div key={loja.id} className="p-4 rounded-2xl border-2 border-[#55833d] bg-[#55833d]/5 flex items-start gap-3">
-                            <Store size={20} className="text-[#55833d] shrink-0 mt-1" />
-                            <div className="flex-1">
-                              <p className="text-xs font-bold text-[#394158] uppercase">{loja.nomeLoja || 'Loja'}</p>
-                              <p className="text-[11px] text-gray-500 mt-1">
-                                {loja.logradouro || 'Endereço não informado'}
-                              </p>
-                              <p className="text-[10px] text-gray-400">
-                                {loja.bairro} - {loja.cidade} / {loja.estado}
-                              </p>
-                              {loja.cep && <p className="text-[10px] text-gray-400">CEP: {loja.cep}</p>}
+                      {locaisRetiradaPorLoja.length === 0 ? (
+                        <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex flex-col items-center justify-center text-center space-y-2">
+                          <p className="text-xs font-bold text-red-600">Nenhum endereço disponível para retirada na sua região ({filtroCidade}).</p>
+                          <p className="text-[11px] text-red-500">Por favor, escolha a opção de entrega para receber seus produtos.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {locaisRetiradaPorLoja.map((lojaData) => (
+                            <div key={lojaData.lojaId} className="space-y-2">
+                              <h4 className="text-xs font-black text-[#55833d] uppercase ml-1">{lojaData.nomeLoja}</h4>
+                              {lojaData.locais.map((local: any) => {
+                                const isSelected = locaisSelecionados[lojaData.lojaId] === local.id;
+                                return (
+                                  <div 
+                                    key={local.id} 
+                                    onClick={() => setLocaisSelecionados(prev => ({ ...prev, [lojaData.lojaId]: local.id }))}
+                                    className={`p-4 rounded-2xl border-2 flex items-start gap-3 cursor-pointer transition-all ${
+                                      isSelected ? 'border-[#55833d] bg-[#55833d]/5 shadow-sm' : 'border-gray-200 bg-white hover:border-[#55833d]/50'
+                                    }`}
+                                  >
+                                    <Store size={20} className={`${isSelected ? 'text-[#55833d]' : 'text-gray-400'} shrink-0 mt-1`} />
+                                    <div className="flex-1">
+                                      <p className="text-xs font-bold text-[#394158] uppercase">{local.nome}</p>
+                                      <p className="text-[11px] text-gray-500 mt-1">
+                                        {local.logradouro || 'Endereço não informado'}
+                                      </p>
+                                      <p className="text-[10px] text-gray-400">
+                                        {local.bairro} - {local.cidade} / {local.estado}
+                                      </p>
+                                      {local.cep && <p className="text-[10px] text-gray-400">CEP: {local.cep}</p>}
+                                      {/* Dias e Horários de Retirada */}
+                                      {Array.isArray(local.diasHorariosRetirada) && local.diasHorariosRetirada.length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                          <p className="text-[9px] font-black uppercase text-[#55833d] tracking-wider">Horários Disponíveis:</p>
+                                          {local.diasHorariosRetirada.map((horario: any, idx: number) => (
+                                            <p key={idx} className="text-[10px] text-gray-600 font-medium flex items-center gap-1.5">
+                                              <span className="w-1 h-1 rounded-full bg-[#55833d]"></span>
+                                              <span className="font-bold">{horario.dias}:</span> {horario.horario}
+                                            </p>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-1 transition-colors">
+                                      {isSelected ? (
+                                        <div className="w-5 h-5 rounded-full bg-[#55833d] flex items-center justify-center border-2 border-[#55833d]">
+                                          <div className="w-2 h-2 bg-white rounded-full"></div>
+                                        </div>
+                                      ) : (
+                                        <div className="w-5 h-5 rounded-full border-2 border-gray-300"></div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
 
-                      <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 flex items-start gap-2">
-                        <div className="text-orange-500 font-bold shrink-0">Atenção:</div>
-                        <p className="text-[10px] text-orange-600 leading-relaxed">
-                          Você deve aguardar o vendedor alterar o status para "Pronto para Retirada" antes de ir buscar o produto.
-                        </p>
-                      </div>
+                          <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 flex items-start gap-2">
+                            <div className="text-orange-500 font-bold shrink-0">Atenção:</div>
+                            <p className="text-[10px] text-orange-600 leading-relaxed">
+                              Você deve aguardar o vendedor alterar o status para "Pronto para Retirada" antes de ir buscar o produto.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -944,72 +1195,18 @@ export default function Carrinho() {
                 <div className="space-y-6">
                   <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
                     <h3 className="text-sm font-black uppercase tracking-wider text-[#394158]">Forma de Pagamento</h3>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                       <button
                         onClick={() => setMetodoPagamento('pix')}
-                        className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${metodoPagamento === 'pix'
-                          ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
-                          : 'border-gray-100 text-gray-400 hover:border-gray-200'
-                          }`}
+                        className="p-4 rounded-2xl border-2 border-[#55833d] bg-[#55833d]/5 text-[#55833d] flex flex-col items-center gap-2 transition-all"
                       >
                         <QrCode size={22} />
                         <span className="text-[11px] font-bold uppercase">PIX</span>
                       </button>
-                      <button
-                        onClick={() => setMetodoPagamento('cartao')}
-                        className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${metodoPagamento === 'cartao'
-                          ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
-                          : 'border-gray-100 text-gray-400 hover:border-gray-200'
-                          }`}
-                      >
-                        <CreditCard size={22} />
-                        <span className="text-[11px] font-bold uppercase">Cartão</span>
-                      </button>
-                      <button
-                        onClick={() => setMetodoPagamento('boleto')}
-                        className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${metodoPagamento === 'boleto'
-                          ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
-                          : 'border-gray-100 text-gray-400 hover:border-gray-200'
-                          }`}
-                      >
-                        <Barcode size={22} />
-                        <span className="text-[11px] font-bold uppercase">Boleto</span>
-                      </button>
                     </div>
                   </div>
 
-                  {metodoPagamento === 'cartao' && (
-                    <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-sm font-black uppercase tracking-wider text-[#394158]">Cartões Salvos</h3>
-                        <button
-                          onClick={() => setModalNovoCartao(true)}
-                          className="text-xs font-bold text-[#55833d] flex items-center gap-1 hover:underline"
-                        >
-                          <PlusCircle size={14} />Adicionar Cartão
-                        </button>
-                      </div>
 
-                      <div className="space-y-3">
-                        {cartoes.map((car) => (
-                          <div
-                            key={car.id}
-                            onClick={() => setCartaoSelecionado(car.id)}
-                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-3 ${cartaoSelecionado === car.id
-                              ? 'border-[#55833d] bg-[#55833d]/5'
-                              : 'border-gray-100 hover:border-gray-200'
-                              }`}
-                          >
-                            <CreditCard size={20} className={cartaoSelecionado === car.id ? 'text-[#55833d]' : 'text-gray-400'} />
-                            <div className="flex-1">
-                              <p className="text-xs font-bold text-[#394158] uppercase">{car.bandeira} •••• {car.finalCartao}</p>
-                              <p className="text-[10px] text-gray-400">{car.titular} | Validade: {car.validade}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   {metodoPagamento === 'pix' && (
                     <div className="bg-green-50/50 border border-green-100 rounded-3xl p-5 text-center space-y-2">
@@ -1066,11 +1263,17 @@ export default function Carrinho() {
                 <button
                   onClick={() => {
                     if (step === 1) setStep(2);
-                    else if (step === 2) setStep(3);
+                    else if (step === 2) {
+                      if (metodoEntrega === 'retirada' && locaisRetiradaPorLoja.length === 0) {
+                        toastError('Não há endereços de retirada na sua região.');
+                        return;
+                      }
+                      setStep(3);
+                    }
                     else handleFinalizarPedido();
                   }}
-                  disabled={processando}
-                  className={`w-full py-4 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all ${processando
+                  disabled={processando || (step === 2 && metodoEntrega === 'retirada' && locaisRetiradaPorLoja.length === 0)}
+                  className={`w-full py-4 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all ${processando || (step === 2 && metodoEntrega === 'retirada' && locaisRetiradaPorLoja.length === 0)
                     ? 'bg-gray-300 text-gray-400 cursor-not-allowed'
                     : 'bg-[#f9943b] hover:bg-[#ff8a23] text-white active:scale-95 shadow-md'
                     }`}
@@ -1081,7 +1284,7 @@ export default function Carrinho() {
                       ? 'Avançar para Entrega'
                       : step === 2
                         ? 'Avançar para Pagamento'
-                        : metodoPagamento === 'pix' ? 'Gerar QR Code' : 'Concluir Compra'}
+                        : 'Gerar QR Code'}
                 </button>
               </div>
             </div>
@@ -1193,66 +1396,6 @@ export default function Carrinho() {
         </div>
       )}
 
-      {/* MODAL ADICIONAR CARTÃO */}
-      {modalNovoCartao && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
-            <h3 className="text-base font-black uppercase text-[#394158]">Novo Cartão</h3>
-            <form onSubmit={handleSalvarCartao} className="space-y-3">
-              <input
-                type="text"
-                placeholder="Nome Impresso no Cartão"
-                required
-                value={novoCartao.titular}
-                onChange={(e) => setNovoCartao({ ...novoCartao, titular: e.target.value })}
-                className="w-full bg-[#F5F2ED] p-3 rounded-xl text-xs font-bold outline-none"
-              />
-              <input
-                type="text"
-                placeholder="Número do Cartão"
-                required
-                value={novoCartao.numero}
-                onChange={(e) => setNovoCartao({ ...novoCartao, numero: e.target.value })}
-                className="w-full bg-[#F5F2ED] p-3 rounded-xl text-xs font-bold outline-none"
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  placeholder="Validade (MM/AA)"
-                  required
-                  value={novoCartao.validade}
-                  onChange={(e) => setNovoCartao({ ...novoCartao, validade: e.target.value })}
-                  className="w-full bg-[#F5F2ED] p-3 rounded-xl text-xs font-bold outline-none"
-                />
-                <input
-                  type="password"
-                  placeholder="CVV"
-                  required
-                  maxLength={4}
-                  value={novoCartao.cvv}
-                  onChange={(e) => setNovoCartao({ ...novoCartao, cvv: e.target.value })}
-                  className="w-full bg-[#F5F2ED] p-3 rounded-xl text-xs font-bold outline-none"
-                />
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setModalNovoCartao(false)}
-                  className="w-1/2 py-3 bg-gray-100 text-gray-600 rounded-full font-bold text-xs uppercase"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="w-1/2 py-3 bg-[#55833d] text-white rounded-full font-bold text-xs uppercase shadow-md"
-                >
-                  Salvar
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
