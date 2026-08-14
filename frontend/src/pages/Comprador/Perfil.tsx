@@ -814,6 +814,41 @@ export default function Perfil() {
               </div>
             )}
 
+            {/* INFORMAÇÕES DE LOGÍSTICA DAS LOJAS */}
+            {pedidoSelecionado.detalhesPixLojas && pedidoSelecionado.detalhesPixLojas.length > 0 && (
+              <div className="mt-2 mb-6 space-y-3">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-[#394158] px-2 border-b pb-2 border-dashed">
+                  Horários de {pedidoSelecionado.retiradaNaLoja ? 'Retirada na Loja' : 'Entrega'}
+                </h4>
+                {pedidoSelecionado.detalhesPixLojas.map((lojaPix: any) => {
+                  let horarios = '';
+                  try {
+                    const str = pedidoSelecionado.retiradaNaLoja ? lojaPix.diasHorariosRetirada : lojaPix.diasHorariosEntrega;
+                    const list = str ? JSON.parse(str) : [];
+                    if (Array.isArray(list) && list.length > 0) {
+                      horarios = list.map((l: any) => `${l.dias} (${l.horario})`).join(' | ');
+                    } else {
+                      horarios = 'A combinar com a loja';
+                    }
+                  } catch {
+                     horarios = 'A combinar com a loja';
+                  }
+                  return (
+                    <div key={lojaPix.lojaId} className="bg-[#F5F2ED]/50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-[#55833d] shrink-0 shadow-sm">
+                           <MapPin size={14} />
+                        </div>
+                        <div>
+                           <p className="text-[11px] font-black text-[#394158] uppercase tracking-widest">{lojaPix.nomeLoja}</p>
+                           <p className="text-[10px] font-bold text-gray-500 mt-0.5">{horarios}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-[#F5F2ED] p-4 rounded-2xl flex items-center gap-4 border border-gray-100">

@@ -70,6 +70,7 @@ export default function Carrinho() {
 
   const [lojasRetirada, setLojasRetirada] = useState<any[]>([]);
   const [lojasSemRetirada, setLojasSemRetirada] = useState<string[]>([]);
+  const [lojasSemEntrega, setLojasSemEntrega] = useState<string[]>([]);
   const [locaisSelecionados, setLocaisSelecionados] = useState<Record<number, string>>({});
   
   const { usuario } = useAuth();
@@ -90,8 +91,8 @@ export default function Carrinho() {
         }
       };
 
-      // Só adiciona a sede se ela tiver horários de retirada configurados (ou se aceitaRetirada = true, mas respeitando o array de horários)
-      if (sedeCompativel && hasRetirada(loja.diasHorariosRetirada)) {
+      // Só adiciona a sede se ela tiver horários de retirada configurados (ou se aceitaRetirada = true)
+      if (sedeCompativel && (loja.aceitaRetirada || hasRetirada(loja.diasHorariosRetirada))) {
         locaisDaLoja.push({
           id: `sede-${loja.id}`,
           nome: 'Sede Principal',
@@ -100,7 +101,7 @@ export default function Carrinho() {
           cidade: loja.cidade,
           estado: loja.estado,
           cep: loja.cep,
-          diasHorariosRetirada: JSON.parse(loja.diasHorariosRetirada)
+          diasHorariosRetirada: hasRetirada(loja.diasHorariosRetirada) ? JSON.parse(loja.diasHorariosRetirada) : []
         });
       }
 
@@ -171,6 +172,9 @@ export default function Carrinho() {
       }).map(l => l.nomeLoja);
       
       setLojasSemRetirada(storesSemRetirada);
+
+      const storesSemEntrega = lojasRetirada.filter(l => l.fazEntrega === false).map(l => l.nomeLoja);
+      setLojasSemEntrega(storesSemEntrega);
     }
   }, [lojasRetirada, locaisRetiradaPorLoja]);
 
@@ -178,7 +182,10 @@ export default function Carrinho() {
     if (lojasSemRetirada.length > 0 && metodoEntrega === 'retirada') {
       setMetodoEntrega('entrega');
     }
-  }, [lojasSemRetirada, metodoEntrega]);
+    if (lojasSemEntrega.length > 0 && metodoEntrega === 'entrega') {
+      setMetodoEntrega('retirada');
+    }
+  }, [lojasSemRetirada, lojasSemEntrega, metodoEntrega]);
 
   // Filtra os endereços de entrega do comprador baseado nas regioesEntrega das lojas do carrinho
   const enderecosValidosParaEntrega = useMemo(() => {
@@ -949,11 +956,14 @@ export default function Carrinho() {
                     <h3 className="text-sm font-black uppercase tracking-wider text-[#394158]">Tipo de Recebimento</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <button
-                        onClick={() => setMetodoEntrega('entrega')}
+                        onClick={() => {
+                          if (lojasSemEntrega.length === 0) setMetodoEntrega('entrega');
+                        }}
+                        disabled={lojasSemEntrega.length > 0}
                         className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${metodoEntrega === 'entrega'
                           ? 'border-[#55833d] bg-[#55833d]/5 text-[#55833d]'
-                          : 'border-gray-100 text-gray-400 hover:border-gray-200'
-                          }`}
+                          : 'border-gray-100 text-gray-400'
+                          } ${lojasSemEntrega.length > 0 ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'hover:border-gray-200'}`}
                       >
                         <Truck size={24} />
                         <span className="text-xs font-bold uppercase">Entrega em Casa</span>
@@ -977,6 +987,14 @@ export default function Carrinho() {
                         <Info className="text-yellow-600 shrink-0 mt-0.5" size={18} />
                         <p className="text-xs text-yellow-700 leading-relaxed font-medium">
                           A opção de retirada não está disponível porque as seguintes lojas não aceitam retirada física no momento: <span className="font-bold">{lojasSemRetirada.join(', ')}</span>.
+                        </p>
+                      </div>
+                    )}
+                    {lojasSemEntrega.length > 0 && (
+                      <div className="mt-4 p-3 bg-yellow-50/50 border border-yellow-200/50 rounded-xl flex items-start gap-3">
+                        <Info className="text-yellow-600 shrink-0 mt-0.5" size={18} />
+                        <p className="text-xs text-yellow-700 leading-relaxed font-medium">
+                          A opção de entrega não está disponível porque as seguintes lojas não fazem entregas: <span className="font-bold">{lojasSemEntrega.join(', ')}</span>.
                         </p>
                       </div>
                     )}

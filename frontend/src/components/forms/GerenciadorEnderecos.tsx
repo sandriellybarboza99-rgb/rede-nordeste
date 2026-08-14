@@ -7,7 +7,9 @@ import { consultarCep, getEnderecosLoja, criarEnderecoLoja, atualizarEnderecoLoj
 
 const ListaHorarios = ({ valueStr, onChangeStr }: any) => {
     const list = React.useMemo(() => {
-      try { return valueStr ? JSON.parse(valueStr) : []; } catch { return []; }
+      if (!valueStr) return [];
+      if (typeof valueStr === 'object') return valueStr;
+      try { return JSON.parse(valueStr); } catch { return []; }
     }, [valueStr]);
 
     const update = (newList: any) => {
@@ -46,7 +48,9 @@ const ListaHorarios = ({ valueStr, onChangeStr }: any) => {
 
 const ListaRegioes = ({ valueStr, onChangeStr }: any) => {
     const list = React.useMemo(() => {
-      try { return valueStr ? JSON.parse(valueStr) : []; } catch { return []; }
+      if (!valueStr) return [];
+      if (typeof valueStr === 'object') return valueStr;
+      try { return JSON.parse(valueStr); } catch { return []; }
     }, [valueStr]);
 
     const update = (newList: any) => {
@@ -116,19 +120,19 @@ const EnderecoFormFields = ({ form, setForm, isSede, buscandoCep, handleCepChang
           
           <div className="bg-[#F5F2ED]/50 p-4 rounded-2xl border border-gray-100">
             <h5 className="text-[10px] font-black uppercase text-[#394158] tracking-widest mb-3 border-b pb-2 border-gray-200">1. Funcionamento do Local</h5>
-            <ListaHorarios valueStr={form.diasHorariosFuncionamento} onChangeStr={(v: string) => setForm({ ...form, diasHorariosFuncionamento: v })} />
+            <ListaHorarios valueStr={form.diasHorariosFuncionamento} onChangeStr={(v: string) => setForm((prev: any) => ({ ...prev, diasHorariosFuncionamento: v }))} />
           </div>
 
           <div className="bg-[#F5F2ED]/50 p-4 rounded-2xl border border-gray-100">
             <h5 className="text-[10px] font-black uppercase text-[#394158] tracking-widest mb-3 border-b pb-2 border-gray-200">2. Retirada no Local</h5>
-            <ListaHorarios valueStr={form.diasHorariosRetirada} onChangeStr={(v: string) => setForm({ ...form, diasHorariosRetirada: v })} />
+            <ListaHorarios valueStr={form.diasHorariosRetirada} onChangeStr={(v: string) => setForm((prev: any) => ({ ...prev, diasHorariosRetirada: v }))} />
           </div>
 
           <div className="bg-[#F5F2ED]/50 p-4 rounded-2xl border border-gray-100 xl:col-span-2">
             <h5 className="text-[10px] font-black uppercase text-[#394158] tracking-widest mb-3 border-b pb-2 border-gray-200">3. Entregas (Delivery) saindo deste Local</h5>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <ListaHorarios valueStr={form.diasHorariosEntrega} onChangeStr={(v: string) => setForm({ ...form, diasHorariosEntrega: v })} />
-              <ListaRegioes valueStr={form.regioesEntrega} onChangeStr={(v: string) => setForm({ ...form, regioesEntrega: v })} />
+              <ListaHorarios valueStr={form.diasHorariosEntrega} onChangeStr={(v: string) => setForm((prev: any) => ({ ...prev, diasHorariosEntrega: v }))} />
+              <ListaRegioes valueStr={form.regioesEntrega} onChangeStr={(v: string) => setForm((prev: any) => ({ ...prev, regioesEntrega: v }))} />
             </div>
           </div>
 

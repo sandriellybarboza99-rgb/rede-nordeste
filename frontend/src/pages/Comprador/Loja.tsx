@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Store, MapPin, Star, ShoppingCart, Info, MessageCircle, Share2, CheckCircle2 } from 'lucide-react';
+import { Store, MapPin, Star, ShoppingCart, Info, MessageCircle, Share2, CheckCircle2, Truck } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { getLojaPorId, getProdutosPorLoja } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -88,6 +88,49 @@ export default function Loja() {
                 <p className="text-sm font-medium leading-relaxed opacity-80 italic">"{loja.descricao}"</p>
               </div>
             )}
+
+            {/* LOGÍSTICA E FUNCIONAMENTO */}
+            <div className="mt-4 flex flex-col md:flex-row gap-4 max-w-2xl">
+              {/* Retirada na Loja */}
+              {loja.aceitaRetirada && (
+                <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-[#55833d]/10 flex items-center justify-center text-[#55833d] shrink-0 mt-0.5">
+                    <MapPin size={16} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black uppercase text-[#394158] tracking-widest mb-1">Retirada no Local</p>
+                    <p className="text-[10px] text-gray-500 font-medium">
+                      {(() => {
+                        try {
+                          const arr = loja.diasHorariosRetirada ? JSON.parse(loja.diasHorariosRetirada) : [];
+                          return arr.length > 0 ? arr.map((l: any) => `${l.dias} (${l.horario})`).join(' | ') : 'A combinar';
+                        } catch { return 'A combinar'; }
+                      })()}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Entrega (Delivery) */}
+              {loja.fazEntrega && (
+                <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-[#f9943b]/10 flex items-center justify-center text-[#f9943b] shrink-0 mt-0.5">
+                    <Truck size={16} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black uppercase text-[#394158] tracking-widest mb-1">Entrega (Delivery)</p>
+                    <p className="text-[10px] text-gray-500 font-medium">
+                      {(() => {
+                        try {
+                          const arr = loja.diasHorariosEntrega ? JSON.parse(loja.diasHorariosEntrega) : [];
+                          return arr.length > 0 ? arr.map((l: any) => `${l.dias} (${l.horario})`).join(' | ') : 'A combinar';
+                        } catch { return 'A combinar'; }
+                      })()}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {id && (
               <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-3">

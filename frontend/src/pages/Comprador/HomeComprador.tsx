@@ -448,7 +448,7 @@ export default function HomeComprador() {
               <Link to="/blog" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Notícias</Link>
               {isVendedor && <Link to="/painelvendedor" onClick={() => setMenuAberto(false)} className="flex items-center gap-4 hover:text-[#55833d]"><ChevronRight size={14} /> Painel Vendedor</Link>}
               <button onClick={() => { setMenuAberto(false); setTutorialAberto(true); }} className="flex items-center gap-4 hover:text-[#55833d] text-left"><HelpCircle size={14} /> Guia Rápido</button>
-              
+
               {!estaLogado ? (
                 <>
                   <hr className="border-gray-100" />
@@ -549,8 +549,8 @@ export default function HomeComprador() {
                 <button
                   onClick={() => setModalEmpreendedoraAberto(true)}
                   className={`w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest shadow-lg hover:shadow-xl hover:scale-[1.01] active:scale-95 transition-all ${jaNoMural
-                      ? 'bg-white border-2 border-[#f9943b] text-[#f9943b] hover:bg-[#fff5ef]'
-                      : 'bg-gradient-to-r from-[#f9943b] to-[#e07a28] text-white'
+                    ? 'bg-white border-2 border-[#f9943b] text-[#f9943b] hover:bg-[#fff5ef]'
+                    : 'bg-gradient-to-r from-[#f9943b] to-[#e07a28] text-white'
                     }`}
                 >
                   <Sparkles size={16} className={jaNoMural ? 'text-[#f9943b]' : 'fill-white'} />
